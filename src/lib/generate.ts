@@ -129,8 +129,17 @@ export async function generate(groups: Group[], formats: OutputFormat[], fileBas
           const usedW = cols * cw + (cols - 1) * GAP, usedH = rows * ch + (rows - 1) * GAP;
           const x = (PW - usedW) / 2 + c * (cw + GAP);
           const y = (PH - usedH) / 2 + r * (ch + GAP);
-          if (rot) a4.addImage(bytes, "JPEG", x + cw, y, mm.w, mm.h, undefined, "FAST", 90);
-          else a4.addImage(bytes, "JPEG", x, y, mm.w, mm.h, undefined, "FAST");
+          if (rot) {
+            const rc = document.createElement("canvas");
+            rc.width = canvas.height;
+            rc.height = canvas.width;
+            const rx = rc.getContext("2d")!;
+            rx.translate(rc.width, 0);
+            rx.rotate(Math.PI / 2);
+            rx.drawImage(canvas, 0, 0);
+            const rb = new Uint8Array(await (await canvasJpeg(rc, 0.9)).arrayBuffer());
+            a4.addImage(rb, "JPEG", x, y, cw, ch, undefined, "FAST");
+          } else a4.addImage(bytes, "JPEG", x, y, mm.w, mm.h, undefined, "FAST");
           a4Slot = (a4Slot + 1) % per;
         }
       }
