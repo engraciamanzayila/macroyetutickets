@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
+import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
 import { Route as AppEventosIndexRouteImport } from './routes/_app.eventos.index'
 import { Route as AppEventosEventIdRouteImport } from './routes/_app.eventos.$eventId'
 
@@ -29,6 +32,21 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppEquipaRoute = AppEquipaRouteImport.update({
+  id: '/equipa',
+  path: '/equipa',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortariaRoute = AppPortariaRouteImport.update({
+  id: '/portaria',
+  path: '/portaria',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEditorGroupIdRoute = AppEditorGroupIdRouteImport.update({
+  id: '/editor/$groupId',
+  path: '/editor/$groupId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEventosIndexRoute = AppEventosIndexRouteImport.update({
   id: '/eventos/',
   path: '/eventos/',
@@ -43,12 +61,18 @@ const AppEventosEventIdRoute = AppEventosEventIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/equipa': typeof AppEquipaRoute
+  '/portaria': typeof AppPortariaRoute
+  '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos/': typeof AppEventosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/equipa': typeof AppEquipaRoute
+  '/portaria': typeof AppPortariaRoute
+  '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos': typeof AppEventosIndexRoute
 }
@@ -57,19 +81,39 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/equipa': typeof AppEquipaRoute
+  '/_app/portaria': typeof AppPortariaRoute
+  '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
   '/_app/eventos/$eventId': typeof AppEventosEventIdRoute
   '/_app/eventos/': typeof AppEventosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/eventos/$eventId' | '/eventos/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/equipa'
+    | '/portaria'
+    | '/editor/$groupId'
+    | '/eventos/$eventId'
+    | '/eventos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/eventos/$eventId' | '/eventos'
+  to:
+    | '/'
+    | '/login'
+    | '/equipa'
+    | '/portaria'
+    | '/editor/$groupId'
+    | '/eventos/$eventId'
+    | '/eventos'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/login'
+    | '/_app/equipa'
+    | '/_app/portaria'
+    | '/_app/editor/$groupId'
     | '/_app/eventos/$eventId'
     | '/_app/eventos/'
   fileRoutesById: FileRoutesById
@@ -103,6 +147,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/equipa': {
+      id: '/_app/equipa'
+      path: '/equipa'
+      fullPath: '/equipa'
+      preLoaderRoute: typeof AppEquipaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portaria': {
+      id: '/_app/portaria'
+      path: '/portaria'
+      fullPath: '/portaria'
+      preLoaderRoute: typeof AppPortariaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/editor/$groupId': {
+      id: '/_app/editor/$groupId'
+      path: '/editor/$groupId'
+      fullPath: '/editor/$groupId'
+      preLoaderRoute: typeof AppEditorGroupIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/eventos/': {
       id: '/_app/eventos/'
       path: '/eventos'
@@ -121,11 +186,17 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppEquipaRoute: typeof AppEquipaRoute
+  AppPortariaRoute: typeof AppPortariaRoute
+  AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
   AppEventosIndexRoute: typeof AppEventosIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppEquipaRoute: AppEquipaRoute,
+  AppPortariaRoute: AppPortariaRoute,
+  AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,
   AppEventosIndexRoute: AppEventosIndexRoute,
 }
