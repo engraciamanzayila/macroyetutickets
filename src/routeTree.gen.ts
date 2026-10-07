@@ -10,33 +10,118 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
+import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
+import { Route as AppEventosIndexRouteImport } from './routes/_app.eventos.index'
+import { Route as AppEventosEventIdRouteImport } from './routes/_app.eventos.$eventId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppEquipaRoute = AppEquipaRouteImport.update({
+  id: '/equipa',
+  path: '/equipa',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortariaRoute = AppPortariaRouteImport.update({
+  id: '/portaria',
+  path: '/portaria',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEditorGroupIdRoute = AppEditorGroupIdRouteImport.update({
+  id: '/editor/$groupId',
+  path: '/editor/$groupId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEventosIndexRoute = AppEventosIndexRouteImport.update({
+  id: '/eventos/',
+  path: '/eventos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEventosEventIdRoute = AppEventosEventIdRouteImport.update({
+  id: '/eventos/$eventId',
+  path: '/eventos/$eventId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/equipa': typeof AppEquipaRoute
+  '/portaria': typeof AppPortariaRoute
+  '/editor/$groupId': typeof AppEditorGroupIdRoute
+  '/eventos/$eventId': typeof AppEventosEventIdRoute
+  '/eventos/': typeof AppEventosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/equipa': typeof AppEquipaRoute
+  '/portaria': typeof AppPortariaRoute
+  '/editor/$groupId': typeof AppEditorGroupIdRoute
+  '/eventos/$eventId': typeof AppEventosEventIdRoute
+  '/eventos': typeof AppEventosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/equipa': typeof AppEquipaRoute
+  '/_app/portaria': typeof AppPortariaRoute
+  '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
+  '/_app/eventos/$eventId': typeof AppEventosEventIdRoute
+  '/_app/eventos/': typeof AppEventosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/equipa'
+    | '/portaria'
+    | '/editor/$groupId'
+    | '/eventos/$eventId'
+    | '/eventos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/equipa'
+    | '/portaria'
+    | '/editor/$groupId'
+    | '/eventos/$eventId'
+    | '/eventos'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/login'
+    | '/_app/equipa'
+    | '/_app/portaria'
+    | '/_app/editor/$groupId'
+    | '/_app/eventos/$eventId'
+    | '/_app/eventos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +133,80 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/equipa': {
+      id: '/_app/equipa'
+      path: '/equipa'
+      fullPath: '/equipa'
+      preLoaderRoute: typeof AppEquipaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portaria': {
+      id: '/_app/portaria'
+      path: '/portaria'
+      fullPath: '/portaria'
+      preLoaderRoute: typeof AppPortariaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/editor/$groupId': {
+      id: '/_app/editor/$groupId'
+      path: '/editor/$groupId'
+      fullPath: '/editor/$groupId'
+      preLoaderRoute: typeof AppEditorGroupIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/eventos/': {
+      id: '/_app/eventos/'
+      path: '/eventos'
+      fullPath: '/eventos/'
+      preLoaderRoute: typeof AppEventosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/eventos/$eventId': {
+      id: '/_app/eventos/$eventId'
+      path: '/eventos/$eventId'
+      fullPath: '/eventos/$eventId'
+      preLoaderRoute: typeof AppEventosEventIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppEquipaRoute: typeof AppEquipaRoute
+  AppPortariaRoute: typeof AppPortariaRoute
+  AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
+  AppEventosEventIdRoute: typeof AppEventosEventIdRoute
+  AppEventosIndexRoute: typeof AppEventosIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppEquipaRoute: AppEquipaRoute,
+  AppPortariaRoute: AppPortariaRoute,
+  AppEditorGroupIdRoute: AppEditorGroupIdRoute,
+  AppEventosEventIdRoute: AppEventosEventIdRoute,
+  AppEventosIndexRoute: AppEventosIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
