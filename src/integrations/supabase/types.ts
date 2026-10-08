@@ -16,49 +16,186 @@ export type Database = {
     Tables: {
       events: {
         Row: {
+          category: string | null
+          city: string | null
+          commission_pct: number
+          cover_url: string | null
           created_at: string
           created_by: string | null
+          description: string | null
           event_date: string | null
+          event_time: string | null
           id: string
           name: string
+          owner_id: string | null
+          payment_info: string | null
+          published: boolean
+          slug: string | null
           venue: string | null
         }
         Insert: {
+          category?: string | null
+          city?: string | null
+          commission_pct?: number
+          cover_url?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           event_date?: string | null
+          event_time?: string | null
           id?: string
           name: string
+          owner_id?: string | null
+          payment_info?: string | null
+          published?: boolean
+          slug?: string | null
           venue?: string | null
         }
         Update: {
+          category?: string | null
+          city?: string | null
+          commission_pct?: number
+          cover_url?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
           event_date?: string | null
+          event_time?: string | null
           id?: string
           name?: string
+          owner_id?: string | null
+          payment_info?: string | null
+          published?: boolean
+          slug?: string | null
           venue?: string | null
         }
         Relationships: []
       }
+      order_items: {
+        Row: {
+          group_id: string
+          id: string
+          order_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          order_id: string
+          quantity: number
+          unit_price: number
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          order_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          access_token: string
+          buyer_email: string | null
+          buyer_name: string
+          buyer_phone: string
+          buyer_user_id: string | null
+          created_at: string
+          delivery_channel: string
+          event_id: string
+          id: string
+          paid_at: string | null
+          payment_method: string
+          payment_reference: string | null
+          status: string
+          total: number
+        }
+        Insert: {
+          access_token?: string
+          buyer_email?: string | null
+          buyer_name: string
+          buyer_phone: string
+          buyer_user_id?: string | null
+          created_at?: string
+          delivery_channel?: string
+          event_id: string
+          id?: string
+          paid_at?: string | null
+          payment_method: string
+          payment_reference?: string | null
+          status?: string
+          total?: number
+        }
+        Update: {
+          access_token?: string
+          buyer_email?: string | null
+          buyer_name?: string
+          buyer_phone?: string
+          buyer_user_id?: string | null
+          created_at?: string
+          delivery_channel?: string
+          event_id?: string
+          id?: string
+          paid_at?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          status?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          company: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          phone: string | null
+          wants_promoter: boolean
         }
         Insert: {
+          company?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
+          phone?: string | null
+          wants_promoter?: boolean
         }
         Update: {
+          company?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
+          wants_promoter?: boolean
         }
         Relationships: []
       }
@@ -69,10 +206,12 @@ export type Database = {
           art_width: number | null
           created_at: string
           event_id: string
+          for_sale: boolean
           height_cm: number | null
           id: string
           layout: Json | null
           name: string
+          price: number
           quantity: number
           recipient: string | null
           source_filename: string | null
@@ -85,10 +224,12 @@ export type Database = {
           art_width?: number | null
           created_at?: string
           event_id: string
+          for_sale?: boolean
           height_cm?: number | null
           id?: string
           layout?: Json | null
           name: string
+          price?: number
           quantity?: number
           recipient?: string | null
           source_filename?: string | null
@@ -101,10 +242,12 @@ export type Database = {
           art_width?: number | null
           created_at?: string
           event_id?: string
+          for_sale?: boolean
           height_cm?: number | null
           id?: string
           layout?: Json | null
           name?: string
+          price?: number
           quantity?: number
           recipient?: string | null
           source_filename?: string | null
@@ -128,6 +271,7 @@ export type Database = {
           event_id: string
           group_id: string
           id: string
+          order_id: string | null
           seq: number
           status: string
           used_at: string | null
@@ -139,6 +283,7 @@ export type Database = {
           event_id: string
           group_id: string
           id?: string
+          order_id?: string | null
           seq: number
           status?: string
           used_at?: string | null
@@ -150,6 +295,7 @@ export type Database = {
           event_id?: string
           group_id?: string
           id?: string
+          order_id?: string | null
           seq?: number
           status?: string
           used_at?: string | null
@@ -195,10 +341,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_event: {
+        Args: { _event: string; _uid: string }
+        Returns: boolean
+      }
+      can_view_event: {
+        Args: { _event: string; _uid: string }
+        Returns: boolean
+      }
       check_in: {
         Args: { p_at?: string; p_code: string; p_event: string }
         Returns: Json
       }
+      confirm_order: { Args: { p_order: string }; Returns: undefined }
+      create_order: {
+        Args: {
+          p_delivery: string
+          p_email: string
+          p_event: string
+          p_items: Json
+          p_method: string
+          p_name: string
+          p_phone: string
+        }
+        Returns: Json
+      }
+      get_order: { Args: { p_token: string }; Returns: Json }
+      group_available: { Args: { _group: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -207,9 +376,13 @@ export type Database = {
         Returns: boolean
       }
       is_member: { Args: { _user_id: string }; Returns: boolean }
+      submit_payment_reference: {
+        Args: { p_ref: string; p_token: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      app_role: "admin" | "staff"
+      app_role: "admin" | "staff" | "promoter"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -337,7 +510,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "staff"],
+      app_role: ["admin", "staff", "promoter"],
     },
   },
 } as const

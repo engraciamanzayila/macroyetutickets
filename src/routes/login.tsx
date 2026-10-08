@@ -66,7 +66,7 @@ function Login() {
         <div>
           <h1 className="text-2xl font-bold">{mode === "in" ? "Entrar" : "Criar conta"}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {mode === "in" ? "Bem-vindo de volta." : "A primeira conta criada é a do administrador."}
+            {mode === "in" ? "Bem-vindo de volta." : "Crie conta para comprar ingressos ou para vender como promotor."}
           </p>
         </div>
         {mode === "up" && (

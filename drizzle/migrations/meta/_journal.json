@@ -15,6 +15,20 @@
       "when": 1791415684892,
       "tag": "0001_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791419874991,
+      "tag": "0002_add_promoter_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791419921719,
+      "tag": "0003_marketplace",
+      "breakpoints": true
     }
   ]
 }
