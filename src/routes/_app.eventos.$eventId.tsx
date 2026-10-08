@@ -156,10 +156,10 @@ function EventPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Qtd</span>
-                        <Input type="number" min={made || 1} defaultValue={g.quantity} className="h-8 w-24" onBlur={(e) => { const q = parseInt(e.target.value); if (q && q !== g.quantity) updateGroup(g.id, { quantity: Math.max(q, made) }); }} />
+                        <Input type="number" disabled={made > 0} min={made || 1} defaultValue={g.quantity} className="h-8 w-24" onBlur={(e) => { const q = parseInt(e.target.value); if (q && q !== g.quantity) updateGroup(g.id, { quantity: Math.max(q, made) }); }} />
                       </div>
                       <div className="flex gap-1">
-                        <Button asChild variant="secondary" size="sm"><Link to="/editor/$groupId" params={{ groupId: g.id }}><PenTool className="h-4 w-4" /> Editor</Link></Button>
+                        {made === 0 && <Button asChild variant="secondary" size="sm"><Link to="/editor/$groupId" params={{ groupId: g.id }}><PenTool className="h-4 w-4" /> Editor</Link></Button>}
                         <Button variant="ghost" size="icon" title="Aplicar posição do QR aos grupos com o mesmo formato" onClick={() => copyLayoutToSameSize(g)}><Copy className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => deleteGroup(g)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
