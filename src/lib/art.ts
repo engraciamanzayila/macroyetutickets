@@ -58,7 +58,7 @@ async function fromTiff(file: File): Promise<ProcessedArt> {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d")!;
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer), width, height), 0, 0);
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba) as unknown as ImageDataArray, width, height), 0, 0);
   return fromCanvas(canvas);
 }
 
