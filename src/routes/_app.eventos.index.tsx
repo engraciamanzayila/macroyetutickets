@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_app/eventos/")({
 });
 
 function Events() {
-  const { isAdmin, session } = useAuth();
+  const { isManager, session } = useAuth();
   const qc = useQueryClient();
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["events"],
@@ -43,6 +43,7 @@ function Events() {
       event_date: form.event_date || null,
       venue: form.venue || null,
       created_by: session?.user.id,
+      owner_id: session?.user.id,
     });
     if (error) return toast.error(error.message);
     setOpen(false);
@@ -57,7 +58,7 @@ function Events() {
           <h1 className="text-3xl font-bold">Eventos</h1>
           <p className="text-muted-foreground">Crie um evento e carregue as artes dos ingressos.</p>
         </div>
-        {isAdmin && (
+        {isManager && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> Novo evento</Button></DialogTrigger>
             <DialogContent>

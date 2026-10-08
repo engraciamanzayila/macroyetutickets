@@ -2,13 +2,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type Role = "admin" | "staff";
+type Role = "admin" | "staff" | "promoter";
 type AuthState = {
   session: Session | null;
   roles: Role[];
   loading: boolean;
   isAdmin: boolean;
   isMember: boolean;
+  isPromoter: boolean;
+  isManager: boolean;
   refreshRoles: () => Promise<void>;
 };
 
@@ -46,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAdmin: roles.includes("admin"),
         isMember: roles.length > 0,
+        isPromoter: roles.includes("promoter"),
+        isManager: roles.includes("admin") || roles.includes("promoter"),
         refreshRoles: () => loadRoles(session?.user.id),
       }}
     >

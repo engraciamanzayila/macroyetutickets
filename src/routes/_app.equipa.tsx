@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/equipa")({
   component: Team,
 });
 
-type Role = "admin" | "staff";
+type Role = "admin" | "staff" | "promoter";
 
 function Team() {
   const { session, isAdmin } = useAuth();
@@ -52,20 +52,21 @@ function Team() {
         <h1 className="text-3xl font-bold">Equipa</h1>
         <p className="text-muted-foreground text-sm">
           Peça a cada pessoa da portaria para criar conta na página de entrada. Depois dê-lhe acesso aqui.
-          <br /><b>Portaria</b>: só lê QR e vê os ingressos. <b>Admin</b>: acesso total.
+          <br /><b>Portaria</b>: só lê QR e vê os ingressos. <b>Promotor</b>: cria e vende os seus próprios eventos. <b>Admin</b>: acesso total.
         </p>
       </div>
       <div className="rounded-2xl border bg-card divide-y">
         {data.map((p) => {
-          const current: Role | null = p.roles.includes("admin") ? "admin" : p.roles.includes("staff") ? "staff" : null;
+          const current: Role | null = p.roles.includes("admin") ? "admin" : p.roles.includes("promoter") ? "promoter" : p.roles.includes("staff") ? "staff" : null;
           return (
             <div key={p.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="flex-1 min-w-[200px]">
                 <p className="font-semibold">{p.full_name || p.email}</p>
-                <p className="text-xs text-muted-foreground">{p.email}</p>
+                <p className="text-xs text-muted-foreground">{p.email}{p.phone ? ` · ${p.phone}` : ""}</p>
+                {p.wants_promoter && current !== "promoter" && <p className="text-xs text-primary font-medium">Pediu para ser promotor</p>}
               </div>
               <div className="flex gap-1 rounded-lg bg-secondary p-1">
-                {([[null, "Sem acesso"], ["staff", "Portaria"], ["admin", "Admin"]] as const).map(([r, l]) => (
+                {([[null, "Sem acesso"], ["staff", "Portaria"], ["promoter", "Promotor"], ["admin", "Admin"]] as const).map(([r, l]) => (
                   <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={p.id === session?.user.id} onClick={() => setRole(p.id, r)}>{l}</Button>
                 ))}
               </div>

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { CalendarDays, LogOut, ScanLine, Users } from "lucide-react";
+import { CalendarDays, LogOut, Receipt, ScanLine, Store, Users } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Logo } from "@/components/Logo";
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, loading, isMember, isAdmin, refreshRoles } = useAuth();
+  const { session, loading, isMember, isAdmin, isManager, refreshRoles } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,6 +31,7 @@ function AppLayout() {
           <p className="text-muted-foreground text-sm">
             Peça ao administrador para lhe dar acesso com o e-mail <b>{session.user.email}</b>.
           </p>
+          <Button className="w-full" onClick={async () => { const { error } = await supabase.from("profiles").update({ wants_promoter: true }).eq("id", session.user.id); if (error) toast.error(error.message); else toast.success("Pedido enviado. O administrador vai analisar."); }}>Quero vender ingressos (promotor)</Button>
           <div className="flex gap-2 justify-center">
             <Button variant="secondary" onClick={() => refreshRoles()}>Verificar novamente</Button>
             <Button variant="ghost" onClick={() => supabase.auth.signOut()}>Sair</Button>
@@ -39,7 +41,7 @@ function AppLayout() {
     );
 
   const nav = [
-    ...(isAdmin ? [{ to: "/eventos", label: "Eventos", icon: CalendarDays }] : []),
+    ...(isManager ? [{ to: "/eventos", label: "Eventos", icon: CalendarDays }, { to: "/encomendas", label: "Vendas", icon: Receipt }] : []),
     { to: "/portaria", label: "Portaria", icon: ScanLine },
     ...(isAdmin ? [{ to: "/equipa", label: "Equipa", icon: Users }] : []),
   ] as const;
@@ -62,6 +64,7 @@ function AppLayout() {
               </Link>
             ))}
           </nav>
+          <Button asChild variant="ghost" size="icon" title="Loja"><Link to="/"><Store className="h-4 w-4" /></Link></Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
