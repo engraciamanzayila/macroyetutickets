@@ -130,9 +130,24 @@ function EventPage() {
                       <Checkbox checked={selected.has(g.id)} onCheckedChange={(v) => { const s = new Set(selected); v ? s.add(g.id) : s.delete(g.id); setSelected(s); }} />
                       <Thumb path={g.art_path} />
                       <div className="flex-1 min-w-[200px] space-y-1">
-                        <Input defaultValue={g.name} onBlur={(e) => e.target.value !== g.name && updateGroup(g.id, { name: e.target.value })} className="h-8 font-semibold" />
+                        <Input defaultValue={g.name} disabled={made > 0} onBlur={(e) => e.target.value !== g.name && updateGroup(g.id, { name: e.target.value })} className="h-8 font-semibold" />
                         <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
-                          <Badge variant="secondary">{g.ticket_type}</Badge>
+                          {made > 0 ? (
+                            <Badge variant="secondary" title="Grupo já gerado — bloqueado">🔒 {g.ticket_type}</Badge>
+                          ) : (
+                            <select
+                              value={g.ticket_type}
+                              onChange={(e) => {
+                                let v = e.target.value;
+                                if (v === "__outro") { v = prompt("Novo tipo de ingresso:")?.trim() ?? ""; if (!v) return; }
+                                updateGroup(g.id, { ticket_type: v });
+                              }}
+                              className="h-7 rounded-md border bg-background px-2 text-xs text-foreground"
+                            >
+                              {Array.from(new Set(["Normal", "VIP", "VIP em pé", "Mesa", "Convite", "Staff", g.ticket_type])).map((t) => <option key={t} value={t}>{t}</option>)}
+                              <option value="__outro">Outro…</option>
+                            </select>
+                          )}
                           {g.recipient && <span>→ {g.recipient}</span>}
                           {g.width_cm && <span>{g.width_cm}×{g.height_cm} cm</span>}
                           <span>{made} código(s) criados</span>
