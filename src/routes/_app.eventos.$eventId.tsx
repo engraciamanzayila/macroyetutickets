@@ -15,6 +15,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ContractPanel } from "@/components/event/ContractPanel";
+import { useAuth } from "@/lib/auth";
+import { APPROVAL_LABEL } from "@/lib/company";
 
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
@@ -36,6 +39,7 @@ function Thumb({ path }: { path: string | null }) {
 
 function EventPage() {
   const { eventId } = Route.useParams();
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const { data: event } = useQuery({
     queryKey: ["event", eventId],
@@ -100,15 +104,17 @@ function EventPage() {
       <div>
         <Link to="/eventos" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4" /> Eventos</Link>
         <h1 className="text-3xl font-bold mt-2">{event?.name}</h1>
-        <p className="text-muted-foreground text-sm">{groups.length} grupos · {totalPlanned} ingressos planeados</p>
+        <p className="text-muted-foreground text-sm">{groups.length} grupos · {totalPlanned} ingressos planeados{event && <> · <Badge variant="secondary">{APPROVAL_LABEL[event.approval_status] ?? event.approval_status}</Badge></>}</p>
       </div>
 
       <Tabs defaultValue="grupos">
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto justify-start">
           <TabsTrigger value="grupos">Grupos & geração</TabsTrigger>
           <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
+          <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
         </TabsList>
+        <TabsContent value="contrato" className="mt-6">{event && <ContractPanel event={event} />}</TabsContent>
 
         <TabsContent value="grupos" className="space-y-6 mt-6">
           <UploadPanel eventId={eventId} onDone={refresh} />
@@ -156,7 +162,7 @@ function EventPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Qtd</span>
-                        <Input type="number" disabled={made > 0} min={made || 1} defaultValue={g.quantity} className="h-8 w-24" onBlur={(e) => { const q = parseInt(e.target.value); if (q && q !== g.quantity) updateGroup(g.id, { quantity: Math.max(q, made) }); }} />
+                        <Input type="number" disabled={made > 0 && !isAdmin} title={made > 0 ? (isAdmin ? "Admin: aumente para gerar ingressos extra" : "Só a administração pode gerar extra") : undefined} min={made || 1} defaultValue={g.quantity} className="h-8 w-24" onBlur={(e) => { const q = parseInt(e.target.value); if (q && q !== g.quantity) updateGroup(g.id, { quantity: Math.max(q, made) }); }} />
                       </div>
                       <div className="flex gap-1">
                         {made === 0 && <Button asChild variant="secondary" size="sm"><Link to="/editor/$groupId" params={{ groupId: g.id }}><PenTool className="h-4 w-4" /> Editor</Link></Button>}
