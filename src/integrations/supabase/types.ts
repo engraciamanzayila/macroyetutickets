@@ -14,8 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      event_contracts: {
+        Row: {
+          admin_signed_at: string | null
+          admin_signed_by: string | null
+          admin_signed_name: string | null
+          commission_pct: number
+          created_at: string
+          data: Json
+          event_id: string
+          exclusive: boolean
+          id: string
+          promoter_id: string
+          signed_at: string
+          signed_name: string
+        }
+        Insert: {
+          admin_signed_at?: string | null
+          admin_signed_by?: string | null
+          admin_signed_name?: string | null
+          commission_pct: number
+          created_at?: string
+          data?: Json
+          event_id: string
+          exclusive?: boolean
+          id?: string
+          promoter_id: string
+          signed_at?: string
+          signed_name: string
+        }
+        Update: {
+          admin_signed_at?: string | null
+          admin_signed_by?: string | null
+          admin_signed_name?: string | null
+          commission_pct?: number
+          created_at?: string
+          data?: Json
+          event_id?: string
+          exclusive?: boolean
+          id?: string
+          promoter_id?: string
+          signed_at?: string
+          signed_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_contracts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
+          approval_note: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           category: string | null
           city: string | null
           commission_pct: number
@@ -34,6 +91,10 @@ export type Database = {
           venue: string | null
         }
         Insert: {
+          approval_note?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           city?: string | null
           commission_pct?: number
@@ -52,6 +113,10 @@ export type Database = {
           venue?: string | null
         }
         Update: {
+          approval_note?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
           city?: string | null
           commission_pct?: number
@@ -376,6 +441,20 @@ export type Database = {
         Returns: boolean
       }
       is_member: { Args: { _user_id: string }; Returns: boolean }
+      is_super_admin: { Args: { _uid: string }; Returns: boolean }
+      review_event: {
+        Args: { p_approve: boolean; p_event: string; p_note: string }
+        Returns: undefined
+      }
+      sign_contract: {
+        Args: {
+          p_data: Json
+          p_event: string
+          p_exclusive: boolean
+          p_name: string
+        }
+        Returns: undefined
+      }
       submit_payment_reference: {
         Args: { p_ref: string; p_token: string }
         Returns: undefined
