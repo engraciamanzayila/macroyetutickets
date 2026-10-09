@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
 import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
@@ -31,6 +32,11 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppEncomendasRoute = AppEncomendasRouteImport.update({
+  id: '/encomendas',
+  path: '/encomendas',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppEquipaRoute = AppEquipaRouteImport.update({
   id: '/equipa',
@@ -61,6 +67,7 @@ const AppEventosEventIdRoute = AppEventosEventIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -81,6 +89,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/encomendas': typeof AppEncomendasRoute
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/portaria': typeof AppPortariaRoute
   '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/encomendas'
     | '/equipa'
     | '/portaria'
     | '/editor/$groupId'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/encomendas'
     | '/equipa'
     | '/portaria'
     | '/editor/$groupId'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/login'
+    | '/_app/encomendas'
     | '/_app/equipa'
     | '/_app/portaria'
     | '/_app/editor/$groupId'
@@ -146,6 +158,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/encomendas': {
+      id: '/_app/encomendas'
+      path: '/encomendas'
+      fullPath: '/encomendas'
+      preLoaderRoute: typeof AppEncomendasRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/equipa': {
       id: '/_app/equipa'
@@ -186,6 +205,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppEncomendasRoute: typeof AppEncomendasRoute
   AppEquipaRoute: typeof AppEquipaRoute
   AppPortariaRoute: typeof AppPortariaRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
@@ -194,6 +214,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppEncomendasRoute: AppEncomendasRoute,
   AppEquipaRoute: AppEquipaRoute,
   AppPortariaRoute: AppPortariaRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
