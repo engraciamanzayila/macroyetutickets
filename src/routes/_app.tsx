@@ -51,7 +51,7 @@ function AppLayout() {
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 h-16 flex items-center gap-6">
           <Link to="/"><Logo /></Link>
-          <nav className="flex items-center gap-1 flex-1 overflow-x-auto">
+          <nav className="hidden md:flex items-center gap-1 flex-1">
             {nav.map(({ to, label, icon: I }) => (
               <Link
                 key={to}
@@ -60,19 +60,28 @@ function AppLayout() {
                 activeProps={{ className: "text-foreground bg-secondary" }}
               >
                 <I className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <span>{label}</span>
               </Link>
             ))}
           </nav>
+          <div className="flex-1 md:hidden" />
           <Button asChild variant="ghost" size="icon" title="Loja"><Link to="/"><Store className="h-4 w-4" /></Link></Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8">
+      <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 pb-24 md:pb-8">
         <Outlet />
       </main>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur grid" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
+        {nav.map(({ to, label, icon: I }) => (
+          <Link key={to} to={to} className="flex flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground" activeProps={{ className: "text-primary" }}>
+            <I className="h-5 w-5" />
+            {label}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
