@@ -67,7 +67,7 @@ export function ContractPanel({ event }: { event: Ev }) {
     if (error) toast.error(error.message); else refresh();
   };
 
-  const d = form;
+  const d = form as Partial<Record<(typeof FIELDS)[number][0], string>>;
   return (
     <div className="grid lg:grid-cols-2 gap-6">
       <div className="space-y-5">
