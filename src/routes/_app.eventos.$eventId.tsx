@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Download, PenTool, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
+import { PrintDialog } from "@/components/event/PrintDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { artUrl, generate, type Group, type OutputFormat } from "@/lib/generate";
 import { UploadPanel } from "@/components/event/UploadPanel";
@@ -54,6 +55,7 @@ function EventPage() {
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [formats, setFormats] = useState<OutputFormat[]>(["zip"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
 
@@ -126,7 +128,10 @@ function EventPage() {
                   <Checkbox checked={selected.size === groups.length} onCheckedChange={(v) => setSelected(v ? new Set(groups.map((g) => g.id)) : new Set())} />
                   Selecionar todos
                 </label>
-                <Button disabled={!selected.size} onClick={() => setGenOpen(true)}><Download className="h-4 w-4" /> Gerar e baixar ({selected.size})</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" /> Exportar para impressão</Button>
+                  <Button disabled={!selected.size} onClick={() => setGenOpen(true)}><Download className="h-4 w-4" /> Baixar digitais ({selected.size})</Button>
+                </div>
               </div>
               <div className="divide-y">
                 {groups.map((g) => {
@@ -181,17 +186,18 @@ function EventPage() {
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
+      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} onDone={() => { refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); }} />
+
       <Dialog open={genOpen} onOpenChange={(o) => !progress && setGenOpen(o)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Gerar ingressos</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados não são incluídos.
+            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados ou já enviados para impressão não são incluídos — estes são os ingressos digitais.
           </p>
           <div className="space-y-3">
             {([
               ["zip", "ZIP de imagens", "Um JPG por ingresso, organizado por grupo"],
               ["pdf", "PDF único", "Um ingresso por página, no tamanho real"],
-              ["a4", "Folha A4 com vários", "Vários ingressos por página para cortar"],
             ] as const).map(([v, t, d]) => (
               <label key={v} className="flex gap-3 items-start rounded-lg border p-3 cursor-pointer has-[:checked]:border-primary">
                 <Checkbox checked={formats.includes(v)} onCheckedChange={(c) => setFormats(c ? [...formats, v] : formats.filter((f) => f !== v))} />
