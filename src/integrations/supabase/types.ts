@@ -337,6 +337,7 @@ export type Database = {
           group_id: string
           id: string
           order_id: string | null
+          printed_at: string | null
           seq: number
           status: string
           used_at: string | null
@@ -349,6 +350,7 @@ export type Database = {
           group_id: string
           id?: string
           order_id?: string | null
+          printed_at?: string | null
           seq: number
           status?: string
           used_at?: string | null
@@ -361,6 +363,7 @@ export type Database = {
           group_id?: string
           id?: string
           order_id?: string | null
+          printed_at?: string | null
           seq?: number
           status?: string
           used_at?: string | null
