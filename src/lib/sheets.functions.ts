@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const GATEWAY = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
 async function gw(path: string, init: RequestInit = {}) {
-  const lk = process.env.LOVABLE_API_KEY, sk = process.env.GOOGLE_SHEETS_API_KEY;
+  const lk = process.env["LOVABLE_API_KEY"], sk = process.env["GOOGLE_SHEETS_API_KEY"];
   if (!lk || !sk) throw new Error("Google Sheets não está ligado");
   const r = await fetch(`${GATEWAY}${path}`, {
     ...init,
