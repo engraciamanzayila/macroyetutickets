@@ -87,6 +87,7 @@ export type Database = {
           owner_id: string | null
           payment_info: string | null
           published: boolean
+          sheet_id: string | null
           slug: string | null
           venue: string | null
         }
@@ -109,6 +110,7 @@ export type Database = {
           owner_id?: string | null
           payment_info?: string | null
           published?: boolean
+          sheet_id?: string | null
           slug?: string | null
           venue?: string | null
         }
@@ -131,6 +133,7 @@ export type Database = {
           owner_id?: string | null
           payment_info?: string | null
           published?: boolean
+          sheet_id?: string | null
           slug?: string | null
           venue?: string | null
         }
