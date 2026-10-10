@@ -11,8 +11,8 @@ export function a4Grid(w: number, h: number) {
   for (const rot of [false, true]) {
     const cw = rot ? h : w, ch = rot ? w : h;
     for (const [m, gap] of [[6, 2], [3, 1], [0, 0]] as const) {
-      const cols = Math.floor((PW - 2 * m + gap) / (cw + gap + 0.001));
-      const rows = Math.floor((PH - 2 * m + gap) / (ch + gap + 0.001));
+      const cols = Math.floor((PW - 2 * m + gap + 0.5) / (cw + gap));
+      const rows = Math.floor((PH - 2 * m + gap + 0.5) / (ch + gap));
       if (cols * rows > best.cols * best.rows) best = { cols, rows, rot, gap };
     }
   }
