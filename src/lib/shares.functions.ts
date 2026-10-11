@@ -46,7 +46,7 @@ export const markSent = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const { sb, s } = await loadShare(data.token);
-    const patch: Record<string, unknown> = {};
+    const patch: { sent_via?: string; sent_at?: string; holder_name?: string | null; holder_contact?: string | null } = {};
     if (data.via !== "edit") { patch.sent_via = data.via; patch.sent_at = new Date().toISOString(); }
     if (data.name || data.via === "edit") patch.holder_name = data.name || null;
     if (data.contact || data.via === "edit") patch.holder_contact = data.contact || null;
