@@ -15,6 +15,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as ITokensRouteImport } from './routes/i.$tokens'
+import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
 import { Route as AppEventosIndexRouteImport } from './routes/_app.eventos.index'
 import { Route as AppEventosEventIdRouteImport } from './routes/_app.eventos.$eventId'
@@ -48,6 +50,16 @@ const AppPortariaRoute = AppPortariaRouteImport.update({
   path: '/portaria',
   getParentRoute: () => AppRoute,
 } as any)
+const ITokensRoute = ITokensRouteImport.update({
+  id: '/i/$tokens',
+  path: '/i/$tokens',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PTokenRoute = PTokenRouteImport.update({
+  id: '/p/$token',
+  path: '/p/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppEditorGroupIdRoute = AppEditorGroupIdRouteImport.update({
   id: '/editor/$groupId',
   path: '/editor/$groupId',
@@ -70,6 +82,8 @@ export interface FileRoutesByFullPath {
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
+  '/i/$tokens': typeof ITokensRoute
+  '/p/$token': typeof PTokenRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos/': typeof AppEventosIndexRoute
@@ -80,6 +94,8 @@ export interface FileRoutesByTo {
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
+  '/i/$tokens': typeof ITokensRoute
+  '/p/$token': typeof PTokenRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos': typeof AppEventosIndexRoute
@@ -92,6 +108,8 @@ export interface FileRoutesById {
   '/_app/encomendas': typeof AppEncomendasRoute
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/portaria': typeof AppPortariaRoute
+  '/i/$tokens': typeof ITokensRoute
+  '/p/$token': typeof PTokenRoute
   '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
   '/_app/eventos/$eventId': typeof AppEventosEventIdRoute
   '/_app/eventos/': typeof AppEventosIndexRoute
@@ -104,6 +122,8 @@ export interface FileRouteTypes {
     | '/encomendas'
     | '/equipa'
     | '/portaria'
+    | '/i/$tokens'
+    | '/p/$token'
     | '/editor/$groupId'
     | '/eventos/$eventId'
     | '/eventos/'
@@ -114,6 +134,8 @@ export interface FileRouteTypes {
     | '/encomendas'
     | '/equipa'
     | '/portaria'
+    | '/i/$tokens'
+    | '/p/$token'
     | '/editor/$groupId'
     | '/eventos/$eventId'
     | '/eventos'
@@ -125,6 +147,8 @@ export interface FileRouteTypes {
     | '/_app/encomendas'
     | '/_app/equipa'
     | '/_app/portaria'
+    | '/i/$tokens'
+    | '/p/$token'
     | '/_app/editor/$groupId'
     | '/_app/eventos/$eventId'
     | '/_app/eventos/'
@@ -134,6 +158,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ITokensRoute: typeof ITokensRoute
+  PTokenRoute: typeof PTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -179,6 +205,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/portaria'
       preLoaderRoute: typeof AppPortariaRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/i/$tokens': {
+      id: '/i/$tokens'
+      path: '/i/$tokens'
+      fullPath: '/i/$tokens'
+      preLoaderRoute: typeof ITokensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/p/$token': {
+      id: '/p/$token'
+      path: '/p/$token'
+      fullPath: '/p/$token'
+      preLoaderRoute: typeof PTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/editor/$groupId': {
       id: '/_app/editor/$groupId'
@@ -228,6 +268,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  ITokensRoute: ITokensRoute,
+  PTokenRoute: PTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
