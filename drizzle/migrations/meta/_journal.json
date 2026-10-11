@@ -50,6 +50,13 @@
       "when": 1791628959495,
       "tag": "0006_event_sheet_id",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791751394592,
+      "tag": "0007_partner_shares",
+      "breakpoints": true
     }
   ]
 }

@@ -139,6 +139,66 @@ export type Database = {
         }
         Relationships: []
       }
+      group_shares: {
+        Row: {
+          active: boolean
+          contact: string | null
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string | null
+          group_id: string
+          id: string
+          note: string | null
+          partner_kind: string
+          partner_name: string
+          token: string
+        }
+        Insert: {
+          active?: boolean
+          contact?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at?: string | null
+          group_id: string
+          id?: string
+          note?: string | null
+          partner_kind?: string
+          partner_name: string
+          token?: string
+        }
+        Update: {
+          active?: boolean
+          contact?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string | null
+          group_id?: string
+          id?: string
+          note?: string | null
+          partner_kind?: string
+          partner_name?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_shares_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_shares_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           group_id: string
@@ -338,10 +398,16 @@ export type Database = {
           created_at: string
           event_id: string
           group_id: string
+          holder_contact: string | null
+          holder_name: string | null
           id: string
           order_id: string | null
           printed_at: string | null
+          sent_at: string | null
+          sent_via: string | null
           seq: number
+          share_id: string | null
+          share_token: string
           status: string
           used_at: string | null
           used_by: string | null
@@ -351,10 +417,16 @@ export type Database = {
           created_at?: string
           event_id: string
           group_id: string
+          holder_contact?: string | null
+          holder_name?: string | null
           id?: string
           order_id?: string | null
           printed_at?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
           seq: number
+          share_id?: string | null
+          share_token?: string
           status?: string
           used_at?: string | null
           used_by?: string | null
@@ -364,10 +436,16 @@ export type Database = {
           created_at?: string
           event_id?: string
           group_id?: string
+          holder_contact?: string | null
+          holder_name?: string | null
           id?: string
           order_id?: string | null
           printed_at?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
           seq?: number
+          share_id?: string | null
+          share_token?: string
           status?: string
           used_at?: string | null
           used_by?: string | null
@@ -385,6 +463,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "ticket_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "group_shares"
             referencedColumns: ["id"]
           },
         ]
