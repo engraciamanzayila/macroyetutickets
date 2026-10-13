@@ -1,59 +1,26 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { QrCode, ScanLine, Upload } from "lucide-react";
-import { useAuth } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/Logo";
-
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "MACRO YETU TICKETs — Ingressos com QR code" },
-      { name: "description", content: "Carregue a arte, posicione o QR, gere ingressos únicos e controle a entrada no dia do evento." },
-      { property: "og:title", content: "MACRO YETU TICKETs" },
-      { property: "og:description", content: "Ingressos com QR code únicos e controlo de entradas para eventos." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
-  component: Index,
-});
-
-function Index() {
-  const { session, loading } = useAuth();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (!loading && session) navigate({ to: "/eventos" });
-  }, [loading, session, navigate]);
-
-  return (
-    <main className="min-h-screen flex flex-col">
-      <header className="container mx-auto px-6 py-6 flex items-center justify-between">
-        <Logo />
-        <Button asChild variant="secondary"><Link to="/login">Entrar</Link></Button>
-      </header>
-      <section className="container mx-auto px-6 flex-1 flex flex-col justify-center py-16 max-w-4xl">
-        <h1 className="text-5xl md:text-7xl font-extrabold leading-[0.95]">
-          Ingressos com <span className="text-brand">QR único</span>, sem complicação.
-        </h1>
-        <p className="mt-6 text-lg text-muted-foreground max-w-xl">
-          Carregue a sua arte, marque onde fica o QR e gere centenas de ingressos prontos a imprimir. No dia, valide cada entrada em segundos.
-        </p>
-        <div className="mt-10"><Button asChild size="lg" className="shadow-glow"><Link to="/login">Começar agora</Link></Button></div>
-        <div className="mt-16 grid sm:grid-cols-3 gap-4">
-          {[
-            { icon: Upload, t: "Carregue até 100 artes", d: "PDF, JPG, PNG, TIFF — lemos o nome do ficheiro." },
-            { icon: QrCode, t: "Posicione o QR", d: "Arraste o QR e o código para o lugar certo." },
-            { icon: ScanLine, t: "Controle a entrada", d: "Leitura por câmara, manual e até sem internet." },
-          ].map(({ icon: I, t, d }) => (
-            <div key={t} className="rounded-xl border bg-card p-5">
-              <I className="h-6 w-6 text-primary" />
-              <h3 className="mt-3 font-semibold">{t}</h3>
-              <p className="text-sm text-muted-foreground mt-1">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { useState } from 'react';
+import { useSuspenseQuery, queryOptions } from '@tanstack/react-query';
+import { ArrowUpRight, CalendarDays, MapPin, Search, Ticket, Music2 } from 'lucide-react';
+import { listStoreEvents } from '@/lib/store.functions';
+import { StoreHeader } from '@/components/store/StoreHeader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import concert from '@/assets/events-concert.jpg';
+const eventsQuery = queryOptions({ queryKey: ['store-events'], queryFn: () => listStoreEvents() });
+export const Route = createFileRoute('/')({
+  loader: ({ context }) => context.queryClient.ensureQueryData(eventsQuery),
+  head: () => ({ meta: [ { title: 'MACRO YETU TICKETs — Eventos e ingressos em Angola' }, { name: 'description', content: 'Descubra eventos em Angola e compre os seus ingressos. Música, festas, teatro, desporto e cultura.' }, { property: 'og:title', content: 'MACRO YETU TICKETs — Eventos em Angola' }, { property: 'og:description', content: 'O seu próximo grande momento começa com um ingresso.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' } ] }), component: Store });
+function Store() {
+  const { data: events } = useSuspenseQuery(eventsQuery);
+  const [search, setSearch] = useState(''); const [category, setCategory] = useState('Todos'); const [city, setCity] = useState(''); const [date, setDate] = useState('');
+  const categories = ['Todos', 'Música', 'Festa', 'Festival', 'Teatro', 'Desporto', 'Conferência'];
+  const filtered = events.filter(e => (!search || `${e.name} ${e.venue} ${e.city}`.toLowerCase().includes(search.toLowerCase())) && (category === 'Todos' || e.category === category) && (!city || e.city === city) && (!date || e.event_date === date));
+  return <div className="min-h-screen"><StoreHeader/>
+    <section className="store-cover relative isolate overflow-hidden"><img src={concert} alt="Público num concerto junto à costa de Luanda — imagem ilustrativa" width={1536} height={1024} className="absolute inset-0 -z-20 size-full object-cover object-center"/><div className="store-shade absolute inset-0 -z-10"/><div className="mx-auto max-w-7xl px-5 py-12 md:py-16"><p className="mb-5 flex items-center gap-2 text-sm font-semibold text-primary"><span className="h-px w-8 bg-primary"/> ANGOLA, AO VIVO</p><h1 className="max-w-2xl text-4xl font-extrabold leading-tight md:text-6xl">MACRO YETU<br/><span className="text-primary">TICKETs</span></h1><p className="mt-5 max-w-md text-lg text-cover-foreground">Os eventos que quer viver.<br/>Os ingressos que o levam até lá.</p><Button className="mt-7" size="lg" onClick={() => document.getElementById('agenda')?.scrollIntoView({ behavior: 'smooth' })}>Encontrar o meu próximo evento <ArrowUpRight className="size-5"/></Button><p className="mt-7 text-xs text-cover-foreground">Música · Cultura · Desporto · Grandes encontros</p></div></section>
+    <main id="agenda" className="mx-auto max-w-7xl px-5 py-10"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-accent-foreground">A SUA PRÓXIMA EXPERIÊNCIA</p><h2 className="mt-2 text-3xl font-bold">Descubra os eventos</h2></div><span className="text-sm text-muted-foreground">{events.length} {events.length === 1 ? 'evento disponível' : 'eventos disponíveis'}</span></div>
+    <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_180px_180px]"><div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground"/><Input aria-label="Pesquisar eventos" placeholder="Evento, artista ou local" className="h-11 pl-10" value={search} onChange={e => setSearch(e.target.value)}/></div><select aria-label="Cidade" className="h-11 rounded-md border bg-background px-3 text-sm" value={city} onChange={e => setCity(e.target.value)}><option value="">Todas as cidades</option>{Array.from(new Set(events.flatMap(e => e.city ? [e.city] : []))).map(c => <option key={c}>{c}</option>)}</select><Input type="date" aria-label="Data do evento" className="h-11" value={date} onChange={e => setDate(e.target.value)}/></div>
+    <div className="mt-4 flex flex-wrap gap-2">{categories.map(c => <Button size="sm" key={c} variant={category === c ? 'default' : 'ghost'} onClick={() => setCategory(c)}>{c === 'Música' && <Music2 className="size-4"/>}{c}</Button>)}</div>
+    {filtered.length ? <div className="mt-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{filtered.map(e => e.slug ? <Link key={e.id} to="/e/$slug" params={{ slug: e.slug }} className="group overflow-hidden rounded-lg border bg-card"><div className="aspect-[4/3] overflow-hidden">{e.cover_url ? <img src={e.cover_url} alt={e.name} width={600} height={450} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-105"/> : <div className="grid size-full place-items-center bg-secondary"><Ticket className="size-16 text-primary"/></div>}</div><div className="p-5"><p className="text-xs font-semibold text-primary">{e.category || 'Evento'}</p><h3 className="mt-2 text-xl font-bold">{e.name}</h3><p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="size-4"/>{e.event_date ? new Date(e.event_date + 'T12:00:00').toLocaleDateString('pt-AO') : 'Data a anunciar'}</p><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="size-4"/>{[e.venue,e.city].filter(Boolean).join(' · ') || 'Local a anunciar'}</p><p className="mt-5 flex items-center justify-between border-t pt-4 text-sm font-semibold">Ver ingressos <ArrowUpRight className="size-4"/></p></div></Link> : null)}</div> : <div className="mt-8 border-y py-12 text-center"><Ticket className="mx-auto size-9 text-primary"/><h3 className="mt-4 text-xl font-bold">{events.length ? 'Nenhum evento encontrado' : 'A próxima agenda está a chegar'}</h3><p className="mt-2 text-sm text-muted-foreground">{events.length ? 'Experimente outra cidade, data ou categoria.' : 'Os eventos estarão aqui assim que forem aprovados e publicados.'}</p>{(search || date || city || category !== 'Todos') && <Button variant="ghost" className="mt-4" onClick={() => { setSearch('');setCity('');setDate('');setCategory('Todos'); }}>Limpar filtros</Button>}</div>}
+    </main><footer className="border-t bg-secondary/40"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-5 px-5 py-7"><p className="text-sm text-muted-foreground">MACRO YETU TICKETs · Feito para viver Angola.</p><Button asChild variant="ghost"><Link to="/promotores">É promotor? Publique o seu evento <ArrowUpRight className="size-4"/></Link></Button></div></footer></div>;
 }
