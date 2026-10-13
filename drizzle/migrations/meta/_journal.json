@@ -57,6 +57,13 @@
       "when": 1791751394592,
       "tag": "0007_partner_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791886381907,
+      "tag": "0008_public_marketplace_safety",
+      "breakpoints": true
     }
   ]
 }

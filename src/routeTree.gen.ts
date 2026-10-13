@@ -12,9 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MeusIngressosRouteImport } from './routes/meus-ingressos'
+import { Route as PromotoresRouteImport } from './routes/promotores'
 import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as ESlugRouteImport } from './routes/e.$slug'
+import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
 import { Route as ITokensRouteImport } from './routes/i.$tokens'
 import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
@@ -35,6 +39,16 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MeusIngressosRoute = MeusIngressosRouteImport.update({
+  id: '/meus-ingressos',
+  path: '/meus-ingressos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromotoresRoute = PromotoresRouteImport.update({
+  id: '/promotores',
+  path: '/promotores',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppEncomendasRoute = AppEncomendasRouteImport.update({
   id: '/encomendas',
   path: '/encomendas',
@@ -49,6 +63,16 @@ const AppPortariaRoute = AppPortariaRouteImport.update({
   id: '/portaria',
   path: '/portaria',
   getParentRoute: () => AppRoute,
+} as any)
+const ESlugRoute = ESlugRouteImport.update({
+  id: '/e/$slug',
+  path: '/e/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EncomendaTokenRoute = EncomendaTokenRouteImport.update({
+  id: '/encomenda/$token',
+  path: '/encomenda/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ITokensRoute = ITokensRouteImport.update({
   id: '/i/$tokens',
@@ -79,9 +103,13 @@ const AppEventosEventIdRoute = AppEventosEventIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/meus-ingressos': typeof MeusIngressosRoute
+  '/promotores': typeof PromotoresRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
+  '/e/$slug': typeof ESlugRoute
+  '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
   '/p/$token': typeof PTokenRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -91,9 +119,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/meus-ingressos': typeof MeusIngressosRoute
+  '/promotores': typeof PromotoresRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/portaria': typeof AppPortariaRoute
+  '/e/$slug': typeof ESlugRoute
+  '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
   '/p/$token': typeof PTokenRoute
   '/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -105,9 +137,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/meus-ingressos': typeof MeusIngressosRoute
+  '/promotores': typeof PromotoresRoute
   '/_app/encomendas': typeof AppEncomendasRoute
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/portaria': typeof AppPortariaRoute
+  '/e/$slug': typeof ESlugRoute
+  '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
   '/p/$token': typeof PTokenRoute
   '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
@@ -119,9 +155,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/meus-ingressos'
+    | '/promotores'
     | '/encomendas'
     | '/equipa'
     | '/portaria'
+    | '/e/$slug'
+    | '/encomenda/$token'
     | '/i/$tokens'
     | '/p/$token'
     | '/editor/$groupId'
@@ -131,9 +171,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/meus-ingressos'
+    | '/promotores'
     | '/encomendas'
     | '/equipa'
     | '/portaria'
+    | '/e/$slug'
+    | '/encomenda/$token'
     | '/i/$tokens'
     | '/p/$token'
     | '/editor/$groupId'
@@ -144,9 +188,13 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/login'
+    | '/meus-ingressos'
+    | '/promotores'
     | '/_app/encomendas'
     | '/_app/equipa'
     | '/_app/portaria'
+    | '/e/$slug'
+    | '/encomenda/$token'
     | '/i/$tokens'
     | '/p/$token'
     | '/_app/editor/$groupId'
@@ -158,6 +206,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  MeusIngressosRoute: typeof MeusIngressosRoute
+  PromotoresRoute: typeof PromotoresRoute
+  ESlugRoute: typeof ESlugRoute
+  EncomendaTokenRoute: typeof EncomendaTokenRoute
   ITokensRoute: typeof ITokensRoute
   PTokenRoute: typeof PTokenRoute
 }
@@ -185,6 +237,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/meus-ingressos': {
+      id: '/meus-ingressos'
+      path: '/meus-ingressos'
+      fullPath: '/meus-ingressos'
+      preLoaderRoute: typeof MeusIngressosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/promotores': {
+      id: '/promotores'
+      path: '/promotores'
+      fullPath: '/promotores'
+      preLoaderRoute: typeof PromotoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/encomendas': {
       id: '/_app/encomendas'
       path: '/encomendas'
@@ -205,6 +271,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/portaria'
       preLoaderRoute: typeof AppPortariaRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/e/$slug': {
+      id: '/e/$slug'
+      path: '/e/$slug'
+      fullPath: '/e/$slug'
+      preLoaderRoute: typeof ESlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/encomenda/$token': {
+      id: '/encomenda/$token'
+      path: '/encomenda/$token'
+      fullPath: '/encomenda/$token'
+      preLoaderRoute: typeof EncomendaTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/i/$tokens': {
       id: '/i/$tokens'
@@ -268,6 +348,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  MeusIngressosRoute: MeusIngressosRoute,
+  PromotoresRoute: PromotoresRoute,
+  ESlugRoute: ESlugRoute,
+  EncomendaTokenRoute: EncomendaTokenRoute,
   ITokensRoute: ITokensRoute,
   PTokenRoute: PTokenRoute,
 }

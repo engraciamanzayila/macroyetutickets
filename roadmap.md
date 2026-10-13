@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Priorizar descoberta e compra de eventos na página inicial, sem redirecionar consumidores para gestão
+
 - [x] Links de parceiros por grupo (patrocinadores, media partners…) com portal próprio: WhatsApp, e-mail, link, PDF
 - [x] Voltar a baixar seleções de impressão anteriores
 - [x] Marcas de corte finas (2 cm nas pontas) na folha A4
