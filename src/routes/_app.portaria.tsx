@@ -25,6 +25,7 @@ type Cache = { savedAt: string; groups: Record<string, { name: string; type: str
 type QueueItem = { event: string; code: string; at: string };
 type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; used_at?: string | null; offline?: boolean };
 
+const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
 const cacheKey = (e: string) => `myt-cache-${e}`;
 const QUEUE = "myt-queue";
 const readQueue = (): QueueItem[] => JSON.parse(localStorage.getItem(QUEUE) || "[]");
@@ -110,7 +111,7 @@ function Gate() {
   };
 
   const validate = useCallback(async (raw: string) => {
-    const code = raw.trim().toUpperCase();
+    const code = formatReference(raw);
     if (!code || !eventId) return;
     const now = Date.now();
     if (last.current.code === code && now - last.current.t < 3000) return;
@@ -218,7 +219,7 @@ function Gate() {
           </div>
 
           <form onSubmit={(e) => { e.preventDefault(); last.current = { code: "", t: 0 }; void validate(manual); setManual(""); }} className="flex gap-2">
-            <Input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Inserir código manualmente (ex: VIP-AB12-CD34)" className="h-12 font-mono uppercase" />
+            <Input value={manual} onChange={(e) => setManual(formatReference(e.target.value))} placeholder="Inserir código manualmente (ex: VIP-AB12-CD34)" className="h-12 font-mono uppercase" />
             <Button type="submit" className="h-12">Validar</Button>
           </form>
           <p className="text-sm text-muted-foreground text-center">Entradas neste aparelho: <b className="text-foreground">{count}</b></p>
