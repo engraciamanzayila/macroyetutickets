@@ -9,6 +9,7 @@ import { artUrl, generate, type Group, type OutputFormat } from "@/lib/generate"
 import { UploadPanel } from "@/components/event/UploadPanel";
 import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
+import { SharesPanel } from "@/components/event/SharesPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,6 +115,7 @@ function EventPage() {
           <TabsTrigger value="grupos">Grupos & geração</TabsTrigger>
           <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
+          <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
         </TabsList>
         <TabsContent value="contrato" className="mt-6">{event && <ContractPanel event={event} />}</TabsContent>
@@ -183,6 +185,7 @@ function EventPage() {
         </TabsContent>
 
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="partilha" className="mt-6"><SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
