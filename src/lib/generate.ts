@@ -16,10 +16,10 @@ export type Group = {
   layout: Layout | null;
 };
 
-export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null };
+export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null; share_id?: string | null; sent_at?: string | null };
 
 /** Fetches every row past the 1000-row API limit. */
-export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name") {
+export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at") {
   const out: TicketRow[] = [];
   for (let from = 0; ; from += 1000) {
     let q = supabase.from("tickets").select(columns).order("seq").range(from, from + 999);
@@ -82,7 +82,7 @@ export async function generate(groups: Group[], formats: OutputFormat[], fileBas
   const jobs: { g: Group; tickets: TicketRow[] }[] = [];
   for (const g of groups) {
     onProgress(0, 1, `A criar códigos: ${g.name}`);
-    jobs.push({ g, tickets: (await ensureTickets(g)).filter((t) => t.status !== "void" && !t.printed_at) });
+    jobs.push({ g, tickets: (await ensureTickets(g)).filter((t) => t.status === "valid" && !t.printed_at && !t.share_id && !t.sent_at) });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
   const [{ default: JSZip }, { jsPDF }] = await Promise.all([import("jszip"), import("jspdf")]);
