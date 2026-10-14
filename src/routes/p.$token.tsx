@@ -75,7 +75,7 @@ function PartnerPortal() {
         await navigator.clipboard.writeText(message());
         toast.success("Mensagem com link copiada");
       } else {
-        await downloadPdf(picked.map((t) => ({ g, code: t.code })), `${data.event?.name}_${data.share.partner_name}`);
+        await downloadPdf(picked.map((t) => ({ g, code: t.code, holderName: name || t.holder_name })), `${data.event?.name}_${data.share.partner_name}`);
       }
       await record(via);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
