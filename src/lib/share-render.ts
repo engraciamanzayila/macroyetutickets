@@ -1,6 +1,6 @@
 import { DEFAULT_LAYOUT, canvasJpeg, physicalMm, renderTicket, type GroupForRender, type Layout } from "./render";
 
-export type RenderGroup = Omit<GroupForRender, "art_path" | "layout"> & { art_url: string; layout: unknown };
+export type RenderGroup = Omit<GroupForRender, "art_path" | "layout"> & { art_url: string; ticket_type?: string; layout: unknown };
 
 const cache = new Map<string, Promise<ImageBitmap>>();
 export function artFromUrl(url: string) {
@@ -10,7 +10,7 @@ export function artFromUrl(url: string) {
 
 export async function ticketImage(g: RenderGroup, code: string, holderName?: string | null) {
   const art = await artFromUrl(g.art_url);
-  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code, g.ticket_type.toUpperCase().includes("MESA") ? holderName : null);
+  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code, g.ticket_type?.toUpperCase().includes("MESA") ? holderName : null);
 }
 
 /** One ticket per page, real size, downloaded as a single PDF. */
