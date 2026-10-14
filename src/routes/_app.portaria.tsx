@@ -40,6 +40,7 @@ function Gate() {
   const [manual, setManual] = useState("");
   const [showResult, setShowResult] = useState(false);
   const resultOpen = useRef(false);
+  const validating = useRef(false);
   const [camOn, setCamOn] = useState(false);
   const [count, setCount] = useState(0);
   const scanner = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
@@ -113,12 +114,13 @@ function Gate() {
   };
 
   const validate = useCallback(async (raw: string) => {
-    if (resultOpen.current) return;
-    const code = formatReference(raw);
+    if (resultOpen.current || validating.current) return;
+    const code = raw.trim().toUpperCase();
     if (!code || !eventId) return;
     const now = Date.now();
     if (last.current.code === code && now - last.current.t < 3000) return;
     last.current = { code, t: now };
+    validating.current = true;
 
     let r: Result | null = null;
     if (navigator.onLine) {
@@ -133,7 +135,7 @@ function Gate() {
     if (!r) {
       const t = cache?.tickets[code];
       const g = t ? cache?.groups[t.g] : undefined;
-      if (!cache) { toast.error("Sem internet e sem lista guardada. Baixe a lista antes do evento."); return; }
+      if (!cache) { validating.current = false; toast.error("Sem internet e sem lista guardada. Baixe a lista antes do evento."); return; }
       if (!t) r = { result: "not_found", code, offline: true };
       else if (t.s === "void") r = { result: "void", code, group: g?.name, type: g?.type, recipient: g?.recipient, offline: true };
       else if (t.s === "used") r = { result: "used", code, group: g?.name, type: g?.type, recipient: g?.recipient, used_at: t.at, offline: true };
@@ -149,6 +151,7 @@ function Gate() {
     if (r.result === "ok") setCount((c) => c + 1);
     navigator.vibrate?.(r.result === "ok" ? 80 : [200, 80, 200]);
     resultOpen.current = true;
+    validating.current = false;
     setResult(r);
     setShowResult(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,7 +193,7 @@ function Gate() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <select value={eventId} onChange={(e) => { setEventId(e.target.value); setResult(null); setShowResult(false); resultOpen.current = false; }} className="h-10 flex-1 min-w-[200px] rounded-md border border-input bg-transparent px-3">
+        <select value={eventId} onChange={(e) => { setEventId(e.target.value); setResult(null); setShowResult(false); resultOpen.current = false; validating.current = false; }} className="h-10 flex-1 min-w-[200px] rounded-md border border-input bg-transparent px-3">
           <option value="" className="bg-popover">Escolha o evento…</option>
           {events.map((e) => <option key={e.id} value={e.id} className="bg-popover">{e.name}</option>)}
         </select>
