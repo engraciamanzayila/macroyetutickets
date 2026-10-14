@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, ExternalLink, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureTickets, type Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,8 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
               </label>
               <Button size="icon" variant="ghost" title="Copiar link" onClick={() => navigator.clipboard.writeText(link(s.token)).then(() => toast.success("Link copiado"))}><Copy className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Abrir portal" asChild><a href={link(s.token)} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-              {wa && <Button size="icon" variant="ghost" title="Enviar link por WhatsApp" asChild><a href={wa} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a></Button>}
+              {wa && <Button size="icon" variant="ghost" title="Enviar link por WhatsApp" asChild><a href={wa} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a></Button>
+              {s.contact?.includes("@") && <Button size="icon" variant="ghost" title="Enviar link por e-mail" asChild><a href={`mailto:${s.contact}?subject=${encodeURIComponent("Ingressos — " + (g?.name ?? ""))}&body=${encodeURIComponent(`Olá ${s.partner_name}, aqui está o seu portal para gerir e enviar os ingressos: ${link(s.token)}`)}`}><Mail className="h-4 w-4" /></a></Button>}}
               <Button size="icon" variant="ghost" title="Apagar" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           );
