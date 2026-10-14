@@ -8,19 +8,19 @@ export function artFromUrl(url: string) {
   return cache.get(url)!;
 }
 
-export async function ticketImage(g: RenderGroup, code: string) {
+export async function ticketImage(g: RenderGroup, code: string, holderName?: string | null) {
   const art = await artFromUrl(g.art_url);
-  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code);
+  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code, g.ticket_type.toUpperCase().includes("MESA") ? holderName : null);
 }
 
 /** One ticket per page, real size, downloaded as a single PDF. */
-export async function downloadPdf(items: { g: RenderGroup; code: string }[], name: string) {
+export async function downloadPdf(items: { g: RenderGroup; code: string; holderName?: string | null }[], name: string) {
   const { jsPDF } = await import("jspdf");
   let pdf: InstanceType<typeof jsPDF> | null = null;
-  for (const { g, code } of items) {
+  for (const { g, code, holderName } of items) {
     const mm = physicalMm({ ...g, art_path: null, layout: null });
     const o = mm.w > mm.h ? "landscape" : "portrait";
-    const c = await ticketImage(g, code);
+    const c = await ticketImage(g, code, holderName);
     const bytes = new Uint8Array(await (await canvasJpeg(c, 0.92)).arrayBuffer());
     if (!pdf) pdf = new jsPDF({ unit: "mm", format: [mm.w, mm.h], orientation: o, compress: true });
     else pdf.addPage([mm.w, mm.h], o);
