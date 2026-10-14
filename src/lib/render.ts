@@ -42,7 +42,7 @@ export function physicalMm(g: GroupForRender) {
   return { w: ((g.art_width ?? 1000) / 300) * 25.4, h: ((g.art_height ?? 1000) / 300) * 25.4 };
 }
 
-export async function renderTicket(art: ImageBitmap, layout: Layout, code: string): Promise<HTMLCanvasElement> {
+export async function renderTicket(art: ImageBitmap, layout: Layout, code: string, holderName?: string | null): Promise<HTMLCanvasElement> {
   const c = document.createElement("canvas");
   c.width = art.width;
   c.height = art.height;
@@ -64,6 +64,19 @@ export async function renderTicket(art: ImageBitmap, layout: Layout, code: strin
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(code, layout.code.x * c.width, layout.code.y * c.height);
+  }
+  if (holderName?.trim()) {
+    const label = holderName.trim().slice(0, 120);
+    const fs = Math.max(14, Math.round(c.height * 0.045));
+    ctx.font = `700 ${fs}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const x = c.width / 2, y = c.height * 0.93;
+    const width = Math.min(c.width * 0.9, ctx.measureText(label).width + fs * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.94)";
+    ctx.fillRect(x - width / 2, y - fs * 0.8, width, fs * 1.6);
+    ctx.fillStyle = "#111111";
+    ctx.fillText(label, x, y, width - fs);
   }
   return c;
 }
