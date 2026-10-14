@@ -24,13 +24,13 @@ export type PrintAvail = Record<string, { printed: number; available: number }>;
 
 /** Per group: printed count and how many valid, never-printed tickets can still go to print. */
 export async function printAvailability(eventId: string, groups: Group[]): Promise<PrintAvail> {
-  const rows = (await fetchAllTickets({ event_id: eventId }, "id,code,seq,status,group_id,used_at,printed_at")) as unknown as { group_id: string; status: string; printed_at: string | null }[];
+  const rows = (await fetchAllTickets({ event_id: eventId }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { group_id: string; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null }[];
   const out: PrintAvail = {};
   for (const g of groups) {
     const mine = rows.filter((r) => r.group_id === g.id);
     const printed = mine.filter((r) => r.printed_at).length;
-    const voided = mine.filter((r) => !r.printed_at && r.status === "void").length;
-    out[g.id] = { printed, available: Math.max(0, g.quantity - printed - voided) };
+    const available = mine.filter((r) => !r.printed_at && !r.share_id && !r.sent_at && r.status === "valid").length;
+    out[g.id] = { printed, available: Math.max(0, available + g.quantity - mine.length) };
   }
   return out;
 }
@@ -40,13 +40,13 @@ export async function exportForPrint(
   fileBase: string,
   onProgress: (done: number, total: number, label: string) => void,
 ) {
-  const jobs: { g: Group; tickets: { id: string; code: string; seq: number }[] }[] = [];
+  const jobs: { g: Group; tickets: { id: string; code: string; seq: number; holder_name?: string | null }[] }[] = [];
   for (const { g, count } of picks) {
     if (count <= 0) continue;
     onProgress(0, 1, `A preparar códigos: ${g.name}`);
     await ensureTickets(g);
-    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null }[];
-    jobs.push({ g, tickets: all.filter((t) => !t.printed_at && t.status !== "void").slice(0, count) });
+    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
+    jobs.push({ g, tickets: all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid").slice(0, count) });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
   if (!total) throw new Error("Nada para imprimir");
@@ -71,7 +71,7 @@ export async function exportForPrint(
     for (const t of tickets) {
       if (first) first = false;
       else if (slot === 0) pdf.addPage("a4", "portrait");
-      let canvas = await renderTicket(art, g.layout ?? DEFAULT_LAYOUT, t.code);
+      let canvas = await renderTicket(art, g.layout ?? DEFAULT_LAYOUT, t.code, g.ticket_type.toUpperCase().includes("MESA") ? t.holder_name : null);
       if (grid.rot) {
         const rc = document.createElement("canvas");
         rc.width = canvas.height; rc.height = canvas.width;
