@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, CameraOff, CloudOff, Download, RefreshCw, Wifi } from "lucide-react";
+import { Camera, CameraOff, CheckCircle2, AlertTriangle, XCircle, CloudOff, Download, RefreshCw, Wifi } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllTickets } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ function Gate() {
   const [queueLen, setQueueLen] = useState(readQueue().length);
   const [result, setResult] = useState<Result | null>(null);
   const [manual, setManual] = useState("");
+  const [showResult, setShowResult] = useState(false);
+  const resultOpen = useRef(false);
   const [camOn, setCamOn] = useState(false);
   const [count, setCount] = useState(0);
   const scanner = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
@@ -111,6 +113,7 @@ function Gate() {
   };
 
   const validate = useCallback(async (raw: string) => {
+    if (resultOpen.current) return;
     const code = formatReference(raw);
     if (!code || !eventId) return;
     const now = Date.now();
@@ -145,7 +148,9 @@ function Gate() {
     }
     if (r.result === "ok") setCount((c) => c + 1);
     navigator.vibrate?.(r.result === "ok" ? 80 : [200, 80, 200]);
+    resultOpen.current = true;
     setResult(r);
+    setShowResult(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, cache]);
 
@@ -185,7 +190,7 @@ function Gate() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <select value={eventId} onChange={(e) => { setEventId(e.target.value); setResult(null); }} className="h-10 flex-1 min-w-[200px] rounded-md border border-input bg-transparent px-3">
+        <select value={eventId} onChange={(e) => { setEventId(e.target.value); setResult(null); setShowResult(false); resultOpen.current = false; }} className="h-10 flex-1 min-w-[200px] rounded-md border border-input bg-transparent px-3">
           <option value="" className="bg-popover">Escolha o evento…</option>
           {events.map((e) => <option key={e.id} value={e.id} className="bg-popover">{e.name}</option>)}
         </select>
@@ -194,6 +199,20 @@ function Gate() {
         </Button>
       </div>
       {cache && <p className="text-xs text-muted-foreground -mt-3">Lista offline: {Object.keys(cache.tickets).length} ingressos · {new Date(cache.savedAt).toLocaleString("pt-PT")}</p>}
+
+      {showResult && result && (
+        <div role="dialog" aria-modal="true" aria-live="assertive" aria-label={title} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-5 backdrop-blur-sm">
+          <div className={`w-full max-w-lg rounded-3xl p-8 text-center shadow-2xl ${tone}`}>
+            {result.result === "ok" ? <CheckCircle2 className="mx-auto mb-5 h-24 w-24" /> : result.result === "used" ? <AlertTriangle className="mx-auto mb-5 h-24 w-24" /> : <XCircle className="mx-auto mb-5 h-24 w-24" />}
+            <h2 className="text-3xl font-extrabold">{title}</h2>
+            <p className="mt-4 font-mono text-xl font-bold">{result.code}</p>
+            {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}
+            {result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
+            {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
+            <Button className="mt-8 h-14 w-full text-lg" variant="secondary" onClick={() => { resultOpen.current = false; setShowResult(false); }}>Continuar leitura</Button>
+          </div>
+        </div>
+      )}
 
       {eventId && (
         <>
