@@ -45,7 +45,7 @@ export async function exportForPrint(
     if (count <= 0) continue;
     onProgress(0, 1, `A preparar códigos: ${g.name}`);
     await ensureTickets(g);
-    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
+    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
     jobs.push({ g, tickets: all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid").slice(0, count) });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
