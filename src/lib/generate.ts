@@ -16,10 +16,10 @@ export type Group = {
   layout: Layout | null;
 };
 
-export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null };
+export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null };
 
 /** Fetches every row past the 1000-row API limit. */
-export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at") {
+export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name") {
   const out: TicketRow[] = [];
   for (let from = 0; ; from += 1000) {
     let q = supabase.from("tickets").select(columns).order("seq").range(from, from + 999);
@@ -111,7 +111,7 @@ export async function generate(groups: Group[], formats: OutputFormat[], fileBas
     a4Slot = 0; // each group starts on a new sheet
 
     for (const t of tickets) {
-      const canvas = await renderTicket(art, layout, t.code);
+      const canvas = await renderTicket(art, layout, t.code, g.ticket_type.toUpperCase().includes("MESA") ? t.holder_name : null);
       const blob = await canvasJpeg(canvas, 0.9);
       if (zip) zip.file(`${safe(g.name)}/${String(t.seq).padStart(4, "0")}_${t.code}.jpg`, blob);
       if (formats.includes("pdf") || formats.includes("a4")) {
