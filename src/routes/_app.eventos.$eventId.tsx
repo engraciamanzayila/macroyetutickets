@@ -10,6 +10,7 @@ import { UploadPanel } from "@/components/event/UploadPanel";
 import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
 import { SharesPanel } from "@/components/event/SharesPanel";
+import { AdminDispatchPanel } from "@/components/event/AdminDispatchPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,7 +186,7 @@ function EventPage() {
         </TabsContent>
 
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
-        <TabsContent value="partilha" className="mt-6"><SharesPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="partilha" className="mt-6">{isAdmin && <AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} />}<SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
