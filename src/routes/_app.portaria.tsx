@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Camera, CameraOff, CheckCircle2, AlertTriangle, XCircle, CloudOff, Download, RefreshCw, Wifi } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllTickets } from "@/lib/generate";
+import { scheduleSheetSync } from "@/lib/sheet-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -92,6 +93,7 @@ function Gate() {
     for (const item of q) {
       const { error } = await supabase.rpc("check_in", { p_event: item.event, p_code: item.code, p_at: item.at });
       if (error) left.push(item);
+      else scheduleSheetSync(item.event);
     }
     writeQueue(left);
     setQueueLen(left.length);
@@ -128,6 +130,7 @@ function Gate() {
       if (!error && data) {
         r = data as unknown as Result;
         r.code = r.code ?? code;
+        if (r.result === "ok") scheduleSheetSync(eventId);
         const local = cache?.tickets[code];
         if (local && r.result === "ok") updateLocal(code, { ...local, s: "used", at: new Date().toISOString() });
       }
