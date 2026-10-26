@@ -7,5 +7,6 @@
 - [x] Marcas de corte finas (2 cm nas pontas) na folha A4
 - [ ] Dashboards separados: público, promotor, administração máxima, membros de administração (níveis: funcionários, gestores de clientes público, gestores de promotores); admin máximo alterna entre todos
 - [ ] Google Sheets: implementação feita; falta validar a atualização em tempo real com as credenciais da integração
-- [ ] Loja pública completa
+- [x] Loja pública inicial: catálogo, detalhe do evento, seleção por grupo, encomenda e preferência de canal
+- [ ] Loja pública completa: carrinho entre eventos, pagamentos automáticos e envio automático de ingressos
 - [ ] Mockups de identidade visual
