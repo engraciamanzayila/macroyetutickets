@@ -80,11 +80,27 @@ function save(blob: Blob, name: string) {
 
 const safe = (s: string) => s.replace(/[^\w\-À-ú ]+/g, "").trim().replace(/\s+/g, "_").slice(0, 60) || "ingressos";
 
-export async function generate(groups: Group[], formats: OutputFormat[], fileBase: string, onProgress: Progress) {
+export async function generate(
+  groups: Group[],
+  formats: OutputFormat[],
+  fileBase: string,
+  onProgress: Progress,
+  ticketIds?: ReadonlySet<string>,
+) {
   const jobs: { g: Group; tickets: TicketRow[] }[] = [];
   for (const g of groups) {
     onProgress(0, 1, `A criar códigos: ${g.name}`);
-    jobs.push({ g, tickets: (await ensureTickets(g)).filter((t) => t.status === "valid" && !t.printed_at && !t.share_id && !t.sent_at) });
+    jobs.push({
+      g,
+      tickets: (await ensureTickets(g)).filter(
+        (ticket) =>
+          ticket.status === "valid" &&
+          !ticket.printed_at &&
+          !ticket.share_id &&
+          !ticket.sent_at &&
+          (!ticketIds || ticketIds.has(ticket.id)),
+      ),
+    });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
   const [{ default: JSZip }, { jsPDF }] = await Promise.all([import("jszip"), import("jspdf")]);

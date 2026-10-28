@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function TablesPanel({
   eventId,
@@ -35,6 +36,7 @@ export function TablesPanel({
   const [groupId, setGroupId] = useState(tableGroups[0]?.id ?? "");
   const [search, setSearch] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState<"digital" | "print" | null>(null);
   const [previewMode, setPreviewMode] = useState<"digital" | "print" | null>(null);
@@ -76,24 +78,33 @@ export function TablesPanel({
     (ticket) =>
       ticket.status === "valid" && !ticket.printed_at && !ticket.share_id && !ticket.sent_at,
   );
-  const previewTicket = availableTickets[previewIndex];
+  const selectedTickets = tickets.filter(
+    (ticket) =>
+      selectedIds.has(ticket.id) &&
+      ticket.status === "valid" &&
+      !ticket.printed_at &&
+      !ticket.share_id &&
+      !ticket.sent_at,
+  );
+  const previewTicket = selectedTickets[previewIndex];
+  const previewGroup = tableGroups.find((item) => item.id === previewTicket?.group_id);
   const previewName = previewTicket
     ? (names[previewTicket.id] ?? previewTicket.holder_name ?? "")
     : "";
 
   useEffect(() => {
-    if (!previewMode || !group?.art_path || !previewTicket) {
+    if (!previewMode || !previewGroup?.art_path || !previewTicket) {
       setPreviewImage("");
       return;
     }
     let cancelled = false;
     setPreviewLoading(true);
-    loadArt(group.art_path)
+    loadArt(previewGroup.art_path)
       .then(async (art) => {
         try {
           const canvas = await renderTicket(
             art,
-            group.layout ?? DEFAULT_LAYOUT,
+            previewGroup.layout ?? DEFAULT_LAYOUT,
             previewTicket.code,
             previewName,
           );
@@ -112,7 +123,7 @@ export function TablesPanel({
     return () => {
       cancelled = true;
     };
-  }, [group, previewMode, previewName, previewTicket]);
+  }, [previewGroup, previewMode, previewName, previewTicket]);
 
   const saveName = async (ticket: TicketRow, value: string) => {
     const name = value.trim();
@@ -146,7 +157,7 @@ export function TablesPanel({
   };
 
   const persistPendingNames = async () => {
-    const changed = currentTickets.filter((ticket) => {
+    const changed = selectedTickets.filter((ticket) => {
       const currentName = names[ticket.id];
       return currentName !== undefined && currentName.trim() !== (ticket.holder_name ?? "");
     });
@@ -162,20 +173,23 @@ export function TablesPanel({
   };
 
   const validateExport = () => {
-    if (!group) return false;
-    if (currentTickets.length < group.quantity) {
-      toast.error("Gere primeiro os códigos em falta para este grupo de mesas.");
+    if (!selectedTickets.length) {
+      toast.error(
+        "Selecione pelo menos uma mesa disponível. A seleção mantém-se ao trocar de grupo.",
+      );
       return false;
     }
-    if (!group.layout) {
-      toast.error("Posicione primeiro o QR no editor deste grupo.");
+    const noLayout = new Set(
+      selectedTickets
+        .map((ticket) => tableGroups.find((item) => item.id === ticket.group_id))
+        .filter((item) => !item?.layout || !item.art_path)
+        .map((item) => item?.name ?? "Grupo sem arte"),
+    );
+    if (noLayout.size) {
+      toast.error(`Configure QR e arte primeiro em: ${[...noLayout].join(", ")}`);
       return false;
     }
-    if (!availableTickets.length) {
-      toast.error("Não há mesas digitais disponíveis para exportar neste grupo.");
-      return false;
-    }
-    const unnamed = availableTickets.filter(
+    const unnamed = selectedTickets.filter(
       (ticket) => !(names[ticket.id] ?? ticket.holder_name ?? "").trim(),
     );
     if (unnamed.length) {
@@ -196,14 +210,19 @@ export function TablesPanel({
     setExporting("digital");
     try {
       await persistPendingNames();
+      const selectedGroups = tableGroups.filter((item) =>
+        selectedTickets.some((ticket) => ticket.group_id === item.id),
+      );
       const count = await generate(
-        [group],
+        selectedGroups,
         ["zip", "pdf"],
-        `${eventName}_${group.name}_mesas_digitais`,
+        `${eventName}_mesas_digitais`,
         () => {},
+        new Set(selectedTickets.map((ticket) => ticket.id)),
       );
       if (!count) throw new Error("Não há ingressos digitais disponíveis para exportar");
       toast.success(`${count} mesa(s) exportada(s) com QR, referência e nome do cliente.`);
+      setSelectedIds(new Set());
       await qc.invalidateQueries({ queryKey: ["table-tickets", eventId] });
     } catch (error) {
       toast.error("Falha ao gerar os ficheiros digitais: " + (error as Error).message);
@@ -217,15 +236,22 @@ export function TablesPanel({
     setExporting("print");
     try {
       await persistPendingNames();
+      const picks = tableGroups.flatMap((item) => {
+        const count = selectedTickets.filter((ticket) => ticket.group_id === item.id).length;
+        return count ? [{ g: item, count }] : [];
+      });
       const result = await exportForPrint(
-        [{ g: group, count: availableTickets.length }],
-        `${eventName}_${group.name}_mesas`,
+        picks,
+        `${eventName}_mesas`,
         () => {},
         eventId,
+        undefined,
+        new Set(selectedTickets.map((ticket) => ticket.id)),
       );
       toast.success(
         `${result.total} mesa(s) em ${result.pages} folha(s) A4, com nome, QR e referência.`,
       );
+      setSelectedIds(new Set());
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
         qc.invalidateQueries({ queryKey: ["print-history", eventId] }),
@@ -286,6 +312,9 @@ export function TablesPanel({
               <Badge variant="outline">
                 {Math.max(0, group.quantity - currentTickets.length)} por gerar
               </Badge>
+              <Badge variant="outline">
+                {selectedTickets.length} selecionada(s) em todos os grupos
+              </Badge>
             </div>
             <div className="flex flex-wrap gap-2">
               {currentTickets.length < group.quantity && (
@@ -296,14 +325,19 @@ export function TablesPanel({
               <Button
                 variant="secondary"
                 onClick={() => requestExport("digital")}
-                disabled={!!exporting || generating}
+                disabled={!!exporting || generating || selectedTickets.length === 0}
               >
                 <Download className="h-4 w-4" />
-                {exporting === "digital" ? "A gerar digitais…" : "Baixar digitais (ZIP + PDF)"}
+                {exporting === "digital"
+                  ? "A gerar digitais…"
+                  : `Baixar digitais (${selectedTickets.length})`}
               </Button>
-              <Button onClick={() => requestExport("print")} disabled={!!exporting || generating}>
+              <Button
+                onClick={() => requestExport("print")}
+                disabled={!!exporting || generating || selectedTickets.length === 0}
+              >
                 <Printer className="h-4 w-4" />
-                {exporting === "print" ? "A paginar…" : "Imprimir em A4"}
+                {exporting === "print" ? "A paginar…" : `Imprimir A4 (${selectedTickets.length})`}
               </Button>
             </div>
           </div>
@@ -325,8 +359,26 @@ export function TablesPanel({
               visible.map((ticket) => (
                 <div
                   key={ticket.id}
-                  className="grid gap-3 py-3 sm:grid-cols-[minmax(150px,1fr)_minmax(220px,1.3fr)_auto] sm:items-center"
+                  className="grid gap-3 py-3 sm:grid-cols-[auto_minmax(150px,1fr)_minmax(220px,1.3fr)_auto] sm:items-center"
                 >
+                  <Checkbox
+                    checked={selectedIds.has(ticket.id)}
+                    disabled={
+                      ticket.status !== "valid" ||
+                      !!ticket.printed_at ||
+                      !!ticket.share_id ||
+                      !!ticket.sent_at
+                    }
+                    aria-label={`Selecionar mesa ${ticket.seq}`}
+                    onCheckedChange={(checked) => {
+                      setSelectedIds((current) => {
+                        const next = new Set(current);
+                        if (checked) next.add(ticket.id);
+                        else next.delete(ticket.id);
+                        return next;
+                      });
+                    }}
+                  />
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold">{ticket.code}</p>
                     <p className="text-xs text-muted-foreground">Mesa #{ticket.seq}</p>
@@ -388,7 +440,7 @@ export function TablesPanel({
               <div>
                 <p className="font-mono text-sm font-semibold">{previewTicket.code}</p>
                 <p className="text-sm text-muted-foreground">
-                  Mesa #{previewTicket.seq} · {previewName}
+                  {previewGroup?.name} · Mesa #{previewTicket.seq} · {previewName}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -400,13 +452,13 @@ export function TablesPanel({
                   Anterior
                 </Button>
                 <span className="min-w-16 text-center text-xs text-muted-foreground">
-                  {previewIndex + 1} / {availableTickets.length}
+                  {previewIndex + 1} / {selectedTickets.length}
                 </span>
                 <Button
                   variant="secondary"
-                  disabled={previewIndex >= availableTickets.length - 1}
+                  disabled={previewIndex >= selectedTickets.length - 1}
                   onClick={() =>
-                    setPreviewIndex((index) => Math.min(availableTickets.length - 1, index + 1))
+                    setPreviewIndex((index) => Math.min(selectedTickets.length - 1, index + 1))
                   }
                 >
                   Seguinte

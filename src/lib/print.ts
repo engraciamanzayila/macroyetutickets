@@ -64,6 +64,7 @@ export async function exportForPrint(
   onProgress: (done: number, total: number, label: string) => void,
   eventId: string,
   reprintAt?: string,
+  ticketIds?: ReadonlySet<string>,
 ) {
   const jobs: { g: Group; tickets: { id: string; code: string; seq: number; holder_name?: string | null }[] }[] = [];
   for (const { g, count } of picks) {
@@ -73,6 +74,15 @@ export async function exportForPrint(
     const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
     const selected = reprintAt
       ? all.filter((t) => t.printed_at && timestampKey(t.printed_at) === timestampKey(reprintAt))
+      : ticketIds
+        ? all.filter(
+            (ticket) =>
+              ticketIds.has(ticket.id) &&
+              ticket.status === "valid" &&
+              !ticket.printed_at &&
+              !ticket.share_id &&
+              !ticket.sent_at,
+          )
       : all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid");
     jobs.push({ g, tickets: selected.slice(0, count) });
   }

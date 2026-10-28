@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
@@ -63,6 +63,10 @@ function EventPage() {
   const [printOpen, setPrintOpen] = useState(false);
   const [formats, setFormats] = useState<OutputFormat[]>(["zip"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  const selectedGroupIds = useMemo(
+    () => groups.filter((group) => selected.has(group.id)).map((group) => group.id),
+    [groups, selected],
+  );
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["groups", eventId] });
 
@@ -222,7 +226,7 @@ function EventPage() {
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
-      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} onDone={() => { refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); }} />
+      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); }} />
 
       <Dialog open={genOpen} onOpenChange={(o) => !progress && setGenOpen(o)}>
         <DialogContent>
