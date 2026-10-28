@@ -1,14 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, UserRound } from "lucide-react";
+import { Download, Printer, Search, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureTickets, fetchAllTickets, type Group, type TicketRow } from "@/lib/generate";
+import {
+  ensureTickets,
+  fetchAllTickets,
+  generate,
+  type Group,
+  type TicketRow,
+} from "@/lib/generate";
+import { exportForPrint } from "@/lib/print";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-export function TablesPanel({ eventId, groups }: { eventId: string; groups: Group[] }) {
+export function TablesPanel({
+  eventId,
+  eventName,
+  groups,
+}: {
+  eventId: string;
+  eventName: string;
+  groups: Group[];
+}) {
   const qc = useQueryClient();
   const tableGroups = useMemo(
     () => groups.filter((group) => group.ticket_type.toUpperCase().includes("MESA")),
@@ -18,6 +33,7 @@ export function TablesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const [search, setSearch] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
+  const [exporting, setExporting] = useState<"digital" | "print" | null>(null);
   const group = tableGroups.find((item) => item.id === groupId) ?? tableGroups[0];
 
   useEffect(() => {
@@ -49,6 +65,10 @@ export function TablesPanel({ eventId, groups }: { eventId: string; groups: Grou
       .includes(search.trim().toLowerCase()),
   );
   const named = currentTickets.filter((ticket) => ticket.holder_name?.trim()).length;
+  const availableTickets = currentTickets.filter(
+    (ticket) =>
+      ticket.status === "valid" && !ticket.printed_at && !ticket.share_id && !ticket.sent_at,
+  );
 
   const saveName = async (ticket: TicketRow, value: string) => {
     const name = value.trim();
@@ -78,6 +98,93 @@ export function TablesPanel({ eventId, groups }: { eventId: string; groups: Grou
       toast.error("Não foi possível gerar os códigos: " + (error as Error).message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const persistPendingNames = async () => {
+    const changed = currentTickets.filter((ticket) => {
+      const currentName = names[ticket.id];
+      return currentName !== undefined && currentName.trim() !== (ticket.holder_name ?? "");
+    });
+    for (const ticket of changed) {
+      const { error } = await supabase
+        .from("tickets")
+        .update({ holder_name: names[ticket.id].trim() || null })
+        .eq("id", ticket.id)
+        .eq("event_id", eventId);
+      if (error)
+        throw new Error(`Não foi possível guardar o nome de ${ticket.code}: ${error.message}`);
+    }
+  };
+
+  const validateExport = () => {
+    if (!group) return false;
+    if (currentTickets.length < group.quantity) {
+      toast.error("Gere primeiro os códigos em falta para este grupo de mesas.");
+      return false;
+    }
+    if (!group.layout) {
+      toast.error("Posicione primeiro o QR no editor deste grupo.");
+      return false;
+    }
+    if (!availableTickets.length) {
+      toast.error("Não há mesas digitais disponíveis para exportar neste grupo.");
+      return false;
+    }
+    const unnamed = availableTickets.filter(
+      (ticket) => !(names[ticket.id] ?? ticket.holder_name ?? "").trim(),
+    );
+    if (unnamed.length) {
+      toast.error(`Preencha o nome de cada mesa a exportar. Faltam ${unnamed.length} titular(es).`);
+      return false;
+    }
+    return true;
+  };
+
+  const exportDigital = async () => {
+    if (!validateExport() || !group || exporting) return;
+    setExporting("digital");
+    try {
+      await persistPendingNames();
+      const count = await generate(
+        [group],
+        ["zip", "pdf"],
+        `${eventName}_${group.name}_mesas_digitais`,
+        () => {},
+      );
+      if (!count) throw new Error("Não há ingressos digitais disponíveis para exportar");
+      toast.success(`${count} mesa(s) exportada(s) com QR, referência e nome do cliente.`);
+      await qc.invalidateQueries({ queryKey: ["table-tickets", eventId] });
+    } catch (error) {
+      toast.error("Falha ao gerar os ficheiros digitais: " + (error as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportPrint = async () => {
+    if (!validateExport() || !group || exporting) return;
+    setExporting("print");
+    try {
+      await persistPendingNames();
+      const result = await exportForPrint(
+        [{ g: group, count: availableTickets.length }],
+        `${eventName}_${group.name}_mesas`,
+        () => {},
+        eventId,
+      );
+      toast.success(
+        `${result.total} mesa(s) em ${result.pages} folha(s) A4, com nome, QR e referência.`,
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
+        qc.invalidateQueries({ queryKey: ["print-history", eventId] }),
+        qc.invalidateQueries({ queryKey: ["report", eventId] }),
+      ]);
+    } catch (error) {
+      toast.error("Falha ao exportar para impressão: " + (error as Error).message);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -123,11 +230,25 @@ export function TablesPanel({ eventId, groups }: { eventId: string; groups: Grou
                 {Math.max(0, group.quantity - currentTickets.length)} por gerar
               </Badge>
             </div>
-            {currentTickets.length < group.quantity && (
-              <Button onClick={generateMissing} disabled={generating}>
-                {generating ? "A gerar…" : "Gerar códigos em falta"}
+            <div className="flex flex-wrap gap-2">
+              {currentTickets.length < group.quantity && (
+                <Button onClick={generateMissing} disabled={generating || !!exporting}>
+                  {generating ? "A gerar…" : "Gerar códigos em falta"}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                onClick={() => void exportDigital()}
+                disabled={!!exporting || generating}
+              >
+                <Download className="h-4 w-4" />
+                {exporting === "digital" ? "A gerar digitais…" : "Baixar digitais (ZIP + PDF)"}
               </Button>
-            )}
+              <Button onClick={() => void exportPrint()} disabled={!!exporting || generating}>
+                <Printer className="h-4 w-4" />
+                {exporting === "print" ? "A paginar…" : "Imprimir em A4"}
+              </Button>
+            </div>
           </div>
 
           <div className="relative max-w-md">
@@ -156,6 +277,7 @@ export function TablesPanel({ eventId, groups }: { eventId: string; groups: Grou
                   <div className="relative">
                     <UserRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
+                      disabled={!!exporting}
                       value={names[ticket.id] ?? ticket.holder_name ?? ""}
                       onChange={(event) =>
                         setNames((current) => ({ ...current, [ticket.id]: event.target.value }))

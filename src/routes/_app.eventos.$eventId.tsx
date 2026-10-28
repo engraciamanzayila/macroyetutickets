@@ -213,7 +213,7 @@ function EventPage() {
 
         {groups.some((g) => g.ticket_type.toUpperCase().includes("MESA")) && (
           <TabsContent value="mesas" className="mt-6">
-            <TablesPanel eventId={eventId} groups={groups} />
+            <TablesPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} />
           </TabsContent>
         )}
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
