@@ -11,6 +11,8 @@ import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
 import { SharesPanel } from "@/components/event/SharesPanel";
 import { AdminDispatchPanel } from "@/components/event/AdminDispatchPanel";
+import { TablesPanel } from "@/components/event/TablesPanel";
+import { PrintHistoryPanel } from "@/components/event/PrintHistoryPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ContractPanel } from "@/components/event/ContractPanel";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL } from "@/lib/company";
+import { kz } from "@/lib/payments";
 
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
@@ -114,7 +117,9 @@ function EventPage() {
       <Tabs defaultValue="grupos">
         <TabsList className="max-w-full overflow-x-auto justify-start">
           <TabsTrigger value="grupos">Grupos & geração</TabsTrigger>
+          {groups.some((g) => g.ticket_type.toUpperCase().includes("MESA")) && <TabsTrigger value="mesas">Mesas</TabsTrigger>}
           <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
+          <TabsTrigger value="impressoes">Impressões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
@@ -163,9 +168,30 @@ function EventPage() {
                             </select>
                           )}
                           {g.recipient && <span>→ {g.recipient}</span>}
+                          {g.price != null && g.price > 0 && <span>{kz(g.price)}</span>}
                           {g.width_cm && <span>{g.width_cm}×{g.height_cm} cm</span>}
                           <span>{made} código(s) criados</span>
                           {!g.layout && <span className="text-warning">QR por posicionar</span>}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 pt-2">
+                          <label className="flex items-center gap-2 text-xs">
+                            <Checkbox checked={!!g.for_sale} onCheckedChange={(value) => updateGroup(g.id, { for_sale: !!value })} />
+                            À venda na loja pública
+                          </label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            aria-label={`Preço por ingresso de ${g.name} em Kz`}
+                            defaultValue={g.price ?? 0}
+                            onBlur={(e) => {
+                              const price = Number(e.target.value);
+                              if (Number.isFinite(price) && price >= 0 && price !== (g.price ?? 0)) updateGroup(g.id, { price });
+                            }}
+                            className="h-8 w-32"
+                            placeholder="Preço Kz"
+                          />
+                          <span className="text-xs text-muted-foreground">Kz / ingresso</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -185,7 +211,13 @@ function EventPage() {
           )}
         </TabsContent>
 
+        {groups.some((g) => g.ticket_type.toUpperCase().includes("MESA")) && (
+          <TabsContent value="mesas" className="mt-6">
+            <TablesPanel eventId={eventId} groups={groups} />
+          </TabsContent>
+        )}
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="impressoes" className="mt-6"><PrintHistoryPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
         <TabsContent value="partilha" className="mt-6">{isAdmin && <AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} />}<SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>

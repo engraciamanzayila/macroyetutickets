@@ -8,6 +8,8 @@ export type Group = {
   ticket_type: string;
   recipient: string | null;
   quantity: number;
+  price?: number;
+  for_sale?: boolean;
   art_path: string | null;
   art_width: number | null;
   art_height: number | null;

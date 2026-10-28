@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Group } from "@/lib/generate";
-import { a4Grid, exportForPrint, printAvailability, type PrintAvail } from "@/lib/print";
+import { a4Grid, exportForPrint, lastPrintSelection, printAvailability, type LastPrintSelection, type PrintAvail } from "@/lib/print";
 import { physicalMm } from "@/lib/render";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,16 @@ type Props = { open: boolean; onOpenChange: (o: boolean) => void; eventId: strin
 
 export function PrintDialog({ open, onOpenChange, eventId, eventName, groups, onDone }: Props) {
   const [avail, setAvail] = useState<PrintAvail | null>(null);
+  const [lastSelection, setLastSelection] = useState<LastPrintSelection | null>(null);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setAvail(null); setQty({});
-    printAvailability(eventId, groups).then(setAvail).catch((e) => toast.error(e.message));
+    setAvail(null); setLastSelection(null); setQty({});
+    Promise.all([printAvailability(eventId, groups), lastPrintSelection(eventId, groups)])
+      .then(([availability, selection]) => { setAvail(availability); setLastSelection(selection); })
+      .catch((e) => toast.error(e.message));
   }, [open, eventId, groups]);
 
   const total = Object.values(qty).reduce((s, n) => s + (n || 0), 0);
@@ -29,12 +32,32 @@ export function PrintDialog({ open, onOpenChange, eventId, eventName, groups, on
     if (noLayout.length) return toast.error(`Posicione o QR primeiro em: ${noLayout.map((p) => p.g.name).join(", ")}`);
     try {
       setProgress({ done: 0, total: 1, label: "A iniciar…" });
-      const r = await exportForPrint(picks, eventName, (done, t, label) => setProgress({ done, total: t, label }));
+      const r = await exportForPrint(picks, eventName, (done, t, label) => setProgress({ done, total: t, label }), eventId);
       toast.success(`${r.total} ingressos em ${r.pages} folha(s) A4. Marcados como impressos.`);
       onDone(); onOpenChange(false);
     } catch (e) {
       toast.error("Falha: " + (e as Error).message);
     } finally { setProgress(null); }
+  };
+
+  const downloadLastSelection = async () => {
+    if (!lastSelection) return;
+    try {
+      setProgress({ done: 0, total: 1, label: "A preparar a última seleção…" });
+      const result = await exportForPrint(
+        lastSelection.picks,
+        eventName,
+        (done, total, label) => setProgress({ done, total, label }),
+        eventId,
+        lastSelection.printedAt,
+      );
+      toast.success(`${result.total} ingressos da última seleção novamente em PDF.`);
+      onDone();
+    } catch (e) {
+      toast.error("Falha ao reexportar: " + (e as Error).message);
+    } finally {
+      setProgress(null);
+    }
   };
 
   return (
@@ -68,7 +91,14 @@ export function PrintDialog({ open, onOpenChange, eventId, eventName, groups, on
             <p className="text-xs text-muted-foreground">{progress.label}</p>
           </div>
         )}
-        <Button onClick={run} disabled={!total || !!progress}>{progress ? "A exportar…" : `Exportar ${total} para impressão`}</Button>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {lastSelection && (
+            <Button variant="secondary" onClick={downloadLastSelection} disabled={!!progress}>
+              Baixar última seleção novamente ({lastSelection.total})
+            </Button>
+          )}
+          <Button onClick={run} disabled={!total || !!progress}>{progress ? "A exportar…" : `Exportar ${total} para impressão`}</Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

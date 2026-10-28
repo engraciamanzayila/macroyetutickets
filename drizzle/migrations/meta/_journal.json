@@ -64,6 +64,20 @@
       "when": 1791886381907,
       "tag": "0008_public_marketplace_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0009_order_table_ticket_holder",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793160000000,
+      "tag": "0010_print_jobs",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,7 @@ type Item = {
   recipient: string;
   ticketType: string;
   quantity: number;
+  price: string;
   widthCm: string;
   heightCm: string;
 };
@@ -43,6 +44,7 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
         recipient: p.recipient,
         ticketType: p.ticketType,
         quantity: p.quantity,
+        price: p.price === null ? "" : String(p.price),
         widthCm: p.widthCm ? String(p.widthCm) : "",
         heightCm: p.heightCm ? String(p.heightCm) : "",
       };
@@ -83,6 +85,7 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
         recipient: it.recipient || null,
         ticket_type: it.ticketType,
         quantity: Math.max(1, it.quantity),
+        price: Number(it.price.replace(",", ".")) || 0,
         source_filename: it.file.name,
         art_path: path,
         art_width: it.art!.width,
@@ -111,7 +114,7 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
       >
         <FileUp className="mx-auto h-8 w-8 text-primary" />
         <p className="mt-3 font-semibold">Arraste as artes aqui ou clique para escolher</p>
-        <p className="text-sm text-muted-foreground">PDF, JPG, PNG, TIFF, WEBP · até 100 ficheiros. O nome do ficheiro define grupo, área e quantidade.</p>
+        <p className="text-sm text-muted-foreground">PDF, JPG, PNG, TIFF, WEBP · até 100 ficheiros. Revise o grupo, tipo, quantidade e preço lidos do nome antes de criar.</p>
         <input ref={input} type="file" multiple accept={ACCEPTED} className="hidden" onChange={(e) => e.target.files && addFiles(e.target.files)} />
       </div>
 
@@ -133,7 +136,7 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
                 <div className="h-14 w-20 rounded-md checker grid place-items-center overflow-hidden">
                   {it.art ? <img src={it.art.previewUrl} alt="" className="max-h-full max-w-full object-contain" /> : it.error ? <span className="text-[10px] text-destructive">{it.error}</span> : <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
                   <p className="col-span-2 md:col-span-6 text-xs text-muted-foreground truncate" title={it.file.name}>{it.file.name}</p>
                   <Input className="col-span-2" value={it.name} onChange={(e) => update(it.key, { name: e.target.value })} placeholder="Grupo" />
                   <Input value={it.recipient} onChange={(e) => update(it.key, { recipient: e.target.value })} placeholder="Destinatário" />
@@ -141,6 +144,7 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
                     {[...new Set([...TICKET_TYPES, it.ticketType])].map((t) => <option key={t} value={t} className="bg-popover">{t}</option>)}
                   </select>
                   <Input type="number" min={1} value={it.quantity} onChange={(e) => update(it.key, { quantity: parseInt(e.target.value) || 1 })} title="Quantidade" />
+                  <Input type="number" min={0} step="1" value={it.price} onChange={(e) => update(it.key, { price: e.target.value })} placeholder="Preço Kz" aria-label="Preço por ingresso em Kz" />
                   <div className="flex items-center gap-1">
                     <Input value={it.widthCm} onChange={(e) => update(it.key, { widthCm: e.target.value })} placeholder="L cm" />
                     <span className="text-muted-foreground">×</span>

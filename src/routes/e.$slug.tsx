@@ -57,6 +57,9 @@ function EventShop() {
   const { event, groups } = data;
   const total = groups.reduce((s, g) => s + g.price * (qty[g.id] || 0), 0);
   const count = Object.values(qty).reduce((s, v) => s + v, 0);
+  const includesTableTicket = groups.some(
+    (g) => g.ticket_type.toUpperCase().startsWith("MESA") && qty[g.id] > 0,
+  );
   const buy = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -203,6 +206,11 @@ function EventShop() {
                     <div>
                       <Label htmlFor="buyer-name">Nome completo</Label>
                       <Input id="buyer-name" name="name" required minLength={2} />
+                      {includesTableTicket && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          A equipa de gestão associa manualmente um nome diferente a cada ingresso de Mesa após a compra.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="buyer-phone">Telefone</Label>

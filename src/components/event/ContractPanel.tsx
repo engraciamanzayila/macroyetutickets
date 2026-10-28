@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ExternalLink, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL, COMMISSION_EXCLUSIVE, COMMISSION_STANDARD, COMPANY } from "@/lib/company";
@@ -11,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
-type Ev = { id: string; name: string; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number };
+type Ev = { id: string; name: string; slug: string | null; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number };
 
 const FIELDS = [
   ["company", "Empresa / nome do promotor"],
@@ -67,6 +68,19 @@ export function ContractPanel({ event }: { event: Ev }) {
     if (error) toast.error(error.message); else refresh();
   };
 
+  const setPublished = async (published: boolean) => {
+    const slug = event.slug ?? `${event.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")}-${event.id.slice(0, 6)}`;
+    const { error } = await supabase.from("events").update({ published, slug }).eq("id", event.id);
+    if (error) return toast.error(`Não foi possível ${published ? "publicar" : "retirar"} o evento: ${error.message}`);
+    toast.success(published ? "Evento publicado na loja" : "Evento retirado da loja");
+    refresh();
+  };
+
   const d = form as Partial<Record<(typeof FIELDS)[number][0], string>>;
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -78,6 +92,20 @@ export function ContractPanel({ event }: { event: Ev }) {
           </div>
           <p className="text-sm text-muted-foreground">Comissão da plataforma: <b className="text-foreground">{event.commission_pct}%</b> por ingresso vendido. Entrar e publicar é gratuito.</p>
           {event.approval_note && <p className="text-sm rounded-md bg-secondary p-3">Nota da administração: {event.approval_note}</p>}
+          {event.approval_status === "approved" ? (
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <Button variant={event.published ? "secondary" : "default"} onClick={() => void setPublished(!event.published)}>
+                <Store className="h-4 w-4" /> {event.published ? "Retirar da loja" : "Publicar na loja"}
+              </Button>
+              {event.published && event.slug && (
+                <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={`/e/${event.slug}`} target="_blank" rel="noreferrer">
+                  Abrir página pública <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          ) : (
+            <p className="border-t pt-3 text-xs text-muted-foreground">A publicação na loja fica disponível após a aprovação da administração.</p>
+          )}
           {isAdmin && (
             <div className="space-y-3 border-t pt-3">
               <div className="flex items-center gap-2 text-sm">

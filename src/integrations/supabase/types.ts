@@ -474,6 +474,53 @@ export type Database = {
           },
         ]
       }
+      print_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          file_name: string
+          id: string
+          page_count: number
+          source_printed_at: string
+          storage_path: string | null
+          ticket_count: number
+          ticket_ids: string[]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          file_name: string
+          id?: string
+          page_count?: number
+          source_printed_at: string
+          storage_path?: string | null
+          ticket_count?: number
+          ticket_ids?: string[]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          file_name?: string
+          id?: string
+          page_count?: number
+          source_printed_at?: string
+          storage_path?: string | null
+          ticket_count?: number
+          ticket_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_jobs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string

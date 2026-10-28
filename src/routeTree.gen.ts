@@ -16,6 +16,7 @@ import { Route as MeusIngressosRouteImport } from './routes/meus-ingressos'
 import { Route as PromotoresRouteImport } from './routes/promotores'
 import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
+import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
@@ -57,6 +58,11 @@ const AppEncomendasRoute = AppEncomendasRouteImport.update({
 const AppEquipaRoute = AppEquipaRouteImport.update({
   id: '/equipa',
   path: '/equipa',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppIdentidadeRoute = AppIdentidadeRouteImport.update({
+  id: '/identidade',
+  path: '/identidade',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPortariaRoute = AppPortariaRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/promotores': typeof PromotoresRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
+  '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/promotores': typeof PromotoresRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
+  '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/promotores': typeof PromotoresRoute
   '/_app/encomendas': typeof AppEncomendasRoute
   '/_app/equipa': typeof AppEquipaRoute
+  '/_app/identidade': typeof AppIdentidadeRoute
   '/_app/portaria': typeof AppPortariaRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/promotores'
     | '/encomendas'
     | '/equipa'
+    | '/identidade'
     | '/portaria'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/promotores'
     | '/encomendas'
     | '/equipa'
+    | '/identidade'
     | '/portaria'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/promotores'
     | '/_app/encomendas'
     | '/_app/equipa'
+    | '/_app/identidade'
     | '/_app/portaria'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -265,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEquipaRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/identidade': {
+      id: '/_app/identidade'
+      path: '/identidade'
+      fullPath: '/identidade'
+      preLoaderRoute: typeof AppIdentidadeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/portaria': {
       id: '/_app/portaria'
       path: '/portaria'
@@ -327,6 +346,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppEncomendasRoute: typeof AppEncomendasRoute
   AppEquipaRoute: typeof AppEquipaRoute
+  AppIdentidadeRoute: typeof AppIdentidadeRoute
   AppPortariaRoute: typeof AppPortariaRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
@@ -336,6 +356,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppEncomendasRoute: AppEncomendasRoute,
   AppEquipaRoute: AppEquipaRoute,
+  AppIdentidadeRoute: AppIdentidadeRoute,
   AppPortariaRoute: AppPortariaRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,

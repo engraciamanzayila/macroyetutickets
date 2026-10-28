@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { CalendarDays, LogOut, Receipt, ScanLine, Store, Users } from "lucide-react";
+import { CalendarDays, LogOut, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,9 +41,19 @@ function AppLayout() {
     );
 
   const nav = [
-    ...(isManager ? [{ to: "/eventos", label: "Eventos", icon: CalendarDays }, { to: "/encomendas", label: "Vendas", icon: Receipt }] : []),
+    ...(isManager
+      ? [
+          { to: "/eventos", label: "Eventos", icon: CalendarDays },
+          { to: "/encomendas", label: "Vendas", icon: Receipt },
+        ]
+      : []),
     { to: "/portaria", label: "Portaria", icon: ScanLine },
-    ...(isAdmin ? [{ to: "/equipa", label: "Equipa", icon: Users }] : []),
+    ...(isAdmin
+      ? [
+          { to: "/equipa", label: "Equipa", icon: Users },
+          { to: "/identidade", label: "Identidade", icon: Palette },
+        ]
+      : []),
   ] as const;
 
   return (

@@ -8,5 +8,10 @@
 - [ ] Dashboards separados: público, promotor, administração máxima, membros de administração (níveis: funcionários, gestores de clientes público, gestores de promotores); admin máximo alterna entre todos
 - [ ] Google Sheets: implementação feita; falta validar a atualização em tempo real com as credenciais da integração
 - [x] Loja pública inicial: catálogo, detalhe do evento, seleção por grupo, encomenda e preferência de canal
+- [x] Configuração do preço por grupo, ativação da venda e publicação do evento após aprovação
 - [ ] Loja pública completa: carrinho entre eventos, pagamentos automáticos e envio automático de ingressos
-- [ ] Mockups de identidade visual
+- [x] Mockups de identidade visual
+- [x] Grupos de Mesa numa área própria, com nome individual por ingresso; ficheiros determinam quantidade e preço do grupo
+- [x] Arquivo de PDFs de impressão por evento e recuperação dos lotes antigos com base em `printed_at`
+- [ ] Autenticação Google e Google Sheets: testar com as integrações/credenciais oficiais no ambiente publicado
+- [ ] Nome final da plataforma: MY Tickets

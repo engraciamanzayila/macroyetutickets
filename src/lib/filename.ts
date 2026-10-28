@@ -6,6 +6,7 @@ export type ParsedName = {
   recipient: string;
   ticketType: string;
   quantity: number;
+  price: number | null;
   widthCm: number | null;
   heightCm: number | null;
 };
@@ -25,7 +26,21 @@ function detectType(s: string): string | null {
 }
 
 const SIZE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm)?/i;
-const QTY_ONLY_RE = /^(\d+)\s*(F|UN|UND|UNID|UNIDADES|PCS|X|QTD|EX)?$/i;
+const QTY_ONLY_RE = /^(\d+)\s*(F|UN|UND|UNID|UNIDADES|PCS|X|QTD|EX|MESAS?|INGRESSOS?)?$/i;
+const PRICE_RE = /\b(?:PREÇO|PRECO|VALOR)\s*[:=]?\s*(\d[\d., ]*)|\b(?:KZ|AOA|AKZ)\s*(\d[\d., ]*)|(\d[\d., ]*)\s*(?:KZ|AOA|AKZ)\b/i;
+
+function parsePrice(value: string) {
+  const compact = value.replace(/\s/g, "");
+  const decimal = Math.max(compact.lastIndexOf(","), compact.lastIndexOf("."));
+  if (decimal < 0) return Number(compact);
+  const trailing = compact.length - decimal - 1;
+  if (trailing === 3) return Number(compact.replace(/[.,]/g, ""));
+  if (trailing <= 2) {
+    const whole = compact.slice(0, decimal).replace(/[.,]/g, "");
+    return Number(`${whole}.${compact.slice(decimal + 1)}`);
+  }
+  return Number(compact.replace(/[.,]/g, ""));
+}
 
 /** Reads event name, recipient, area/type, quantity and size from a file name. */
 export function parseFilename(filename: string): ParsedName {
@@ -33,6 +48,7 @@ export function parseFilename(filename: string): ParsedName {
   const segments = base.split(/\s+-\s+|\s*\|\s*/).map((s) => s.trim()).filter(Boolean);
 
   let quantity = 0;
+  let price: number | null = null;
   let widthCm: number | null = null;
   let heightCm: number | null = null;
   let ticketType: string | null = null;
@@ -40,6 +56,16 @@ export function parseFilename(filename: string): ParsedName {
 
   for (const seg of segments) {
     let s = seg;
+    const priceMatch = s.match(PRICE_RE);
+    if (priceMatch) {
+      const amount = priceMatch[1] ?? priceMatch[2] ?? priceMatch[3];
+      const parsed = parsePrice(amount);
+      if (Number.isFinite(parsed)) price = parsed;
+      s = s.replace(priceMatch[0], "").trim();
+    } else if (quantity > 0 && /^\d{1,3}(?:[. ]\d{3})+(?:,\d{1,2})?$/.test(s)) {
+      price = parsePrice(s);
+      continue;
+    }
     const size = s.match(SIZE_RE);
     if (size) {
       const k = size[3]?.toLowerCase() === "mm" ? 0.1 : 1;
@@ -50,6 +76,7 @@ export function parseFilename(filename: string): ParsedName {
     const q = s.match(QTY_ONLY_RE);
     if (q) {
       quantity = parseInt(q[1], 10);
+      if (/\bMESAS?\b/i.test(s)) ticketType = ticketType ?? "Mesa";
       continue;
     }
     const qInline = s.match(/(?:QTD|QUANT(?:IDADE)?)\D*(\d+)/i);
@@ -84,6 +111,7 @@ export function parseFilename(filename: string): ParsedName {
     recipient,
     ticketType: type,
     quantity: quantity || 1,
+    price,
     widthCm,
     heightCm,
   };

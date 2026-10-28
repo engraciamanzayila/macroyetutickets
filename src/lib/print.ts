@@ -4,6 +4,7 @@ import { renderTicket } from "./render";
 import { ensureTickets, fetchAllTickets, loadArt, type Group } from "./generate";
 
 const PW = 210, PH = 297;
+const timestampKey = (value: string) => new Date(value).toISOString();
 
 /** Best A4 grid for a ticket of w×h mm. Tries normal/rotated and tight margins so 21 cm tickets fit full width. */
 export function a4Grid(w: number, h: number) {
@@ -21,6 +22,7 @@ export function a4Grid(w: number, h: number) {
 }
 
 export type PrintAvail = Record<string, { printed: number; available: number }>;
+export type LastPrintSelection = { printedAt: string; picks: { g: Group; count: number }[]; total: number };
 
 /** Per group: printed count and how many valid, never-printed tickets can still go to print. */
 export async function printAvailability(eventId: string, groups: Group[]): Promise<PrintAvail> {
@@ -35,10 +37,33 @@ export async function printAvailability(eventId: string, groups: Group[]): Promi
   return out;
 }
 
+export async function lastPrintSelection(eventId: string, groups: Group[]): Promise<LastPrintSelection | null> {
+  const rows = (await fetchAllTickets(
+    { event_id: eventId },
+    "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name",
+  )) as unknown as { group_id: string; printed_at: string | null }[];
+  const printedAt = rows.reduce<string | null>(
+    (latest, ticket) => ticket.printed_at && (!latest || ticket.printed_at > latest) ? ticket.printed_at : latest,
+    null,
+  );
+  if (!printedAt) return null;
+  const counts = new Map<string, number>();
+  for (const ticket of rows) {
+    if (ticket.printed_at === printedAt) counts.set(ticket.group_id, (counts.get(ticket.group_id) ?? 0) + 1);
+  }
+  const picks = groups.flatMap((g) => {
+    const count = counts.get(g.id) ?? 0;
+    return count ? [{ g, count }] : [];
+  });
+  return { printedAt, picks, total: picks.reduce((sum, pick) => sum + pick.count, 0) };
+}
+
 export async function exportForPrint(
   picks: { g: Group; count: number }[],
   fileBase: string,
   onProgress: (done: number, total: number, label: string) => void,
+  eventId: string,
+  reprintAt?: string,
 ) {
   const jobs: { g: Group; tickets: { id: string; code: string; seq: number; holder_name?: string | null }[] }[] = [];
   for (const { g, count } of picks) {
@@ -46,7 +71,10 @@ export async function exportForPrint(
     onProgress(0, 1, `A preparar códigos: ${g.name}`);
     await ensureTickets(g);
     const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
-    jobs.push({ g, tickets: all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid").slice(0, count) });
+    const selected = reprintAt
+      ? all.filter((t) => t.printed_at && timestampKey(t.printed_at) === timestampKey(reprintAt))
+      : all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid");
+    jobs.push({ g, tickets: selected.slice(0, count) });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
   if (!total) throw new Error("Nada para imprimir");
@@ -84,6 +112,13 @@ export async function exportForPrint(
       const x = (PW - usedW) / 2 + c * (cw + grid.gap);
       const y = (PH - usedH) / 2 + r * (ch + grid.gap);
       pdf.addImage(bytes, "JPEG", x, y, cw, ch, undefined, "FAST");
+      pdf.setDrawColor(45, 45, 45);
+      pdf.setLineWidth(0.1);
+      const mark = Math.min(20, cw / 2, ch / 2);
+      pdf.line(x, y, x + mark, y);
+      pdf.line(x + cw - mark, y, x + cw, y);
+      pdf.line(x, y + ch, x + mark, y + ch);
+      pdf.line(x + cw - mark, y + ch, x + cw, y + ch);
       slot = (slot + 1) % per;
       done++;
       if (done % 5 === 0 || done === total) onProgress(done, total, `A paginar ${done}/${total}`);
@@ -93,18 +128,47 @@ export async function exportForPrint(
   }
 
   onProgress(total, total, "A guardar…");
+  const blob = pdf.output("blob");
+  const base = fileBase.replace(/[^\w\-À-ú ]+/g, "").trim().replace(/\s+/g, "_").slice(0, 60) || "ingressos";
+  const fileName = `${base}_${reprintAt ? "REIMPRESSAO" : "IMPRESSAO"}.pdf`;
+  const sourcePrintedAt = reprintAt ?? new Date().toISOString();
+  const ids = jobs.flatMap((j) => j.tickets.map((t) => t.id));
+  const { data: user } = await supabase.auth.getUser();
+  const jobId = crypto.randomUUID();
+  const storagePath = `${eventId}/${jobId}.pdf`;
+  const { error: uploadError } = await supabase.storage
+    .from("print-files")
+    .upload(storagePath, blob, { contentType: "application/pdf", upsert: false });
+  if (uploadError) throw new Error(`Não foi possível arquivar o PDF: ${uploadError.message}`);
+
+  const { error: jobError } = await supabase.from("print_jobs").insert({
+      id: jobId,
+      event_id: eventId,
+      created_by: user.user?.id ?? null,
+      file_name: fileName,
+      storage_path: storagePath,
+      source_printed_at: sourcePrintedAt,
+      ticket_ids: ids,
+      ticket_count: total,
+      page_count: pdf.getNumberOfPages(),
+    });
+  if (jobError) {
+    await supabase.storage.from("print-files").remove([storagePath]);
+    throw new Error(`Não foi possível registar o PDF no arquivo: ${jobError.message}`);
+  }
+
+  // Mark as printed only after the PDF is safely stored in the event archive.
+  if (!reprintAt) {
+    for (let i = 0; i < ids.length; i += 300) {
+      const { error } = await supabase.from("tickets").update({ printed_at: sourcePrintedAt }).in("id", ids.slice(i, i + 300));
+      if (error) throw new Error(`PDF arquivado, mas não foi possível marcar os ingressos como impressos: ${error.message}`);
+    }
+  }
+
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(pdf.output("blob"));
-  a.download = `${fileBase.replace(/[^\w\-À-ú ]+/g, "").trim().replace(/\s+/g, "_").slice(0, 60) || "ingressos"}_IMPRESSAO.pdf`;
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-
-  // Mark as printed so they are excluded from future digital downloads.
-  const ids = jobs.flatMap((j) => j.tickets.map((t) => t.id));
-  const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += 300) {
-    const { error } = await supabase.from("tickets").update({ printed_at: now }).in("id", ids.slice(i, i + 300));
-    if (error) throw error;
-  }
   return { total, pages: pdf.getNumberOfPages() };
 }
