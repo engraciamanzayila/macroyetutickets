@@ -11,9 +11,12 @@ import {
   type TicketRow,
 } from "@/lib/generate";
 import { exportForPrint } from "@/lib/print";
+import { DEFAULT_LAYOUT, renderTicket } from "@/lib/render";
+import { loadArt } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function TablesPanel({
   eventId,
@@ -34,6 +37,10 @@ export function TablesPanel({
   const [names, setNames] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState<"digital" | "print" | null>(null);
+  const [previewMode, setPreviewMode] = useState<"digital" | "print" | null>(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewImage, setPreviewImage] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
   const group = tableGroups.find((item) => item.id === groupId) ?? tableGroups[0];
 
   useEffect(() => {
@@ -69,6 +76,43 @@ export function TablesPanel({
     (ticket) =>
       ticket.status === "valid" && !ticket.printed_at && !ticket.share_id && !ticket.sent_at,
   );
+  const previewTicket = availableTickets[previewIndex];
+  const previewName = previewTicket
+    ? (names[previewTicket.id] ?? previewTicket.holder_name ?? "")
+    : "";
+
+  useEffect(() => {
+    if (!previewMode || !group?.art_path || !previewTicket) {
+      setPreviewImage("");
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true);
+    loadArt(group.art_path)
+      .then(async (art) => {
+        try {
+          const canvas = await renderTicket(
+            art,
+            group.layout ?? DEFAULT_LAYOUT,
+            previewTicket.code,
+            previewName,
+          );
+          if (!cancelled) setPreviewImage(canvas.toDataURL("image/png"));
+        } finally {
+          art.close();
+        }
+      })
+      .catch((error) => {
+        if (!cancelled)
+          toast.error("Não foi possível pré-visualizar o ingresso: " + (error as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [group, previewMode, previewName, previewTicket]);
 
   const saveName = async (ticket: TicketRow, value: string) => {
     const name = value.trim();
@@ -141,8 +185,14 @@ export function TablesPanel({
     return true;
   };
 
+  const requestExport = (mode: "digital" | "print") => {
+    if (!validateExport() || exporting || generating) return;
+    setPreviewIndex(0);
+    setPreviewMode(mode);
+  };
+
   const exportDigital = async () => {
-    if (!validateExport() || !group || exporting) return;
+    if (!group || exporting) return;
     setExporting("digital");
     try {
       await persistPendingNames();
@@ -163,7 +213,7 @@ export function TablesPanel({
   };
 
   const exportPrint = async () => {
-    if (!validateExport() || !group || exporting) return;
+    if (!group || exporting) return;
     setExporting("print");
     try {
       await persistPendingNames();
@@ -186,6 +236,13 @@ export function TablesPanel({
     } finally {
       setExporting(null);
     }
+  };
+
+  const confirmExport = async () => {
+    const mode = previewMode;
+    setPreviewMode(null);
+    if (mode === "digital") await exportDigital();
+    if (mode === "print") await exportPrint();
   };
 
   if (!tableGroups.length)
@@ -238,13 +295,13 @@ export function TablesPanel({
               )}
               <Button
                 variant="secondary"
-                onClick={() => void exportDigital()}
+                onClick={() => requestExport("digital")}
                 disabled={!!exporting || generating}
               >
                 <Download className="h-4 w-4" />
                 {exporting === "digital" ? "A gerar digitais…" : "Baixar digitais (ZIP + PDF)"}
               </Button>
-              <Button onClick={() => void exportPrint()} disabled={!!exporting || generating}>
+              <Button onClick={() => requestExport("print")} disabled={!!exporting || generating}>
                 <Printer className="h-4 w-4" />
                 {exporting === "print" ? "A paginar…" : "Imprimir em A4"}
               </Button>
@@ -315,6 +372,78 @@ export function TablesPanel({
           </div>
         </>
       )}
+      <Dialog open={previewMode !== null} onOpenChange={(open) => !open && setPreviewMode(null)}>
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Pré-visualização antes de {previewMode === "print" ? "imprimir" : "gerar os digitais"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Confirme a arte final deste ingresso. O nome individual está aplicado junto do código de
+            referência e do QR. Pode percorrer as mesas disponíveis antes de continuar.
+          </p>
+          {previewTicket && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-mono text-sm font-semibold">{previewTicket.code}</p>
+                <p className="text-sm text-muted-foreground">
+                  Mesa #{previewTicket.seq} · {previewName}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={previewIndex === 0}
+                  onClick={() => setPreviewIndex((index) => Math.max(0, index - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-16 text-center text-xs text-muted-foreground">
+                  {previewIndex + 1} / {availableTickets.length}
+                </span>
+                <Button
+                  variant="secondary"
+                  disabled={previewIndex >= availableTickets.length - 1}
+                  onClick={() =>
+                    setPreviewIndex((index) => Math.min(availableTickets.length - 1, index + 1))
+                  }
+                >
+                  Seguinte
+                </Button>
+              </div>
+            </div>
+          )}
+          <div className="grid min-h-64 place-items-center overflow-hidden rounded-md border bg-secondary p-3">
+            {previewLoading ? (
+              <p className="text-sm text-muted-foreground">A preparar a arte…</p>
+            ) : previewImage ? (
+              <img
+                src={previewImage}
+                alt={`Pré-visualização do ingresso ${previewTicket?.code} para ${previewName}`}
+                className="max-h-[58vh] max-w-full object-contain shadow-lg"
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                A pré-visualização não está disponível.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPreviewMode(null)}>
+              Voltar à edição
+            </Button>
+            <Button disabled={previewLoading || !previewImage} onClick={() => void confirmExport()}>
+              {previewMode === "print" ? (
+                <Printer className="h-4 w-4" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {previewMode === "print" ? "Confirmar impressão A4" : "Confirmar ficheiros digitais"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
