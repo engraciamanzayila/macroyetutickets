@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
-type Ev = { id: string; name: string; slug: string | null; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number };
+type Ev = { id: string; name: string; slug: string | null; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number; ticket_email_cc: string | null; ticket_email_extra_cc: string[] };
 
 const FIELDS = [
   ["company", "Empresa / nome do promotor"],
@@ -38,11 +38,18 @@ export function ContractPanel({ event }: { event: Ev }) {
   const [agree, setAgree] = useState(false);
   const [sign, setSign] = useState("");
   const [note, setNote] = useState("");
+  const [promoterCc, setPromoterCc] = useState(event.ticket_email_cc ?? "");
+  const [extraCc, setExtraCc] = useState((event.ticket_email_extra_cc ?? []).join(", "));
 
   useEffect(() => {
     if (contract) { setForm(contract.data as Record<string, string>); setExclusive(contract.exclusive); }
     else setForm((f) => ({ email: session?.user.email ?? "", ...f }));
   }, [contract, session]);
+
+  useEffect(() => {
+    setPromoterCc(event.ticket_email_cc ?? "");
+    setExtraCc((event.ticket_email_extra_cc ?? []).join(", "));
+  }, [event.id, event.ticket_email_cc, event.ticket_email_extra_cc]);
 
   const locked = !!contract?.admin_signed_at;
   const pct = exclusive ? COMMISSION_EXCLUSIVE : COMMISSION_STANDARD;
@@ -81,6 +88,21 @@ export function ContractPanel({ event }: { event: Ev }) {
     refresh();
   };
 
+  const saveEmailCopies = async () => {
+    const addresses = extraCc.split(/[;,\s]+/).map((email) => email.trim()).filter(Boolean);
+    const all = [promoterCc.trim(), ...addresses].filter(Boolean);
+    if (all.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return toast.error("Verifique os endereços de e-mail e separe as cópias com vírgula");
+    }
+    const { error } = await supabase.from("events").update({
+      ticket_email_cc: promoterCc.trim() || null,
+      ticket_email_extra_cc: [...new Set(addresses.map((email) => email.toLowerCase()))],
+    }).eq("id", event.id);
+    if (error) return toast.error(error.message);
+    toast.success("Destinatários em cópia guardados para este evento");
+    refresh();
+  };
+
   const d = form as Partial<Record<(typeof FIELDS)[number][0], string>>;
   return (
     <div className="grid lg:grid-cols-2 gap-6">
@@ -92,6 +114,18 @@ export function ContractPanel({ event }: { event: Ev }) {
           </div>
           <p className="text-sm text-muted-foreground">Comissão da plataforma: <b className="text-foreground">{event.commission_pct}%</b> por ingresso vendido. Entrar e publicar é gratuito.</p>
           {event.approval_note && <p className="text-sm rounded-md bg-secondary p-3">Nota da administração: {event.approval_note}</p>}
+          <div className="space-y-3 border-t pt-3">
+            <div className="space-y-1">
+              <Label htmlFor="event-promoter-cc" className="text-xs">E-mail do promotor em CC</Label>
+              <Input id="event-promoter-cc" type="email" value={promoterCc} onChange={(e) => setPromoterCc(e.target.value)} placeholder="Usar o e-mail da conta do promotor" />
+              <p className="text-xs text-muted-foreground">Se ficar em branco, usamos automaticamente o e-mail da conta que criou este evento.</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="event-extra-cc" className="text-xs">Outros e-mails em CC</Label>
+              <Input id="event-extra-cc" value={extraCc} onChange={(e) => setExtraCc(e.target.value)} placeholder="financeiro@empresa.ao, assistente@empresa.ao" />
+            </div>
+            <Button type="button" size="sm" variant="secondary" onClick={() => void saveEmailCopies()}>Guardar cópias de e-mail</Button>
+          </div>
           {event.approval_status === "approved" ? (
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
               <Button variant={event.published ? "secondary" : "default"} onClick={() => void setPublished(!event.published)}>

@@ -76,7 +76,12 @@ export function TablesPanel({
   const named = currentTickets.filter((ticket) => ticket.holder_name?.trim()).length;
   const availableTickets = currentTickets.filter(
     (ticket) =>
-      ticket.status === "valid" && !ticket.printed_at && !ticket.share_id && !ticket.sent_at,
+      ticket.status === "valid" &&
+      !ticket.printed_at &&
+      !ticket.share_id &&
+      !ticket.sent_at &&
+      ticket.email_delivery_status !== "sending" &&
+      ticket.email_delivery_status !== "sent",
   );
   const selectedTickets = tickets.filter(
     (ticket) =>
@@ -84,7 +89,9 @@ export function TablesPanel({
       ticket.status === "valid" &&
       !ticket.printed_at &&
       !ticket.share_id &&
-      !ticket.sent_at,
+      !ticket.sent_at &&
+      ticket.email_delivery_status !== "sending" &&
+      ticket.email_delivery_status !== "sent",
   );
   const previewTicket = selectedTickets[previewIndex];
   const previewGroup = tableGroups.find((item) => item.id === previewTicket?.group_id);

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { CalendarDays, LogOut, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
+import { CalendarDays, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   const { session, loading, isMember, isAdmin, isManager, refreshRoles } = useAuth();
+  const isPrimaryAdmin = isAdmin && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,6 +53,7 @@ function AppLayout() {
       ? [
           { to: "/equipa", label: "Equipa", icon: Users },
           { to: "/identidade", label: "Identidade", icon: Palette },
+          ...(isPrimaryAdmin ? [{ to: "/zoho", label: "E-mail Zoho", icon: Mail }] : []),
         ]
       : []),
   ] as const;

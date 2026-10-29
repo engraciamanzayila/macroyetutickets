@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { sendTicketEmail } from "@/lib/order-email.functions";
 import { deliveryLabel, kz, methodLabel, STATUS_LABEL } from "@/lib/payments";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,19 +23,78 @@ function Orders() {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["orders"],
-    queryFn: async () =>
-      (
-        await supabase
-          .from("orders")
-          .select("*, events(name, commission_pct)")
-          .order("created_at", { ascending: false })
-      ).data ?? [],
+    queryFn: async () => {
+      const { data: orders, error } = await supabase
+        .from("orders")
+        .select("*, events(name, commission_pct)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      if (!orders?.length) return [];
+      const { data: tickets, error: ticketError } = await supabase
+        .from("tickets")
+        .select("id,order_id,email_delivery_status,email_delivery_error")
+        .in("order_id", orders.map((order) => order.id));
+      if (ticketError) throw ticketError;
+      return orders.map((order) => ({
+        ...order,
+        email_tickets: (tickets ?? []).filter((ticket) => ticket.order_id === order.id),
+      }));
+    },
   });
   const confirm = async (id: string) => {
     const { error } = await supabase.rpc("confirm_order", { p_order: id });
     if (error) return toast.error(error.message);
-    toast.success("Pagamento confirmado — ingressos emitidos");
+    const order = data.find((item) => item.id === id);
+    if (order?.delivery_channel === "email" && !order.buyer_email) {
+      toast.warning("Pagamento confirmado, mas esta encomenda não tem um e-mail de entrega válido.");
+    } else if (order?.delivery_channel === "email" && order.buyer_email) {
+      const { data: ticketRows, error: ticketError } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("order_id", id);
+      if (ticketError) {
+        toast.warning("Pagamento confirmado; não foi possível preparar o e-mail automático.");
+      } else {
+        try {
+          const delivery = await sendTicketEmail({
+            data: {
+              eventId: order.event_id,
+              ticketIds: (ticketRows ?? []).map((ticket) => ticket.id),
+              recipient: order.buyer_email,
+            },
+          });
+          toast.success(
+            delivery.status === "sent"
+              ? "Pagamento confirmado — ingressos enviados por e-mail."
+              : "Pagamento confirmado — consulte o estado da entrega de e-mail.",
+          );
+        } catch (deliveryError) {
+          toast.warning(
+            `Pagamento confirmado; e-mail não enviado. ${((deliveryError as Error).message ?? "").slice(0, 180)}`,
+          );
+        }
+      }
+    } else {
+      toast.success("Pagamento confirmado — ingressos emitidos");
+    }
     qc.invalidateQueries({ queryKey: ["orders"] });
+  };
+  const retryEmail = async (order: (typeof data)[number]) => {
+    if (!order.buyer_email || !order.email_tickets.length) return;
+    try {
+      const result = await sendTicketEmail({
+        data: {
+          eventId: order.event_id,
+          ticketIds: order.email_tickets.map((ticket) => ticket.id),
+          recipient: order.buyer_email,
+        },
+      });
+      toast.success(`Ingressos enviados para ${result.recipient}`);
+      qc.invalidateQueries({ queryKey: ["orders"] });
+    } catch (error) {
+      toast.error("O reenvio falhou: " + (error as Error).message);
+      qc.invalidateQueries({ queryKey: ["orders"] });
+    }
   };
   const cancel = async (id: string) => {
     const { error } = await supabase.from("orders").update({ status: "cancelled" }).eq("id", id);
@@ -99,6 +159,20 @@ function Orders() {
               <Badge variant={o.status === "paid" ? "default" : "secondary"}>
                 {STATUS_LABEL[o.status] ?? o.status}
               </Badge>
+              {o.delivery_channel === "email" && o.status === "paid" && (
+                <Badge variant={o.email_tickets.length > 0 && o.email_tickets.every((ticket) => ticket.email_delivery_status === "sent") ? "default" : "secondary"}>
+                  {o.email_tickets.length > 0 && o.email_tickets.every((ticket) => ticket.email_delivery_status === "sent")
+                    ? "E-mail enviado"
+                    : o.email_tickets.some((ticket) => ticket.email_delivery_status === "failed")
+                      ? "E-mail falhou"
+                      : "A enviar por e-mail"}
+                </Badge>
+              )}
+              {o.delivery_channel === "email" && o.status === "paid" && o.email_tickets.some((ticket) => ticket.email_delivery_status === "failed") && o.buyer_email && (
+                <Button size="sm" variant="secondary" onClick={() => void retryEmail(o)}>
+                  Tentar e-mail novamente
+                </Button>
+              )}
               {o.status === "pending" && (
                 <div className="flex gap-1">
                   <Button size="sm" onClick={() => confirm(o.id)}>

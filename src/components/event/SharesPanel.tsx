@@ -25,9 +25,9 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const { data: tix = [] } = useQuery({
     queryKey: ["share-tix", eventId],
     queryFn: async () => {
-      const out: { group_id: string; share_id: string | null; status: string; printed_at: string | null; sent_at: string | null }[] = [];
+      const out: { group_id: string; share_id: string | null; status: string; printed_at: string | null; sent_at: string | null; email_delivery_status: string }[] = [];
       for (let from = 0; ; from += 1000) {
-        const { data } = await supabase.from("tickets").select("group_id,share_id,status,printed_at,sent_at").eq("event_id", eventId).range(from, from + 999);
+        const { data } = await supabase.from("tickets").select("group_id,share_id,status,printed_at,sent_at,email_delivery_status").eq("event_id", eventId).range(from, from + 999);
         out.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
@@ -37,7 +37,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const freeIn = (gid: string) => {
     const g = groups.find((x) => x.id === gid);
     const made = tix.filter((t) => t.group_id === gid);
-    const taken = made.filter((t) => t.printed_at || t.share_id || t.sent_at || t.status !== "valid").length;
+    const taken = made.filter((t) => t.printed_at || t.share_id || t.sent_at || t.email_delivery_status === "sending" || t.email_delivery_status === "sent" || t.status !== "valid").length;
     return Math.max(0, (g?.quantity ?? 0) - taken);
   };
   const link = (token: string) => `${window.location.origin}/p/${token}`;
@@ -49,10 +49,8 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
     setBusy(true);
     try {
       const all = await ensureTickets(g);
-      const free = all.filter((t) => !t.printed_at && t.status === "valid" && !(t as { share_id?: string | null; sent_at?: string | null }).share_id && !(t as { sent_at?: string | null }).sent_at);
-      const { data: assigned } = await supabase.from("tickets").select("id").eq("group_id", g.id).or("share_id.not.is.null,sent_at.not.is.null");
-      const busyIds = new Set((assigned ?? []).map((r) => r.id));
-      const pick = free.filter((t) => !busyIds.has(t.id)).slice(0, f.qty);
+      const free = all.filter((t) => !t.printed_at && t.status === "valid" && !t.share_id && !t.sent_at && t.email_delivery_status !== "sending" && t.email_delivery_status !== "sent");
+      const pick = free.slice(0, f.qty);
       if (pick.length < f.qty) throw new Error(`Só há ${pick.length} ingressos digitais livres neste grupo`);
       const { data: u } = await supabase.auth.getUser();
       const { data: s, error } = await supabase.from("group_shares").insert({

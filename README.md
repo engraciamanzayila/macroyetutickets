@@ -38,3 +38,17 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Zoho Mail Self Client
+
+The admin-only `E-mail Zoho` page exchanges the temporary Self Client code on the server and stores the resulting Zoho credentials encrypted. Before connecting the mailbox, add this server-side Lovable secret:
+
+- `ZOHO_CREDENTIALS_ENCRYPTION_KEY`: 64 hexadecimal characters (32 random bytes). Generate it locally with `openssl rand -hex 32`; enter it directly in Lovable Secrets and never commit or paste it into chat.
+
+In Zoho API Console, create the Self Client code with this scope:
+
+```text
+ZohoMail.accounts.READ,ZohoMail.messages.CREATE
+```
+
+Then open `E-mail Zoho`, select the Zoho data center, and enter the Client ID, Client Secret, and temporary code. The page verifies that the OAuth token can access `mytickets@macroyetu.com`. The Client Secret and code are not retained by the browser. Digital ticket e-mails are sent from the server through Zoho Mail; the promoter account e-mail is CC by default, with per-event CC overrides/additional addresses.

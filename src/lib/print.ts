@@ -26,12 +26,12 @@ export type LastPrintSelection = { printedAt: string; picks: { g: Group; count: 
 
 /** Per group: printed count and how many valid, never-printed tickets can still go to print. */
 export async function printAvailability(eventId: string, groups: Group[]): Promise<PrintAvail> {
-  const rows = (await fetchAllTickets({ event_id: eventId }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { group_id: string; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null }[];
+  const rows = (await fetchAllTickets({ event_id: eventId }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name,email_delivery_status")) as unknown as { group_id: string; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; email_delivery_status: string }[];
   const out: PrintAvail = {};
   for (const g of groups) {
     const mine = rows.filter((r) => r.group_id === g.id);
     const printed = mine.filter((r) => r.printed_at).length;
-    const available = mine.filter((r) => !r.printed_at && !r.share_id && !r.sent_at && r.status === "valid").length;
+    const available = mine.filter((r) => !r.printed_at && !r.share_id && !r.sent_at && r.email_delivery_status !== "sending" && r.email_delivery_status !== "sent" && r.status === "valid").length;
     out[g.id] = { printed, available: Math.max(0, available + g.quantity - mine.length) };
   }
   return out;
@@ -40,7 +40,7 @@ export async function printAvailability(eventId: string, groups: Group[]): Promi
 export async function lastPrintSelection(eventId: string, groups: Group[]): Promise<LastPrintSelection | null> {
   const rows = (await fetchAllTickets(
     { event_id: eventId },
-    "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name",
+    "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name,email_delivery_status",
   )) as unknown as { group_id: string; printed_at: string | null }[];
   const printedAt = rows.reduce<string | null>(
     (latest, ticket) => ticket.printed_at && (!latest || ticket.printed_at > latest) ? ticket.printed_at : latest,
@@ -71,7 +71,7 @@ export async function exportForPrint(
     if (count <= 0) continue;
     onProgress(0, 1, `A preparar códigos: ${g.name}`);
     await ensureTickets(g);
-    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null }[];
+    const all = (await fetchAllTickets({ group_id: g.id }, "id,code,seq,status,group_id,used_at,printed_at,share_id,sent_at,holder_name,email_delivery_status")) as unknown as { id: string; code: string; seq: number; status: string; printed_at: string | null; share_id: string | null; sent_at: string | null; holder_name: string | null; email_delivery_status: string }[];
     const selected = reprintAt
       ? all.filter((t) => t.printed_at && timestampKey(t.printed_at) === timestampKey(reprintAt))
       : ticketIds
@@ -81,9 +81,11 @@ export async function exportForPrint(
               ticket.status === "valid" &&
               !ticket.printed_at &&
               !ticket.share_id &&
-              !ticket.sent_at,
+                !ticket.sent_at &&
+                ticket.email_delivery_status !== "sending" &&
+                ticket.email_delivery_status !== "sent",
           )
-      : all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.status === "valid");
+            : all.filter((t) => !t.printed_at && !t.share_id && !t.sent_at && t.email_delivery_status !== "sending" && t.email_delivery_status !== "sent" && t.status === "valid");
     jobs.push({ g, tickets: selected.slice(0, count) });
   }
   const total = jobs.reduce((s, j) => s + j.tickets.length, 0);

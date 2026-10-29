@@ -18,10 +18,10 @@ export type Group = {
   layout: Layout | null;
 };
 
-export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null; share_id?: string | null; sent_at?: string | null };
+export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null; share_id?: string | null; sent_at?: string | null; email_delivery_status?: string };
 
 /** Fetches every row past the 1000-row API limit. */
-export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at") {
+export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at,email_delivery_status") {
   const out: TicketRow[] = [];
   for (let from = 0; ; from += 1000) {
     let q = supabase.from("tickets").select(columns).order("seq").range(from, from + 999);
@@ -98,6 +98,8 @@ export async function generate(
           !ticket.printed_at &&
           !ticket.share_id &&
           !ticket.sent_at &&
+          ticket.email_delivery_status !== "sending" &&
+          ticket.email_delivery_status !== "sent" &&
           (!ticketIds || ticketIds.has(ticket.id)),
       ),
     });
