@@ -100,6 +100,11 @@ async function exchangeSelfClientCode(input: {
     error?: string;
   };
   if (!response.ok || !payload.refresh_token || !payload.access_token) {
+    if (payload.error === "invalid_code") {
+      throw new Error(
+        "O Zoho marcou este Self Client code como inválido. Gere um code novo e use-o uma única vez dentro do prazo; confirme que região, Client ID e Client Secret são do mesmo Self Client.",
+      );
+    }
     throw new Error(
       `Zoho não aceitou o Self Client code${payload.error ? `: ${payload.error}` : ` (${response.status})`}`,
     );

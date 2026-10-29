@@ -108,8 +108,9 @@ function ZohoSettings() {
           <div className="space-y-1">
             <h2 className="font-semibold">Zoho API Console · Self Client</h2>
             <p className="text-sm text-muted-foreground">
-              Na criação do code, usa o scope abaixo. O code é temporário e deve ser aplicado uma
-              única vez.
+              Na criação do code, usa o scope abaixo. Gere um code novo e submeta-o uma única vez,
+              antes de expirar. O code, Client ID, Client Secret e região devem pertencer ao mesmo
+              Self Client.
             </p>
             <code className="block break-all rounded bg-secondary px-3 py-2 text-sm">
               ZohoMail.accounts.READ,ZohoMail.messages.CREATE
