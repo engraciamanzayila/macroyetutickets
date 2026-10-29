@@ -28,14 +28,37 @@ type ZohoCredentials = {
 };
 type ZohoAccount = { accountId?: string; primaryEmailAddress?: string; primaryEmail?: string };
 
-function encryptionKey() {
-  const secret = process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"] ?? "";
-  if (!/^[\da-f]{64}$/i.test(secret)) {
-    throw new Error(
-      "Configure ZOHO_CREDENTIALS_ENCRYPTION_KEY como secret hex de 32 bytes no Lovable",
-    );
+async function encryptionKey() {
+  const explicitSecret = process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"];
+  if (explicitSecret) {
+    if (!/^[\da-f]{64}$/i.test(explicitSecret)) {
+      throw new Error("ZOHO_CREDENTIALS_ENCRYPTION_KEY deve ter 64 caracteres hexadecimais");
+    }
+    const raw = new Uint8Array(explicitSecret.match(/.{2}/g)!.map((part) => parseInt(part, 16)));
+    return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
   }
-  return new Uint8Array(secret.match(/.{2}/g)!.map((part) => parseInt(part, 16)));
+
+  const serviceRoleKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!serviceRoleKey) throw new Error("A chave de cifragem do servidor não está configurada");
+  const material = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(serviceRoleKey),
+    "HKDF",
+    false,
+    ["deriveKey"],
+  );
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new TextEncoder().encode("my-tickets-zoho-config-v1"),
+      info: new TextEncoder().encode("zoho-mail-credentials"),
+    },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -48,7 +71,7 @@ function fromBase64(value: string) {
 
 async function encrypt(value: string) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await crypto.subtle.importKey("raw", encryptionKey(), "AES-GCM", false, ["encrypt"]);
+  const key = await encryptionKey();
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
@@ -60,7 +83,7 @@ async function encrypt(value: string) {
 async function decrypt(value: string) {
   const [ivValue, ciphertextValue] = value.split(".");
   if (!ivValue || !ciphertextValue) throw new Error("Configuração Zoho inválida");
-  const key = await crypto.subtle.importKey("raw", encryptionKey(), "AES-GCM", false, ["decrypt"]);
+  const key = await encryptionKey();
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: fromBase64(ivValue) },
     key,

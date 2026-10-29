@@ -41,9 +41,7 @@ npm run dev
 
 ## Zoho Mail Self Client
 
-The admin-only `E-mail Zoho` page exchanges the temporary Self Client code on the server and stores the resulting Zoho credentials encrypted. Before connecting the mailbox, add this server-side Lovable secret:
-
-- `ZOHO_CREDENTIALS_ENCRYPTION_KEY`: 64 hexadecimal characters (32 random bytes). Generate it locally with `openssl rand -hex 32`; enter it directly in Lovable Secrets and never commit or paste it into chat.
+The admin-only `E-mail Zoho` page exchanges the temporary Self Client code on the server and stores the resulting Zoho credentials encrypted. Encryption is derived server-side from the existing Supabase service-role key using HKDF and AES-GCM; no additional secret is required. An optional `ZOHO_CREDENTIALS_ENCRYPTION_KEY` (64 hexadecimal characters) can be configured if a dedicated key is desired. If the underlying key is rotated, reconnect Zoho.
 
 In Zoho API Console, create the Self Client code with this scope:
 

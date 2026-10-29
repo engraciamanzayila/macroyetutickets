@@ -169,11 +169,9 @@ function ZohoSettings() {
             />
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Antes de ligar, adicione a secret de servidor{" "}
-            <code>ZOHO_CREDENTIALS_ENCRYPTION_KEY</code> no Lovable (64 caracteres hexadecimais, 32
-            bytes aleatórios). O servidor troca o code, confirma acesso à caixa{" "}
-            <b>mytickets@macroyetu.com</b> e guarda as credenciais cifradas. Client Secret e code
-            não são guardados no browser nem voltam a aparecer nesta página.
+            O servidor troca o code, confirma acesso à caixa <b>mytickets@macroyetu.com</b> e guarda
+            as credenciais cifradas usando a chave privada já existente no servidor. Não é
+            necessária outra secret. Client Secret e code não voltam a aparecer nesta página.
           </p>
           <Button type="submit" disabled={saving}>
             {saving

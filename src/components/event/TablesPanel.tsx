@@ -49,7 +49,11 @@ export function TablesPanel({
     if (!tableGroups.some((item) => item.id === groupId)) setGroupId(tableGroups[0]?.id ?? "");
   }, [groupId, tableGroups]);
 
-  const { data: tickets = [], isLoading } = useQuery({
+  const {
+    data: tickets = [],
+    isLoading,
+    error: ticketsError,
+  } = useQuery({
     queryKey: ["table-tickets", eventId, tableGroups.map((item) => item.id)],
     queryFn: async () => {
       const groupsTickets = await Promise.all(
@@ -362,6 +366,11 @@ export function TablesPanel({
           <div className="divide-y border-y">
             {isLoading ? (
               <p className="py-6 text-sm text-muted-foreground">A carregar mesas…</p>
+            ) : ticketsError ? (
+              <p className="py-6 text-sm text-destructive">
+                Não foi possível carregar os ingressos deste grupo:{" "}
+                {(ticketsError as Error).message}
+              </p>
             ) : visible.length ? (
               visible.map((ticket) => (
                 <div

@@ -23,12 +23,31 @@ export type TicketRow = { id: string; code: string; seq: number; status: string;
 /** Fetches every row past the 1000-row API limit. */
 export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at,email_delivery_status") {
   const out: TicketRow[] = [];
+  const fetchPage = (from: number, selectedColumns: string) => {
+    let query = supabase
+      .from("tickets")
+      .select(selectedColumns)
+      .order("seq")
+      .range(from, from + 999);
+    if (filter.event_id) query = query.eq("event_id", filter.event_id);
+    if (filter.group_id) query = query.eq("group_id", filter.group_id);
+    return query;
+  };
   for (let from = 0; ; from += 1000) {
-    let q = supabase.from("tickets").select(columns).order("seq").range(from, from + 999);
-    if (filter.event_id) q = q.eq("event_id", filter.event_id);
-    if (filter.group_id) q = q.eq("group_id", filter.group_id);
-    const { data, error } = await q;
-    if (error) throw error;
+    let page = await fetchPage(from, columns);
+    if (
+      page.error &&
+      columns.split(",").some((column) => column.trim() === "email_delivery_status") &&
+      page.error.message.includes("email_delivery_status")
+    ) {
+      const compatibleColumns = columns
+        .split(",")
+        .filter((column) => column.trim() !== "email_delivery_status")
+        .join(",");
+      page = await fetchPage(from, compatibleColumns);
+    }
+    if (page.error) throw page.error;
+    const data = page.data;
     out.push(...((data ?? []) as unknown as TicketRow[]));
     if (!data || data.length < 1000) break;
   }
