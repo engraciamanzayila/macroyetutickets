@@ -1,6 +1,6 @@
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('print-files', 'print-files', false)
-ON CONFLICT (id) DO NOTHING;
+-- bucket created via storage tool: INSERT INTO storage.buckets (id, name, public)
+-- bucket created via storage tool: VALUES ('print-files', 'print-files', false)
+-- bucket created via storage tool: ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE public.print_jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
