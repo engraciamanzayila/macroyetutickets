@@ -164,7 +164,7 @@ export function ContractPanel({ event }: { event: Ev }) {
           </div>
           <label className="flex gap-3 items-start rounded-lg border p-3 cursor-pointer">
             <Checkbox disabled={locked} checked={exclusive} onCheckedChange={(v) => setExclusive(!!v)} />
-            <div className="text-sm"><p className="font-medium">Venda exclusiva na MACRO YETU TICKETs</p><p className="text-muted-foreground text-xs">Comissão reduzida de {COMMISSION_EXCLUSIVE}% em vez de {COMMISSION_STANDARD}%. Os ingressos não podem ser vendidos noutras plataformas.</p></div>
+            <div className="text-sm"><p className="font-medium">Venda exclusiva na MY Tickets</p><p className="text-muted-foreground text-xs">Comissão reduzida de {COMMISSION_EXCLUSIVE}% em vez de {COMMISSION_STANDARD}%. Os ingressos não podem ser vendidos noutras plataformas.</p></div>
           </label>
           {!locked && (
             <>
@@ -183,7 +183,7 @@ export function ContractPanel({ event }: { event: Ev }) {
         <p><b>Cláusula 1ª — Objeto.</b> A primeira outorgante disponibiliza a sua plataforma para a criação, venda, entrega e validação dos ingressos do evento <b>{event.name}</b>{event.event_date ? `, a realizar em ${new Date(event.event_date).toLocaleDateString("pt-PT")}` : ""}{event.venue ? `, em ${event.venue}` : ""}{event.city ? `, ${event.city}` : ""}{d.capacity ? `, com lotação prevista de ${d.capacity} pessoas` : ""}.</p>
         <p><b>Cláusula 2ª — Custos.</b> O registo do promotor e a publicação do evento são gratuitos.</p>
         <p><b>Cláusula 3ª — Comissão.</b> A primeira outorgante cobra <b>{pct}%</b> sobre o valor de cada ingresso vendido na plataforma{exclusive ? ", taxa reduzida por se tratar de venda exclusiva" : ""}.</p>
-        <p><b>Cláusula 4ª — Exclusividade.</b> {exclusive ? "O segundo outorgante compromete-se a vender os ingressos deste evento exclusivamente através da plataforma MACRO YETU TICKETs. O incumprimento implica a aplicação da comissão normal de 10% sobre todas as vendas." : "Não há exclusividade: o segundo outorgante pode vender ingressos noutros canais."}</p>
+        <p><b>Cláusula 4ª — Exclusividade.</b> {exclusive ? "O segundo outorgante compromete-se a vender os ingressos deste evento exclusivamente através da plataforma MY Tickets. O incumprimento implica a aplicação da comissão normal de 10% sobre todas as vendas." : "Não há exclusividade: o segundo outorgante pode vender ingressos noutros canais."}</p>
         <p><b>Cláusula 5ª — Pagamentos.</b> O valor das vendas, deduzida a comissão, é transferido para o IBAN {d.iban || "indicado pelo promotor"} após a realização do evento.</p>
         <p><b>Cláusula 6ª — Aprovação.</b> O evento só é publicado depois de avaliado e aprovado pela administração da plataforma.</p>
         <p><b>Cláusula 7ª — Responsabilidade.</b> A realização do evento, licenças e eventuais reembolsos são da responsabilidade do segundo outorgante.</p>

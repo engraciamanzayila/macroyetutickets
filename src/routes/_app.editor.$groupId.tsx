@@ -15,9 +15,9 @@ import { Switch } from "@/components/ui/switch";
 export const Route = createFileRoute("/_app/editor/$groupId")({
   head: () => ({
     meta: [
-      { title: "Editor de QR — MACRO YETU TICKETs" },
+      { title: "Editor de QR — MY Tickets" },
       { name: "description", content: "Posicione o QR code e o código de referência na arte do ingresso." },
-      { property: "og:title", content: "Editor de QR — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Editor de QR — MY Tickets" },
       { property: "og:description", content: "Posicione o QR code na arte do ingresso." },
     ],
   }),

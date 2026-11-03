@@ -11,9 +11,9 @@ export const Route = createFileRoute("/i/$tokens")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "O seu ingresso — MACRO YETU TICKETs" },
+      { title: "O seu ingresso — MY Tickets" },
       { name: "description", content: "Ingresso digital com QR code. Apresente-o à entrada do evento." },
-      { property: "og:title", content: "O seu ingresso — MACRO YETU TICKETs" },
+      { property: "og:title", content: "O seu ingresso — MY Tickets" },
       { property: "og:description", content: "Ingresso digital com QR code. Apresente-o à entrada do evento." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

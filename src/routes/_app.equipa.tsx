@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/_app/equipa")({
   head: () => ({
     meta: [
-      { title: "Equipa — MACRO YETU TICKETs" },
+      { title: "Equipa — MY Tickets" },
       { name: "description", content: "Gerir quem tem acesso ao painel e à portaria." },
-      { property: "og:title", content: "Equipa — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Equipa — MY Tickets" },
       { property: "og:description", content: "Gerir acessos da equipa." },
     ],
   }),

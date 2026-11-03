@@ -28,9 +28,9 @@ import { kz } from "@/lib/payments";
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
     meta: [
-      { title: "Evento — MACRO YETU TICKETs" },
+      { title: "Evento — MY Tickets" },
       { name: "description", content: "Grupos de ingressos, geração e relatórios do evento." },
-      { property: "og:title", content: "Evento — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Evento — MY Tickets" },
       { property: "og:description", content: "Grupos de ingressos, geração e relatórios do evento." },
     ],
   }),
@@ -222,7 +222,7 @@ function EventPage() {
         )}
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="impressoes" className="mt-6"><PrintHistoryPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
-        <TabsContent value="partilha" className="mt-6">{isAdmin && <AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} />}<SharesPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="partilha" className="mt-6"><AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} /><SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 

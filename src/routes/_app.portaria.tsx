@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 export const Route = createFileRoute("/_app/portaria")({
   head: () => ({
     meta: [
-      { title: "Portaria — MACRO YETU TICKETs" },
+      { title: "Portaria — MY Tickets" },
       { name: "description", content: "Leitura de QR e validação de ingressos na entrada do evento." },
-      { property: "og:title", content: "Portaria — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Portaria — MY Tickets" },
       { property: "og:description", content: "Validação de ingressos na entrada." },
     ],
   }),
