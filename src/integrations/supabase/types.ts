@@ -89,8 +89,6 @@ export type Database = {
           published: boolean
           sheet_id: string | null
           slug: string | null
-          ticket_email_cc: string | null
-          ticket_email_extra_cc: string[]
           venue: string | null
         }
         Insert: {
@@ -114,8 +112,6 @@ export type Database = {
           published?: boolean
           sheet_id?: string | null
           slug?: string | null
-          ticket_email_cc?: string | null
-          ticket_email_extra_cc?: string[]
           venue?: string | null
         }
         Update: {
@@ -139,8 +135,6 @@ export type Database = {
           published?: boolean
           sheet_id?: string | null
           slug?: string | null
-          ticket_email_cc?: string | null
-          ticket_email_extra_cc?: string[]
           venue?: string | null
         }
         Relationships: []
@@ -253,17 +247,11 @@ export type Database = {
           buyer_user_id: string | null
           created_at: string
           delivery_channel: string
-          email_delivery_cc: string[]
-          email_delivery_error: string | null
-          email_delivery_status: string
-          email_delivery_to: string | null
-          email_delivery_updated_at: string | null
           event_id: string
           id: string
           paid_at: string | null
           payment_method: string
           payment_reference: string | null
-          email_sent_at: string | null
           status: string
           total: number
         }
@@ -275,17 +263,11 @@ export type Database = {
           buyer_user_id?: string | null
           created_at?: string
           delivery_channel?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
           event_id: string
           id?: string
           paid_at?: string | null
           payment_method: string
           payment_reference?: string | null
-          email_sent_at?: string | null
           status?: string
           total?: number
         }
@@ -297,17 +279,11 @@ export type Database = {
           buyer_user_id?: string | null
           created_at?: string
           delivery_channel?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
           event_id?: string
           id?: string
           paid_at?: string | null
           payment_method?: string
           payment_reference?: string | null
-          email_sent_at?: string | null
           status?: string
           total?: number
         }
@@ -420,12 +396,6 @@ export type Database = {
         Row: {
           code: string
           created_at: string
-          email_delivery_cc: string[]
-          email_delivery_error: string | null
-          email_delivery_status: string
-          email_delivery_to: string | null
-          email_delivery_updated_at: string | null
-          email_sent_at: string | null
           event_id: string
           group_id: string
           holder_contact: string | null
@@ -445,12 +415,6 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
-          email_sent_at?: string | null
           event_id: string
           group_id: string
           holder_contact?: string | null
@@ -470,12 +434,6 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
-          email_sent_at?: string | null
           event_id?: string
           group_id?: string
           holder_contact?: string | null
@@ -516,83 +474,6 @@ export type Database = {
           },
         ]
       }
-      print_jobs: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          event_id: string
-          file_name: string
-          id: string
-          page_count: number
-          source_printed_at: string
-          storage_path: string | null
-          ticket_count: number
-          ticket_ids: string[]
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          event_id: string
-          file_name: string
-          id?: string
-          page_count?: number
-          source_printed_at: string
-          storage_path?: string | null
-          ticket_count?: number
-          ticket_ids?: string[]
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          event_id?: string
-          file_name?: string
-          id?: string
-          page_count?: number
-          source_printed_at?: string
-          storage_path?: string | null
-          ticket_count?: number
-          ticket_ids?: string[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "print_jobs_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      zoho_mail_config: {
-        Row: {
-          ciphertext: string
-          created_at: string
-          data_center: string
-          id: number
-          sender_email: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          ciphertext: string
-          created_at?: string
-          data_center: string
-          id?: number
-          sender_email: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          ciphertext?: string
-          created_at?: string
-          data_center?: string
-          id?: number
-          sender_email?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
@@ -616,10 +497,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_ticket_email_delivery: {
-        Args: { p_event: string; p_ticket_ids: string[] }
-        Returns: boolean
-      }
       can_manage_event: {
         Args: { _event: string; _uid: string }
         Returns: boolean
