@@ -105,18 +105,18 @@ function ZohoSettings() {
       <section className="space-y-5">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div className="space-y-1">
-            <h2 className="font-semibold">Zoho API Console · Self Client</h2>
-            <p className="text-sm text-muted-foreground">
-              Na criação do code, usa o scope abaixo. Gere um code novo e submeta-o uma única vez,
-              antes de expirar. O code, Client ID, Client Secret e região devem pertencer ao mesmo
-              Self Client.
-            </p>
-            <code className="block break-all rounded bg-secondary px-3 py-2 text-sm">
-              ZohoMail.accounts.READ,ZohoMail.messages.CREATE
-            </code>
-          </div>
+          <h2 className="font-semibold">Passo-a-passo (cerca de 3 minutos)</h2>
         </div>
+        <ol className="space-y-4 text-sm">
+          <li className="rounded-lg border p-4"><b>1. Entre na consola do Zoho</b><p className="mt-1 text-muted-foreground">Abra <a className="text-primary underline" href="https://api-console.zoho.com" target="_blank" rel="noreferrer">api-console.zoho.com</a> com a conta que gere a caixa <b>mytickets@macroyetu.com</b>. Se o endereço mudar para <i>.eu</i> ou outro, escolha essa mesma região no passo 5.</p></li>
+          <li className="rounded-lg border p-4"><b>2. Crie um “Self Client”</b><p className="mt-1 text-muted-foreground">Clique em <b>Add Client</b> → <b>Self Client</b> → <b>Create</b> → <b>OK</b>. Se já existir, clique nele.</p></li>
+          <li className="rounded-lg border p-4"><b>3. Copie o Client ID e o Client Secret</b><p className="mt-1 text-muted-foreground">No separador <b>Client Secret</b>, copie os dois valores e cole-os nos campos abaixo. Se já os partilhou por mensagem, clique primeiro em <b>Regenerate</b> no Zoho para criar um secret novo.</p></li>
+          <li className="rounded-lg border p-4"><b>4. Gere o code</b><p className="mt-1 text-muted-foreground">No separador <b>Generate Code</b>, cole este texto em <b>Scope</b>:</p>
+            <div className="mt-2 flex gap-2"><code className="flex-1 break-all rounded bg-secondary px-3 py-2">ZohoMail.accounts.READ,ZohoMail.messages.CREATE</code><Button type="button" variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText("ZohoMail.accounts.READ,ZohoMail.messages.CREATE").then(() => toast.success("Scope copiado"))}>Copiar</Button></div>
+            <p className="mt-2 text-muted-foreground">Em <b>Time Duration</b> escolha <b>10 minutes</b>, escreva qualquer descrição (ex.: MY Tickets) e clique em <b>Create</b>. Copie o code que aparece.</p></li>
+          <li className="rounded-lg border p-4"><b>5. Cole tudo aqui e clique em “Ligar Zoho Mail”</b><p className="mt-1 text-muted-foreground">Faça-o logo — o code expira em 10 minutos e só funciona uma vez. Se aparecer “code inválido”, volte ao passo 4 e gere outro.</p></li>
+        </ol>
+
 
         <form onSubmit={save} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -169,9 +169,8 @@ function ZohoSettings() {
             />
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            O servidor troca o code, confirma acesso à caixa <b>mytickets@macroyetu.com</b> e guarda
-            as credenciais cifradas usando a chave privada já existente no servidor. Não é
-            necessária outra secret. Client Secret e code não voltam a aparecer nesta página.
+            Ao clicar, confirmamos o acesso à caixa <b>mytickets@macroyetu.com</b> e guardamos os
+            dados de forma cifrada. Eles não voltam a aparecer nesta página.
           </p>
           <Button type="submit" disabled={saving}>
             {saving

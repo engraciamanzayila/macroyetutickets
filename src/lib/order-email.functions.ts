@@ -29,20 +29,11 @@ type ZohoCredentials = {
 type ZohoAccount = { accountId?: string; primaryEmailAddress?: string; primaryEmail?: string };
 
 async function encryptionKey() {
-  const explicitSecret = process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"];
-  if (explicitSecret) {
-    if (!/^[\da-f]{64}$/i.test(explicitSecret)) {
-      throw new Error("ZOHO_CREDENTIALS_ENCRYPTION_KEY deve ter 64 caracteres hexadecimais");
-    }
-    const raw = new Uint8Array(explicitSecret.match(/.{2}/g)!.map((part) => parseInt(part, 16)));
-    return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
-  }
-
-  const serviceRoleKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-  if (!serviceRoleKey) throw new Error("A chave de cifragem do servidor não está configurada");
+  const secret = process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!secret) throw new Error("A chave de cifragem do servidor não está configurada");
   const material = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(serviceRoleKey),
+    new TextEncoder().encode(secret),
     "HKDF",
     false,
     ["deriveKey"],
