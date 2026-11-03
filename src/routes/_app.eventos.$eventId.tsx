@@ -28,9 +28,9 @@ import { kz } from "@/lib/payments";
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
     meta: [
-      { title: "Evento — MACRO YETU TICKETs" },
+      { title: "Evento — MY Tickets" },
       { name: "description", content: "Grupos de ingressos, geração e relatórios do evento." },
-      { property: "og:title", content: "Evento — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Evento — MY Tickets" },
       { property: "og:description", content: "Grupos de ingressos, geração e relatórios do evento." },
     ],
   }),

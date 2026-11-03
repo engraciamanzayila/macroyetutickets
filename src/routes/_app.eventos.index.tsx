@@ -13,9 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 export const Route = createFileRoute("/_app/eventos/")({
   head: () => ({
     meta: [
-      { title: "Eventos — MACRO YETU TICKETs" },
+      { title: "Eventos — MY Tickets" },
       { name: "description", content: "Lista de eventos e ingressos." },
-      { property: "og:title", content: "Eventos — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Eventos — MY Tickets" },
       { property: "og:description", content: "Lista de eventos e ingressos." },
     ],
   }),

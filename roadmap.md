@@ -14,4 +14,4 @@
 - [x] Grupos de Mesa numa área própria, com nome individual por ingresso; ficheiros determinam quantidade e preço do grupo
 - [x] Arquivo de PDFs de impressão por evento e recuperação dos lotes antigos com base em `printed_at`
 - [ ] Autenticação Google e Google Sheets: testar com as integrações/credenciais oficiais no ambiente publicado
-- [ ] Nome final da plataforma: MY Tickets
+- [x] Nome final da plataforma: MY Tickets

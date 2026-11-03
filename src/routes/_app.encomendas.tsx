@@ -10,9 +10,9 @@ import { Badge } from "@/components/ui/badge";
 export const Route = createFileRoute("/_app/encomendas")({
   head: () => ({
     meta: [
-      { title: "Vendas — MACRO YETU TICKETs" },
+      { title: "Vendas — MY Tickets" },
       { name: "description", content: "Encomendas de ingressos e confirmação de pagamentos." },
-      { property: "og:title", content: "Vendas — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Vendas — MY Tickets" },
       { property: "og:description", content: "Encomendas e pagamentos." },
     ],
   }),
