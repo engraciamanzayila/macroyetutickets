@@ -98,32 +98,47 @@ async function exchangeSelfClientCode(input: {
   clientSecret: string;
   dataCenter: string;
 }) {
-  const response = await fetch(`https://accounts.zoho.${input.dataCenter}/oauth/v2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code: input.code,
-      client_id: input.clientId,
-      client_secret: input.clientSecret,
-      grant_type: "authorization_code",
-    }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as {
-    refresh_token?: string;
-    access_token?: string;
-    error?: string;
-  };
-  if (!response.ok || !payload.refresh_token || !payload.access_token) {
-    if (payload.error === "invalid_code") {
+  // A Self Client code only exists in the Zoho region where it was created; elsewhere Zoho
+  // answers invalid_code/invalid_client without consuming it, so we try every region safely.
+  const order = [input.dataCenter, ...DATA_CENTERS.filter((dc) => dc !== input.dataCenter)];
+  const seen = new Set<string>();
+  for (const dc of order) {
+    const response = await fetch(`https://accounts.zoho.${dc}/oauth/v2/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code: input.code,
+        client_id: input.clientId,
+        client_secret: input.clientSecret,
+        grant_type: "authorization_code",
+      }),
+    }).catch(() => null);
+    if (!response) continue;
+    const payload = (await response.json().catch(() => ({}))) as {
+      refresh_token?: string;
+      access_token?: string;
+      error?: string;
+    };
+    if (payload.access_token && payload.refresh_token) return { ...payload, dataCenter: dc };
+    if (payload.access_token && !payload.refresh_token) {
       throw new Error(
-        "O Zoho marcou este Self Client code como inválido. Gere um code novo e use-o uma única vez dentro do prazo; confirme que região, Client ID e Client Secret são do mesmo Self Client.",
+        "O Zoho aceitou o code mas não devolveu acesso permanente. Gere um code novo (passo 4) e tente outra vez.",
       );
     }
+    const err = payload.error ?? `http_${response.status}`;
+    seen.add(err);
+    if (err !== "invalid_code" && err !== "invalid_client" && !err.startsWith("http_")) {
+      throw new Error(`Zoho não aceitou o pedido: ${err}`);
+    }
+  }
+  if (seen.has("invalid_code")) {
     throw new Error(
-      `Zoho não aceitou o Self Client code${payload.error ? `: ${payload.error}` : ` (${response.status})`}`,
+      "O code já expirou ou já foi usado. Volte ao passo 4, gere um code NOVO e cole-o aqui logo de seguida (clique só uma vez em Ligar).",
     );
   }
-  return payload;
+  throw new Error(
+    "O Client ID ou o Client Secret não estão corretos. Copie-os de novo no separador Client Secret do Zoho (sem espaços) e gere um code novo.",
+  );
 }
 
 async function verifySenderAccount(accessToken: string, zone: string) {
@@ -164,9 +179,9 @@ export const saveZohoSelfClient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (input: { code: string; clientId: string; clientSecret: string; dataCenter: string }) => {
-      const code = String(input.code ?? "").trim();
-      const clientId = String(input.clientId ?? "").trim();
-      const clientSecret = String(input.clientSecret ?? "").trim();
+      const code = String(input.code ?? "").replace(/\s+/g, "");
+      const clientId = String(input.clientId ?? "").replace(/\s+/g, "");
+      const clientSecret = String(input.clientSecret ?? "").replace(/\s+/g, "");
       const dataCenter = String(input.dataCenter ?? "com")
         .trim()
         .toLowerCase();
@@ -181,12 +196,12 @@ export const saveZohoSelfClient = createServerFn({ method: "POST" })
     await assertMainAdmin(context.supabase, context.userId, context.claims.email);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const token = await exchangeSelfClientCode(data);
-    const accountId = await verifySenderAccount(token.access_token!, data.dataCenter);
+    const accountId = await verifySenderAccount(token.access_token!, token.dataCenter);
     const credentials: ZohoCredentials = {
       clientId: data.clientId,
       clientSecret: data.clientSecret,
       refreshToken: token.refresh_token!,
-      dataCenter: data.dataCenter,
+      dataCenter: token.dataCenter,
       accountId,
     };
     const ciphertext = await encrypt(JSON.stringify(credentials));
@@ -194,12 +209,12 @@ export const saveZohoSelfClient = createServerFn({ method: "POST" })
       id: CONFIG_ID,
       ciphertext,
       sender_email: SENDER,
-      data_center: data.dataCenter,
+      data_center: token.dataCenter,
       updated_by: context.userId,
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Não foi possível guardar a ligação Zoho no servidor");
-    return { connected: true as const, sender: SENDER, dataCenter: data.dataCenter };
+    return { connected: true as const, sender: SENDER, dataCenter: token.dataCenter };
   });
 
 function html(value: string) {
