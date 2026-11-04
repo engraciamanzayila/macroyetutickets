@@ -1,5 +1,10 @@
 # Roadmap
 
+- [ ] Separar painéis e permissões: administração máxima, gestão, apoio ao público, apoio aos promotores, portaria e promotor
+- [ ] Visão geral dos ingressos por evento/grupo: planeados, gerados, impressão, digitais, entregas e entradas
+- [ ] Anulação em lote por grupo ou seleção de ingressos
+- [ ] Verificar e tornar acessível o arquivo de PDFs anteriores
+
 - [x] Priorizar a descoberta de eventos na página inicial, sem redirecionar consumidores para gestão
 
 - [x] Links de parceiros por grupo (patrocinadores, media partners…) com portal próprio: WhatsApp, e-mail, link, PDF
