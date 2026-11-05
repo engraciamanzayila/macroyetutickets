@@ -33,7 +33,7 @@ function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (session) navigate({ to: "/eventos" });
+    if (session) navigate({ to: "/visao-geral" });
   }, [session, navigate]);
 
   const submit = async (e: React.FormEvent) => {

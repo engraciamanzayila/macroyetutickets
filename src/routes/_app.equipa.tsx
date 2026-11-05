@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/equipa")({
   component: Team,
 });
 
-type Role = "admin" | "staff" | "promoter";
+import type { Role } from "@/lib/access";
 const SUPER = "macroyetu@gmail.com";
 
 function Team() {
@@ -61,7 +61,7 @@ function Team() {
       {pending.length > 0 && <p className="rounded-lg bg-primary/10 text-sm p-3"><b>{pending.length}</b> pedido(s) de promotor por aprovar.</p>}
       <div className="rounded-2xl border bg-card divide-y">
         {data.map((p) => {
-          const current: Role | null = p.roles.includes("admin") ? "admin" : p.roles.includes("promoter") ? "promoter" : p.roles.includes("staff") ? "staff" : null;
+          const current: Role | null = (["admin", "promoter", "promoter_support", "consumer_support", "staff"] as Role[]).find((r) => p.roles.includes(r)) ?? null;
           const targetSuper = p.email?.toLowerCase() === SUPER;
           const lockedRow = p.id === session?.user.id || targetSuper || (current === "admin" && !isSuper);
           return (
@@ -72,7 +72,7 @@ function Team() {
                 {p.wants_promoter && current !== "promoter" && <p className="text-xs text-primary font-medium">Pediu para ser promotor</p>}
               </div>
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary p-1">
-                {([[null, "Sem acesso"], ["staff", "Portaria"], ["promoter", "Promotor"], ["admin", "Gestão"]] as const).map(([r, l]) => (
+                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor"], ["admin", "Gestão"]] as const).map(([r, l]) => (
                   <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
                 ))}
               </div>

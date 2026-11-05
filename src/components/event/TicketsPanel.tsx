@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "./StatusBadge";
 
 export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Group[] }) {
@@ -13,6 +14,24 @@ export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Gro
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
   const [status, setStatus] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const voidMany = async (ids: string[]) => {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await supabase.from("tickets").update({ status: "void" }).in("id", ids.slice(i, i + 200)).neq("status", "used");
+      if (error) return toast.error(error.message);
+    }
+    toast.success(`${ids.length} ingresso(s) anulados (os que já entraram não são alterados).`);
+    setPicked(new Set());
+    qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+  };
+  const voidGroup = async () => {
+    const g = groups.find((x) => x.id === group);
+    if (!g || !confirm(`Anular TODOS os ingressos por usar do grupo "${g.name}"?`)) return;
+    const { error } = await supabase.from("tickets").update({ status: "void" }).eq("group_id", g.id).eq("status", "valid");
+    if (error) return toast.error(error.message);
+    toast.success("Grupo anulado.");
+    qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+  };
   const { data = [], isLoading } = useQuery({
     queryKey: ["tickets", eventId, q, group, status],
     queryFn: async () => {
@@ -49,10 +68,29 @@ export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Gro
           <option value="void" className="bg-popover">Anulado</option>
         </select>
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={data.length > 0 && data.every((t) => picked.has(t.id))}
+            onCheckedChange={(v) => setPicked(v ? new Set(data.filter((t) => t.status !== "used").map((t) => t.id)) : new Set())}
+          />
+          Selecionar todos os visíveis
+        </label>
+        <Button size="sm" variant="destructive" disabled={!picked.size} onClick={() => confirm(`Anular ${picked.size} ingresso(s)?`) && voidMany([...picked])}>
+          <Ban className="h-4 w-4" /> Anular selecionados ({picked.size})
+        </Button>
+        {group && <Button size="sm" variant="outline" className="text-destructive" onClick={voidGroup}><Ban className="h-4 w-4" /> Anular grupo inteiro</Button>}
+      </div>
       <div className="rounded-2xl border bg-card divide-y">
         {isLoading ? <p className="p-6 text-muted-foreground">A carregar…</p> : data.length === 0 ? <p className="p-6 text-muted-foreground">Nenhum ingresso. Gere ingressos no separador “Grupos”.</p> :
           data.map((t) => (
             <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+              <Checkbox
+                aria-label={`Selecionar ${t.code}`}
+                disabled={t.status === "used"}
+                checked={picked.has(t.id)}
+                onCheckedChange={(v) => setPicked((prev) => { const n = new Set(prev); if (v) n.add(t.id); else n.delete(t.id); return n; })}
+              />
               <span className="font-mono font-bold w-44">{t.code}</span>
               <span className="text-sm text-muted-foreground flex-1 truncate">#{t.seq} · {gname(t.group_id)}</span>
               {t.used_at && <span className="text-xs text-muted-foreground">{new Date(t.used_at).toLocaleString("pt-PT")}</span>}
