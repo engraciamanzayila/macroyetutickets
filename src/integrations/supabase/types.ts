@@ -655,6 +655,24 @@ export type Database = {
         Args: { p_ref: string; p_token: string }
         Returns: undefined
       }
+      ticket_overview: {
+        Args: never
+        Returns: {
+          digital_sent: number
+          event_date: string
+          event_id: string
+          event_name: string
+          generated: number
+          group_id: string
+          group_name: string
+          planned: number
+          printed: number
+          sold: number
+          ticket_type: string
+          used: number
+          voided: number
+        }[]
+      }
     }
     Enums: {
       app_role:
