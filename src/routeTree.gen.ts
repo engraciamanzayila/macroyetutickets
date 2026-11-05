@@ -18,6 +18,7 @@ import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as AppVisaoGeralRouteImport } from './routes/_app.visao-geral'
 import { Route as AppZohoRouteImport } from './routes/_app.zoho'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
@@ -71,6 +72,11 @@ const AppPortariaRoute = AppPortariaRouteImport.update({
   path: '/portaria',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVisaoGeralRoute = AppVisaoGeralRouteImport.update({
+  id: '/visao-geral',
+  path: '/visao-geral',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppZohoRoute = AppZohoRouteImport.update({
   id: '/zoho',
   path: '/zoho',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
+  '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
+  '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/identidade': typeof AppIdentidadeRoute
   '/_app/portaria': typeof AppPortariaRoute
+  '/_app/visao-geral': typeof AppVisaoGeralRoute
   '/_app/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/equipa'
     | '/identidade'
     | '/portaria'
+    | '/visao-geral'
     | '/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/equipa'
     | '/identidade'
     | '/portaria'
+    | '/visao-geral'
     | '/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/_app/equipa'
     | '/_app/identidade'
     | '/_app/portaria'
+    | '/_app/visao-geral'
     | '/_app/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -303,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPortariaRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/visao-geral': {
+      id: '/_app/visao-geral'
+      path: '/visao-geral'
+      fullPath: '/visao-geral'
+      preLoaderRoute: typeof AppVisaoGeralRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/zoho': {
       id: '/_app/zoho'
       path: '/zoho'
@@ -367,6 +386,7 @@ interface AppRouteChildren {
   AppEquipaRoute: typeof AppEquipaRoute
   AppIdentidadeRoute: typeof AppIdentidadeRoute
   AppPortariaRoute: typeof AppPortariaRoute
+  AppVisaoGeralRoute: typeof AppVisaoGeralRoute
   AppZohoRoute: typeof AppZohoRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
@@ -378,6 +398,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipaRoute: AppEquipaRoute,
   AppIdentidadeRoute: AppIdentidadeRoute,
   AppPortariaRoute: AppPortariaRoute,
+  AppVisaoGeralRoute: AppVisaoGeralRoute,
   AppZohoRoute: AppZohoRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,
