@@ -184,7 +184,7 @@ function Orders() {
                   Tentar e-mail novamente
                 </Button>
               )}
-              {o.status === "pending" && (
+              {eff === "pending" && (
                 <div className="flex gap-1">
                   <Button size="sm" onClick={() => confirm(o.id)}>
                     Confirmar pagamento
@@ -195,7 +195,8 @@ function Orders() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
