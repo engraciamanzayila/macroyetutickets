@@ -144,7 +144,9 @@ function Orders() {
         </div>
       ) : (
         <div className="rounded-2xl border bg-card divide-y">
-          {data.map((o) => (
+          {data.map((o) => {
+            const eff = effectiveStatus(o);
+            return (
             <div key={o.id} className="p-4 flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[200px]">
                 <p className="font-semibold">
