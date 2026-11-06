@@ -254,6 +254,7 @@ export type Database = {
           created_at: string
           delivery_channel: string
           event_id: string
+          expires_at: string
           id: string
           paid_at: string | null
           payment_method: string
@@ -270,6 +271,7 @@ export type Database = {
           created_at?: string
           delivery_channel?: string
           event_id: string
+          expires_at?: string
           id?: string
           paid_at?: string | null
           payment_method: string
@@ -286,6 +288,7 @@ export type Database = {
           created_at?: string
           delivery_channel?: string
           event_id?: string
+          expires_at?: string
           id?: string
           paid_at?: string | null
           payment_method?: string
@@ -627,6 +630,7 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_stale_orders: { Args: never; Returns: number }
       get_order: { Args: { p_token: string }; Returns: Json }
       group_available: { Args: { _group: string }; Returns: number }
       has_role: {
