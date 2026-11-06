@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, Printer, Search, UserRound } from "lucide-react";
+import { Download, Link2, Mail, MessageCircle, Printer, Search, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ensureTickets,
@@ -11,6 +11,8 @@ import {
   type TicketRow,
 } from "@/lib/generate";
 import { exportForPrint } from "@/lib/print";
+import { holderLink } from "@/lib/share-render";
+import { sendTicketEmail } from "@/lib/order-email.functions";
 import { DEFAULT_LAYOUT, renderTicket } from "@/lib/render";
 import { loadArt } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -36,9 +38,11 @@ export function TablesPanel({
   const [groupId, setGroupId] = useState(tableGroups[0]?.id ?? "");
   const [search, setSearch] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
+  const [contact, setContact] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState<"digital" | "print" | null>(null);
+  const [sharing, setSharing] = useState<"whatsapp" | "email" | "link" | null>(null);
   const [previewMode, setPreviewMode] = useState<"digital" | "print" | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
@@ -59,7 +63,7 @@ export function TablesPanel({
       const groupsTickets = await Promise.all(
         tableGroups.map(async (item) => ({
           groupId: item.id,
-          tickets: await fetchAllTickets({ group_id: item.id }),
+          tickets: await fetchAllTickets({ group_id: item.id }, "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,share_token,sent_at,email_delivery_status"),
         })),
       );
       return groupsTickets.flatMap(({ groupId: id, tickets: rows }) =>
@@ -159,6 +163,8 @@ export function TablesPanel({
       await ensureTickets(group);
       await qc.invalidateQueries({ queryKey: ["table-tickets", eventId] });
       qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+      qc.invalidateQueries({ queryKey: ["groups", eventId] });
+      qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] });
       toast.success("Códigos das mesas atualizados. Cada uma pode agora receber o seu titular.");
     } catch (error) {
       toast.error("Não foi possível gerar os códigos: " + (error as Error).message);
@@ -221,6 +227,7 @@ export function TablesPanel({
     setExporting("digital");
     try {
       await persistPendingNames();
+      const ids = selectedTickets.map((ticket) => ticket.id);
       const selectedGroups = tableGroups.filter((item) =>
         selectedTickets.some((ticket) => ticket.group_id === item.id),
       );
@@ -232,9 +239,25 @@ export function TablesPanel({
         new Set(selectedTickets.map((ticket) => ticket.id)),
       );
       if (!count) throw new Error("Não há ingressos digitais disponíveis para exportar");
+      const sentAt = new Date().toISOString();
+      const { data: updated, error } = await supabase.from("tickets")
+        .update({ sent_via: "download", sent_at: sentAt })
+        .in("id", ids).eq("event_id", eventId).eq("status", "valid")
+        .is("printed_at", null).is("share_id", null).is("sent_at", null)
+        .neq("email_delivery_status", "sending").neq("email_delivery_status", "sent")
+        .select("id");
+      if (error) throw error;
+      if ((updated ?? []).length !== ids.length) {
+        throw new Error("Os ficheiros foram gerados, mas nem todas as mesas puderam ser registadas como distribuídas. Atualize a página e confirme o estado.");
+      }
       toast.success(`${count} mesa(s) exportada(s) com QR, referência e nome do cliente.`);
       setSelectedIds(new Set());
-      await qc.invalidateQueries({ queryKey: ["table-tickets", eventId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
+        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+        qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+      ]);
     } catch (error) {
       toast.error("Falha ao gerar os ficheiros digitais: " + (error as Error).message);
     } finally {
@@ -267,11 +290,84 @@ export function TablesPanel({
         qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
         qc.invalidateQueries({ queryKey: ["print-history", eventId] }),
         qc.invalidateQueries({ queryKey: ["report", eventId] }),
+        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
       ]);
     } catch (error) {
       toast.error("Falha ao exportar para impressão: " + (error as Error).message);
     } finally {
       setExporting(null);
+    }
+  };
+
+  const shareSelected = async (via: "whatsapp" | "email" | "link") => {
+    if (!selectedTickets.length || sharing) return;
+    if (selectedTickets.some((ticket) => !(names[ticket.id] ?? ticket.holder_name ?? "").trim())) {
+      return toast.error("Preencha e guarde o nome de cada mesa antes de partilhar.");
+    }
+    if (via === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim())) {
+      return toast.error("Indique um e-mail válido.");
+    }
+    if (via === "email" && selectedTickets.length > 100) return toast.error("Selecione até 100 mesas por e-mail.");
+    if (via === "whatsapp" && !contact.replace(/\D/g, "")) return toast.error("Indique o número de WhatsApp.");
+    if (via !== "email" && selectedTickets.length > 50) return toast.error("Selecione até 50 mesas por link.");
+
+    let whatsAppTab: Window | null = null;
+    if (via === "whatsapp") {
+      whatsAppTab = window.open("about:blank", "_blank");
+      if (!whatsAppTab) return toast.error("Permita pop-ups para abrir o WhatsApp.");
+      whatsAppTab.opener = null;
+    }
+    setSharing(via);
+    const ids = selectedTickets.map((ticket) => ticket.id);
+    try {
+      await persistPendingNames();
+      if (via === "email") {
+        const result = await sendTicketEmail({ data: { eventId, ticketIds: ids, recipient: contact.trim() } });
+        if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
+        const { error } = await supabase.from("tickets").update({ holder_contact: contact.trim() }).in("id", ids).eq("event_id", eventId);
+        if (error) throw new Error(`E-mail enviado, mas não foi possível guardar o contacto: ${error.message}`);
+        toast.success(`Mesas enviadas por e-mail para ${result.recipient}.`);
+      } else {
+        const tokens = selectedTickets.flatMap((ticket) => ticket.share_token ? [ticket.share_token] : []);
+        if (tokens.length !== ids.length) throw new Error("Não foi possível preparar o link de todas as mesas.");
+        const link = holderLink(tokens);
+        const tableNames = selectedTickets.map((ticket) => `${(names[ticket.id] ?? ticket.holder_name ?? "").trim()} — Mesa #${ticket.seq}`).join("\n");
+        const message = `Olá! Aqui estão ${selectedTickets.length} mesa(s) para ${eventName}:\n${tableNames}\n\nAbra os ingressos aqui: ${link}`;
+        if (via === "link") await navigator.clipboard.writeText(message);
+
+        const sentAt = new Date().toISOString();
+        const { data: updated, error } = await supabase.from("tickets")
+          .update({ sent_via: via === "whatsapp" ? "whatsapp" : "link", sent_at: sentAt, holder_contact: contact.trim() || null })
+          .in("id", ids).eq("event_id", eventId).eq("status", "valid")
+          .is("printed_at", null).is("share_id", null).is("sent_at", null)
+          .neq("email_delivery_status", "sending").neq("email_delivery_status", "sent")
+          .select("id");
+        if (error) throw error;
+        if ((updated ?? []).length !== ids.length) {
+          throw new Error("Nem todas as mesas puderam ser registadas como distribuídas. Atualize e confirme o estado.");
+        }
+        if (via === "whatsapp") {
+          const digits = contact.replace(/\D/g, "");
+          const phone = digits.length === 9 ? `244${digits}` : digits;
+          whatsAppTab!.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+          toast.success("Seleção aberta no WhatsApp e registada como distribuída.");
+        } else {
+          toast.success("Mensagem com os links copiada e mesas registadas como distribuídas.");
+        }
+      }
+      setSelectedIds(new Set());
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
+        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+        qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+      ]);
+    } catch (error) {
+      whatsAppTab?.close();
+      toast.error((error as Error).message);
+    } finally {
+      setSharing(null);
     }
   };
 
@@ -319,6 +415,7 @@ export function TablesPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge variant="secondary">{currentTickets.length} códigos criados</Badge>
+              <Badge variant="outline">{availableTickets.length} disponíveis</Badge>
               <Badge variant="outline">{named} com titular</Badge>
               <Badge variant="outline">
                 {Math.max(0, group.quantity - currentTickets.length)} por gerar
@@ -353,6 +450,26 @@ export function TablesPanel({
             </div>
           </div>
 
+          <div className="space-y-3 rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Partilhar mesas selecionadas</p>
+              <p className="text-xs text-muted-foreground">Os nomes dos titulares acompanham a mensagem e cada ingresso mantém o seu QR individual.</p>
+            </div>
+            <Input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="E-mail ou número de WhatsApp (com indicativo)" aria-label="E-mail ou número de WhatsApp" />
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={!!sharing || !!exporting || !selectedTickets.length} onClick={() => void shareSelected("whatsapp")}>
+                <MessageCircle className="h-4 w-4" />{sharing === "whatsapp" ? "A abrir…" : "WhatsApp"}
+              </Button>
+              <Button variant="secondary" disabled={!!sharing || !!exporting || !selectedTickets.length} onClick={() => void shareSelected("email")}>
+                <Mail className="h-4 w-4" />{sharing === "email" ? "A enviar…" : "E-mail"}
+              </Button>
+              <Button variant="secondary" disabled={!!sharing || !!exporting || !selectedTickets.length} onClick={() => void shareSelected("link")}>
+                <Link2 className="h-4 w-4" />{sharing === "link" ? "A copiar…" : "Copiar mensagem/link"}
+              </Button>
+              <span className="self-center text-xs text-muted-foreground">{selectedTickets.length} selecionada(s)</span>
+            </div>
+          </div>
+
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -383,7 +500,9 @@ export function TablesPanel({
                       ticket.status !== "valid" ||
                       !!ticket.printed_at ||
                       !!ticket.share_id ||
-                      !!ticket.sent_at
+                      !!ticket.sent_at ||
+                      ticket.email_delivery_status === "sending" ||
+                      ticket.email_delivery_status === "sent"
                     }
                     aria-label={`Selecionar mesa ${ticket.seq}`}
                     onCheckedChange={(checked) => {
@@ -426,6 +545,12 @@ export function TablesPanel({
                     </Badge>
                     {ticket.printed_at && (
                       <span className="text-xs text-muted-foreground">Impresso</span>
+                    )}
+                    {!ticket.printed_at && (ticket.sent_at || ticket.share_id || ticket.email_delivery_status === "sent") && (
+                      <span className="text-xs text-muted-foreground">Distribuída</span>
+                    )}
+                    {ticket.email_delivery_status === "sending" && (
+                      <span className="text-xs text-muted-foreground">A enviar</span>
                     )}
                   </div>
                 </div>

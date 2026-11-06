@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { artUrl, generate, type Group, type OutputFormat } from "@/lib/generate";
+import { artUrl, fetchAllTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
 import { UploadPanel } from "@/components/event/UploadPanel";
 import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
@@ -58,6 +58,21 @@ function EventPage() {
       return (data ?? []) as unknown as (Group & { tickets: { count: number }[]; source_filename: string | null })[];
     },
   });
+  const { data: ticketDistribution = {} } = useQuery({
+    queryKey: ["ticket-distribution", eventId],
+    queryFn: async () => {
+      const tickets = await fetchAllTickets({ event_id: eventId });
+      return tickets.reduce<Record<string, { free: number; distributed: number; printed: number; sending: number }>>((counts, ticket) => {
+        const current = counts[ticket.group_id] ?? { free: 0, distributed: 0, printed: 0, sending: 0 };
+        if (ticket.printed_at) current.printed++;
+        else if (ticket.sent_at || ticket.share_id || ticket.email_delivery_status === "sent") current.distributed++;
+        else if (ticket.email_delivery_status === "sending") current.sending++;
+        else if (ticket.status === "valid") current.free++;
+        counts[ticket.group_id] = current;
+        return counts;
+      }, {});
+    },
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -100,6 +115,7 @@ function EventPage() {
       setGenOpen(false);
       refresh();
       qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+      qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] });
     } catch (e) {
       console.error(e);
       toast.error("Falha ao gerar: " + (e as Error).message);
@@ -150,7 +166,7 @@ function EventPage() {
                   const made = g.tickets[0]?.count ?? 0;
                   return (
                     <div key={g.id} className="p-4 flex flex-wrap items-center gap-4">
-                      <Checkbox checked={selected.has(g.id)} onCheckedChange={(v) => { const s = new Set(selected); v ? s.add(g.id) : s.delete(g.id); setSelected(s); }} />
+                      <Checkbox checked={selected.has(g.id)} onCheckedChange={(v) => { const s = new Set(selected); if (v) s.add(g.id); else s.delete(g.id); setSelected(s); }} />
                       <Thumb path={g.art_path} />
                       <div className="flex-1 min-w-[200px] space-y-1">
                         <Input defaultValue={g.name} disabled={made > 0} onBlur={(e) => e.target.value !== g.name && updateGroup(g.id, { name: e.target.value })} className="h-8 font-semibold" />
@@ -174,7 +190,11 @@ function EventPage() {
                           {g.recipient && <span>→ {g.recipient}</span>}
                           {g.price != null && g.price > 0 && <span>{kz(g.price)}</span>}
                           {g.width_cm && <span>{g.width_cm}×{g.height_cm} cm</span>}
-                          <span>{made} código(s) criados</span>
+                          <span className="font-medium text-foreground">{ticketDistribution[g.id]?.free ?? 0} mesa(s) disponível(is)</span>
+                          <span>{ticketDistribution[g.id]?.distributed ?? 0} distribuída(s)</span>
+                          <span>{ticketDistribution[g.id]?.printed ?? 0} impressa(s)</span>
+                          {(ticketDistribution[g.id]?.sending ?? 0) > 0 ? <span>{ticketDistribution[g.id]?.sending} em envio</span> : null}
+                          <span title="Total de códigos já criados">{made} código(s) criados no total</span>
                           {!g.layout && <span className="text-warning">QR por posicionar</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -226,7 +246,7 @@ function EventPage() {
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
-      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); }} />
+      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }); }} />
 
       <Dialog open={genOpen} onOpenChange={(o) => !progress && setGenOpen(o)}>
         <DialogContent>
