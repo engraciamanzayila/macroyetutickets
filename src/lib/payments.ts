@@ -33,4 +33,5 @@ export const STATUS_LABEL: Record<string, string> = {
   pending: "Aguarda pagamento",
   paid: "Pago",
   cancelled: "Cancelado",
+  expired: "Expirada",
 };

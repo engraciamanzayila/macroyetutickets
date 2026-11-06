@@ -20,3 +20,4 @@
 - [x] Arquivo de PDFs de impressão por evento e recuperação dos lotes antigos com base em `printed_at`
 - [ ] Autenticação Google e Google Sheets: testar com as integrações/credenciais oficiais no ambiente publicado
 - [x] Nome final da plataforma: MY Tickets
+- [x] Encomendas pendentes expiram ao fim de 24 h: stock libertado, limpeza automática a cada 15 min e aviso de prazo ao comprador

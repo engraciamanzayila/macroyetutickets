@@ -101,6 +101,10 @@ function Orders() {
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["orders"] });
   };
+  const effectiveStatus = (o: (typeof data)[number]) =>
+    o.status === "pending" && o.expires_at && new Date(o.expires_at).getTime() < Date.now()
+      ? "expired"
+      : o.status;
   const paid = data.filter((o) => o.status === "paid");
   const total = paid.reduce((s, o) => s + Number(o.total), 0);
   const fee = paid.reduce(
@@ -140,7 +144,9 @@ function Orders() {
         </div>
       ) : (
         <div className="rounded-2xl border bg-card divide-y">
-          {data.map((o) => (
+          {data.map((o) => {
+            const eff = effectiveStatus(o);
+            return (
             <div key={o.id} className="p-4 flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[200px]">
                 <p className="font-semibold">
@@ -155,9 +161,14 @@ function Orders() {
                 {o.payment_reference && (
                   <p className="text-xs">Comprovativo: {o.payment_reference}</p>
                 )}
+                {eff === "pending" && o.expires_at && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Expira {new Date(o.expires_at).toLocaleString("pt-AO")}
+                  </p>
+                )}
               </div>
-              <Badge variant={o.status === "paid" ? "default" : "secondary"}>
-                {STATUS_LABEL[o.status] ?? o.status}
+              <Badge variant={eff === "paid" ? "default" : "secondary"}>
+                {STATUS_LABEL[eff] ?? eff}
               </Badge>
               {o.delivery_channel === "email" && o.status === "paid" && (
                 <Badge variant={o.email_tickets.length > 0 && o.email_tickets.every((ticket) => ticket.email_delivery_status === "sent") ? "default" : "secondary"}>
@@ -173,7 +184,7 @@ function Orders() {
                   Tentar e-mail novamente
                 </Button>
               )}
-              {o.status === "pending" && (
+              {eff === "pending" && (
                 <div className="flex gap-1">
                   <Button size="sm" onClick={() => confirm(o.id)}>
                     Confirmar pagamento
@@ -184,7 +195,8 @@ function Orders() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
