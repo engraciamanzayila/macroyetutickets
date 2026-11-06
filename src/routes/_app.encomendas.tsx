@@ -101,6 +101,10 @@ function Orders() {
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["orders"] });
   };
+  const effectiveStatus = (o: (typeof data)[number]) =>
+    o.status === "pending" && o.expires_at && new Date(o.expires_at).getTime() < Date.now()
+      ? "expired"
+      : o.status;
   const paid = data.filter((o) => o.status === "paid");
   const total = paid.reduce((s, o) => s + Number(o.total), 0);
   const fee = paid.reduce(
