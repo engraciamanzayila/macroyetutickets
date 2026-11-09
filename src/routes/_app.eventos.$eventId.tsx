@@ -76,7 +76,7 @@ function EventPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
-  const [formats, setFormats] = useState<OutputFormat[]>(["zip"]);
+  const [formats, setFormats] = useState<OutputFormat[]>(["pdf"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
   const selectedGroupIds = useMemo(
     () => groups.filter((group) => selected.has(group.id)).map((group) => group.id),
@@ -252,12 +252,15 @@ function EventPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Gerar ingressos</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados ou já enviados para impressão não são incluídos — estes são os ingressos digitais.
+            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados ou já enviados para impressão não são incluídos. Cada ficheiro digital inclui evento, grupo, referência e titular no nome; várias entradas são entregues num ZIP.
           </p>
           <div className="space-y-3">
             {([
-              ["zip", "ZIP de imagens", "Um JPG por ingresso, organizado por grupo"],
-              ["pdf", "PDF único", "Um ingresso por página, no tamanho real"],
+              ["pdf", "PDF por ingresso", "Ficheiros PDF individuais, identificados por referência e titular"],
+              ["jpeg", "JPEG", "Uma imagem JPG por ingresso"],
+              ["png", "PNG", "Uma imagem PNG por ingresso"],
+              ["tiff", "TIFF", "Uma imagem TIFF por ingresso"],
+              ["a4", "Folha A4 para impressão (PDF)", "Gera também uma folha A4 paginada para a gráfica"],
             ] as const).map(([v, t, d]) => (
               <label key={v} className="flex gap-3 items-start rounded-lg border p-3 cursor-pointer has-[:checked]:border-primary">
                 <Checkbox checked={formats.includes(v)} onCheckedChange={(c) => setFormats(c ? [...formats, v] : formats.filter((f) => f !== v))} />

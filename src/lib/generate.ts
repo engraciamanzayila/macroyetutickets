@@ -1,5 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
-import { DEFAULT_LAYOUT, canvasJpeg, physicalMm, randomCode, renderTicket, typePrefix, type Layout } from "./render";
+import {
+  DEFAULT_LAYOUT,
+  physicalMm,
+  randomCode,
+  renderTicket,
+  typePrefix,
+  type Layout,
+} from "./render";
+import { downloadFile, ticketFileFromCanvas, type TicketFileFormat } from "./ticket-files";
 
 export type Group = {
   id: string;
@@ -18,10 +26,26 @@ export type Group = {
   layout: Layout | null;
 };
 
-export type TicketRow = { id: string; code: string; seq: number; status: string; group_id: string; used_at: string | null; printed_at?: string | null; holder_name?: string | null; share_id?: string | null; share_token?: string; sent_at?: string | null; email_delivery_status?: string };
+export type TicketRow = {
+  id: string;
+  code: string;
+  seq: number;
+  status: string;
+  group_id: string;
+  used_at: string | null;
+  printed_at?: string | null;
+  holder_name?: string | null;
+  share_id?: string | null;
+  share_token?: string;
+  sent_at?: string | null;
+  email_delivery_status?: string;
+};
 
 /** Fetches every row past the 1000-row API limit. */
-export async function fetchAllTickets(filter: { event_id?: string; group_id?: string }, columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at,email_delivery_status") {
+export async function fetchAllTickets(
+  filter: { event_id?: string; group_id?: string },
+  columns = "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,sent_at,email_delivery_status",
+) {
   const out: TicketRow[] = [];
   const fetchPage = (from: number, selectedColumns: string) => {
     let query = supabase
@@ -87,17 +111,15 @@ export async function artUrl(path: string) {
 }
 
 type Progress = (done: number, total: number, label: string) => void;
-export type OutputFormat = "zip" | "pdf" | "a4";
+export type OutputFormat = TicketFileFormat | "a4";
 
-function save(blob: Blob, name: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-}
-
-const safe = (s: string) => s.replace(/[^\w\-À-ú ]+/g, "").trim().replace(/\s+/g, "_").slice(0, 60) || "ingressos";
+const safe = (s: string) =>
+  s
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "ingressos";
 
 export async function generate(
   groups: Group[],
@@ -106,9 +128,13 @@ export async function generate(
   onProgress: Progress,
   ticketIds?: ReadonlySet<string>,
 ) {
+  const fileFormats = [
+    ...new Set(formats.filter((format): format is TicketFileFormat => format !== "a4")),
+  ];
+  const makeA4 = formats.includes("a4");
   const jobs: { g: Group; tickets: TicketRow[] }[] = [];
   for (const g of groups) {
-    onProgress(0, 1, `A criar códigos: ${g.name}`);
+    onProgress(0, 1, `A verificar códigos: ${g.name}`);
     jobs.push({
       g,
       tickets: (await ensureTickets(g)).filter(
@@ -123,76 +149,132 @@ export async function generate(
       ),
     });
   }
-  const total = jobs.reduce((s, j) => s + j.tickets.length, 0);
-  const [{ default: JSZip }, { jsPDF }] = await Promise.all([import("jszip"), import("jspdf")]);
-  const zip = formats.includes("zip") ? new JSZip() : null;
-  let pdf: InstanceType<typeof jsPDF> | null = null;
-  let a4: InstanceType<typeof jsPDF> | null = null;
+  const total = jobs.reduce((sum, job) => sum + job.tickets.length, 0);
+  if (!total) return 0;
+
+  const { default: JSZip } = fileFormats.length ? await import("jszip") : { default: null };
+  const zip = JSZip ? new JSZip() : null;
+  let singleFile: File | null = null;
+  let digitalFileCount = 0;
+  let a4: InstanceType<typeof import("jspdf").jsPDF> | null = null;
   let a4Slot = 0;
   let a4Pages = 0;
   let done = 0;
+  const M = 8;
+  const GAP = 3;
+  const PW = 210;
+  const PH = 297;
 
   for (const { g, tickets } of jobs) {
-    if (!g.art_path) continue;
+    if (!tickets.length) continue;
+    if (!g.art_path) throw new Error(`O grupo "${g.name}" não tem arte configurada.`);
     const art = await loadArt(g.art_path);
-    const layout = g.layout ?? DEFAULT_LAYOUT;
-    const mm = physicalMm(g);
-    const orient = mm.w > mm.h ? "landscape" : "portrait";
-    // A4 grid for this group
-    const M = 8, GAP = 3, PW = 210, PH = 297;
-    let cols = Math.floor((PW - 2 * M + GAP) / (mm.w + GAP));
-    let rows = Math.floor((PH - 2 * M + GAP) / (mm.h + GAP));
-    let rot = false;
-    const colsR = Math.floor((PW - 2 * M + GAP) / (mm.h + GAP));
-    const rowsR = Math.floor((PH - 2 * M + GAP) / (mm.w + GAP));
-    if (colsR * rowsR > cols * rows) { cols = colsR; rows = rowsR; rot = true; }
-    const per = Math.max(1, cols * rows);
-    a4Slot = 0; // each group starts on a new sheet
+    try {
+      const layout = g.layout ?? DEFAULT_LAYOUT;
+      const mm = physicalMm(g);
+      let cols = Math.floor((PW - 2 * M + GAP) / (mm.w + GAP));
+      let rows = Math.floor((PH - 2 * M + GAP) / (mm.h + GAP));
+      let rotated = false;
+      const colsRotated = Math.floor((PW - 2 * M + GAP) / (mm.h + GAP));
+      const rowsRotated = Math.floor((PH - 2 * M + GAP) / (mm.w + GAP));
+      if (colsRotated * rowsRotated > cols * rows) {
+        cols = colsRotated;
+        rows = rowsRotated;
+        rotated = true;
+      }
+      cols = Math.max(1, cols);
+      rows = Math.max(1, rows);
+      const perPage = cols * rows;
+      a4Slot = 0;
 
-    for (const t of tickets) {
-      const canvas = await renderTicket(art, layout, t.code, g.ticket_type.toUpperCase().includes("MESA") ? t.holder_name : null);
-      const blob = await canvasJpeg(canvas, 0.9);
-      if (zip) zip.file(`${safe(g.name)}/${String(t.seq).padStart(4, "0")}_${t.code}.jpg`, blob);
-      if (formats.includes("pdf") || formats.includes("a4")) {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        if (formats.includes("pdf")) {
-          if (!pdf) pdf = new jsPDF({ unit: "mm", format: [mm.w, mm.h], orientation: orient, compress: true });
-          else pdf.addPage([mm.w, mm.h], orient);
-          pdf.addImage(bytes, "JPEG", 0, 0, mm.w, mm.h, undefined, "FAST");
+      for (const ticket of tickets) {
+        const canvas = await renderTicket(
+          art,
+          layout,
+          ticket.code,
+          g.ticket_type.toUpperCase().includes("MESA") ? ticket.holder_name : null,
+        );
+        for (const format of fileFormats) {
+          const file = await ticketFileFromCanvas(canvas, fileBase, g, ticket, format);
+          if (!zip) throw new Error("Não foi possível preparar o pacote dos ficheiros.");
+          zip.file(`${safe(g.name)}/${file.name}`, file);
+          singleFile = file;
+          digitalFileCount++;
         }
-        if (formats.includes("a4")) {
-          if (!a4) { a4 = new jsPDF({ unit: "mm", format: "a4", compress: true }); a4Pages = 1; }
-          else if (a4Slot === 0) { a4.addPage("a4", "portrait"); a4Pages++; }
-          const c = a4Slot % cols, r = Math.floor(a4Slot / cols);
-          const cw = rot ? mm.h : mm.w, ch = rot ? mm.w : mm.h;
-          const usedW = cols * cw + (cols - 1) * GAP, usedH = rows * ch + (rows - 1) * GAP;
+
+        if (makeA4) {
+          if (!a4) {
+            const { jsPDF } = await import("jspdf");
+            a4 = new jsPDF({ unit: "mm", format: "a4", compress: true });
+            a4Pages = 1;
+          } else if (a4Slot === 0) {
+            a4.addPage("a4", "portrait");
+            a4Pages++;
+          }
+          const c = a4Slot % cols;
+          const r = Math.floor(a4Slot / cols);
+          const cw = rotated ? mm.h : mm.w;
+          const ch = rotated ? mm.w : mm.h;
+          const usedW = cols * cw + (cols - 1) * GAP;
+          const usedH = rows * ch + (rows - 1) * GAP;
           const x = (PW - usedW) / 2 + c * (cw + GAP);
           const y = (PH - usedH) / 2 + r * (ch + GAP);
-          if (rot) {
-            const rc = document.createElement("canvas");
-            rc.width = canvas.height;
-            rc.height = canvas.width;
-            const rx = rc.getContext("2d")!;
-            rx.translate(rc.width, 0);
-            rx.rotate(Math.PI / 2);
-            rx.drawImage(canvas, 0, 0);
-            const rb = new Uint8Array(await (await canvasJpeg(rc, 0.9)).arrayBuffer());
-            a4.addImage(rb, "JPEG", x, y, cw, ch, undefined, "FAST");
-          } else a4.addImage(bytes, "JPEG", x, y, mm.w, mm.h, undefined, "FAST");
-          a4Slot = (a4Slot + 1) % per;
+          let printCanvas = canvas;
+          if (rotated) {
+            const rotatedCanvas = document.createElement("canvas");
+            rotatedCanvas.width = canvas.height;
+            rotatedCanvas.height = canvas.width;
+            const context = rotatedCanvas.getContext("2d");
+            if (!context) throw new Error("Não foi possível preparar a folha A4.");
+            context.translate(rotatedCanvas.width, 0);
+            context.rotate(Math.PI / 2);
+            context.drawImage(canvas, 0, 0);
+            printCanvas = rotatedCanvas;
+          }
+          a4.addImage(
+            printCanvas.toDataURL("image/jpeg", 0.92),
+            "JPEG",
+            x,
+            y,
+            cw,
+            ch,
+            undefined,
+            "FAST",
+          );
+          a4.setDrawColor(45, 45, 45);
+          a4.setLineWidth(0.1);
+          const mark = Math.min(2, cw / 8);
+          a4.line(x, y, x + mark, y);
+          a4.line(x + cw - mark, y, x + cw, y);
+          a4.line(x, y + ch, x + mark, y + ch);
+          a4.line(x + cw - mark, y + ch, x + cw, y + ch);
+          a4Slot = (a4Slot + 1) % perPage;
         }
+        done++;
+        if (done % 5 === 0 || done === total) onProgress(done, total, `A gerar ${done}/${total}`);
+        if (done % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      done++;
-      if (done % 5 === 0 || done === total) onProgress(done, total, `A gerar ${done}/${total}`);
-      if (done % 20 === 0) await new Promise((r) => setTimeout(r, 0));
+    } finally {
+      art.close();
     }
-    art.close();
   }
-  void a4Pages;
-  onProgress(total, total, "A preparar downloads…");
-  const base = safe(fileBase);
-  if (zip) save(await zip.generateAsync({ type: "blob", compression: "STORE" }), `${base}.zip`);
-  if (pdf) save(pdf.output("blob"), `${base}.pdf`);
-  if (a4) save(a4.output("blob"), `${base}_A4.pdf`);
+
+  onProgress(total, total, "A preparar os ficheiros…");
+  if (zip && digitalFileCount) {
+    if (digitalFileCount === 1 && singleFile) {
+      downloadFile(singleFile);
+    } else {
+      const archive = await zip.generateAsync({ type: "blob", compression: "STORE" });
+      downloadFile(
+        new File([archive], `${safe(fileBase)}_bilhetes.zip`, { type: "application/zip" }),
+      );
+    }
+  }
+  if (a4) {
+    const printFile = new File([a4.output("blob")], `${safe(fileBase)}_A4_${a4Pages}_paginas.pdf`, {
+      type: "application/pdf",
+    });
+    downloadFile(printFile);
+  }
   return total;
 }
