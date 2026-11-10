@@ -19,5 +19,6 @@
 - [x] Grupos de Mesa numa área própria, com nome individual por ingresso; ficheiros determinam quantidade e preço do grupo
 - [x] Arquivo de PDFs de impressão por evento e recuperação dos lotes antigos com base em `printed_at`
 - [ ] Autenticação Google e Google Sheets: testar com as integrações/credenciais oficiais no ambiente publicado
+- [ ] Publicação Vercel em `mytickets.macroyetu.com`: confirmar variáveis do Lovable Cloud e resolver erro de cache da tabela de eventos (depende de acesso às definições do Vercel)
 - [x] Nome final da plataforma: MY Tickets
 - [x] Encomendas pendentes expiram ao fim de 24 h: stock libertado, limpeza automática a cada 15 min e aviso de prazo ao comprador
