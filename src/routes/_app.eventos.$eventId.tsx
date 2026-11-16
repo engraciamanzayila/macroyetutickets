@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, PenTool, Printer, Share2, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { artUrl, ensureTickets, fetchAllTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
@@ -76,6 +76,8 @@ function EventPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [preparingShare, setPreparingShare] = useState(false);
   const [formats, setFormats] = useState<OutputFormat[]>(["pdf"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
   const selectedGroupIds = useMemo(
@@ -136,6 +138,29 @@ function EventPage() {
     }
   };
 
+  const prepareSelectedGroupsForSharing = async () => {
+    const chosen = groups.filter((group) => selected.has(group.id));
+    if (!chosen.length) return toast.error("Selecione pelo menos um grupo");
+    const invalidGroups = chosen.filter((group) => !group.layout || !group.art_path);
+    if (invalidGroups.length) {
+      return toast.error(
+        `Configure a arte e posicione o QR primeiro em: ${invalidGroups.map((group) => group.name).join(", ")}`,
+      );
+    }
+
+    setPreparingShare(true);
+    try {
+      for (const group of chosen) await ensureTickets(group);
+      await qc.invalidateQueries({ queryKey: ["admin-dispatch", eventId] });
+      await qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] });
+      setShareOpen(true);
+    } catch (error) {
+      toast.error(`Não foi possível preparar os ingressos: ${(error as Error).message}`);
+    } finally {
+      setPreparingShare(false);
+    }
+  };
+
   const totalPlanned = groups.reduce((s, g) => s + g.quantity, 0);
 
   return (
@@ -171,6 +196,9 @@ function EventPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" /> Exportar para impressão</Button>
                   <Button disabled={!selected.size} onClick={() => setGenOpen(true)}><Download className="h-4 w-4" /> Baixar digitais ({selected.size})</Button>
+                  <Button variant="secondary" disabled={!selected.size || preparingShare} onClick={() => void prepareSelectedGroupsForSharing()}>
+                    <Share2 className="h-4 w-4" /> {preparingShare ? "A preparar…" : `Partilhar selecionados (${selected.size})`}
+                  </Button>
                 </div>
               </div>
               <div className="divide-y">
@@ -262,6 +290,17 @@ function EventPage() {
       </Tabs>
 
       <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }); }} />
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader><DialogTitle>Partilhar ingressos dos grupos selecionados</DialogTitle></DialogHeader>
+          <AdminDispatchPanel
+            eventId={eventId}
+            eventName={event?.name ?? "evento"}
+            groups={groups.filter((group) => selected.has(group.id))}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={genOpen} onOpenChange={(o) => !progress && setGenOpen(o)}>
         <DialogContent>
