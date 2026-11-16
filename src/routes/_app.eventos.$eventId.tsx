@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { artUrl, generate, type Group, type OutputFormat } from "@/lib/generate";
+import { artUrl, ensureTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
 import { UploadPanel } from "@/components/event/UploadPanel";
 import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
@@ -108,6 +108,18 @@ function EventPage() {
     }
   };
 
+  const generateGroupTickets = async (g: Group) => {
+    if (!g.layout) return toast.error(`Posicione o QR do grupo "${g.name}" antes de gerar.`);
+    try {
+      const n = await ensureTickets(g);
+      toast.success(`${n.length} ingressos criados para ${g.name}`);
+      refresh();
+      qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const totalPlanned = groups.reduce((s, g) => s + g.quantity, 0);
 
   return (
@@ -202,8 +214,11 @@ function EventPage() {
                         <span className="text-xs text-muted-foreground">Qtd</span>
                         <Input type="number" disabled={made > 0 && !isAdmin} title={made > 0 ? (isAdmin ? "Admin: aumente para gerar ingressos extra" : "Só a administração pode gerar extra") : undefined} min={made || 1} defaultValue={g.quantity} className="h-8 w-24" onBlur={(e) => { const q = parseInt(e.target.value); if (q && q !== g.quantity) updateGroup(g.id, { quantity: Math.max(q, made) }); }} />
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap">
                         {made === 0 && <Button asChild variant="secondary" size="sm"><Link to="/editor/$groupId" params={{ groupId: g.id }}><PenTool className="h-4 w-4" /> Editor</Link></Button>}
+                        <Button variant="secondary" size="sm" onClick={() => void generateGroupTickets(g)}>
+                          {made > 0 ? "Gerar novos" : "Gerar ingressos"}
+                        </Button>
                         <Button variant="ghost" size="icon" title="Aplicar posição do QR aos grupos com o mesmo formato" onClick={() => copyLayoutToSameSize(g)}><Copy className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => deleteGroup(g)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
@@ -220,7 +235,7 @@ function EventPage() {
             <TablesPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} />
           </TabsContent>
         )}
-        <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
         <TabsContent value="impressoes" className="mt-6"><PrintHistoryPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
         <TabsContent value="partilha" className="mt-6">{isAdmin && <AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} />}<SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>

@@ -1,14 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Ban, RotateCcw, Search } from "lucide-react";
+import { Ban, Download, Mail, MessageCircle, RotateCcw, Search, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Group } from "@/lib/generate";
+import { artUrl, type Group } from "@/lib/generate";
+import { holderLink, downloadPdf } from "@/lib/share-render";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
 
-export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Group[] }) {
+export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; eventName: string; groups: Group[] }) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
@@ -16,7 +17,7 @@ export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Gro
   const { data = [], isLoading } = useQuery({
     queryKey: ["tickets", eventId, q, group, status],
     queryFn: async () => {
-      let query = supabase.from("tickets").select("id,code,seq,status,used_at,group_id").eq("event_id", eventId).order("seq").limit(200);
+      let query = supabase.from("tickets").select("id,code,seq,status,used_at,group_id,share_token").eq("event_id", eventId).order("seq").limit(200);
       if (q) query = query.ilike("code", `%${q.trim().toUpperCase()}%`);
       if (group) query = query.eq("group_id", group);
       if (status) query = query.eq("status", status);
@@ -24,6 +25,43 @@ export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Gro
     },
   });
   const gname = (id: string) => groups.find((g) => g.id === id)?.name ?? "";
+
+  const shareTicket = async (ticket: { id: string; code: string; group_id: string; share_token: string | null }, via: "whatsapp" | "email" | "link" | "download") => {
+    const group = groups.find((g) => g.id === ticket.group_id);
+    if (!group) return toast.error("Grupo não encontrado");
+    const ticketLink = ticket.share_token ? holderLink([ticket.share_token]) : `${window.location.origin}/i/${ticket.id}`;
+    const text = `Olá! Aqui está o seu ingresso para ${eventName}: ${ticketLink}\nApresente o QR code ou a referência à entrada.`;
+
+    if (via === "link") {
+      await navigator.clipboard.writeText(ticketLink);
+      toast.success("Link do ingresso copiado");
+      return;
+    }
+
+    if (via === "download") {
+      const art = await artUrl(group.art_path ?? "");
+      if (!art) throw new Error("Este grupo ainda não tem arte disponível");
+      await downloadPdf([{ g: { ...group, art_url: art } as never, code: ticket.code, holderName: group.ticket_type.toUpperCase().includes("MESA") ? null : null }], `${eventName}_${ticket.code}`);
+      return;
+    }
+
+    const contact = via === "whatsapp"
+      ? window.prompt("Número do WhatsApp do destinatário:", "")
+      : via === "email"
+        ? window.prompt("E-mail do destinatário:", "")
+        : "";
+    if (via === "whatsapp" && !contact) return;
+    if (via === "email" && (!contact || !contact.includes("@"))) return toast.error("Indique um e-mail válido");
+
+    if (via === "whatsapp") {
+      const digits = contact.replace(/\D/g, "");
+      const phone = digits.length === 9 ? `244${digits}` : digits;
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank");
+      return;
+    }
+
+    window.location.href = `mailto:${contact}?subject=${encodeURIComponent("Ingresso — " + eventName)}&body=${encodeURIComponent(text)}`;
+  };
 
   const setTicket = async (id: string, patch: { status: string; used_at?: null }) => {
     const { error } = await supabase.from("tickets").update(patch).eq("id", id);
@@ -57,6 +95,12 @@ export function TicketsPanel({ eventId, groups }: { eventId: string; groups: Gro
               <span className="text-sm text-muted-foreground flex-1 truncate">#{t.seq} · {gname(t.group_id)}</span>
               {t.used_at && <span className="text-xs text-muted-foreground">{new Date(t.used_at).toLocaleString("pt-PT")}</span>}
               <StatusBadge status={t.status} />
+              <div className="flex items-center gap-1">
+                <Button size="icon" variant="ghost" title="WhatsApp" onClick={() => void shareTicket(t, "whatsapp")}><MessageCircle className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="E-mail" onClick={() => void shareTicket(t, "email")}><Mail className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="Copiar link" onClick={() => void shareTicket(t, "link")}><Link2 className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="Baixar PDF" onClick={() => void shareTicket(t, "download")}><Download className="h-4 w-4" /></Button>
+              </div>
               {t.status === "void" ? (
                 <Button size="sm" variant="ghost" onClick={() => setTicket(t.id, { status: "valid" })}><RotateCcw className="h-4 w-4" /> Reativar</Button>
               ) : (

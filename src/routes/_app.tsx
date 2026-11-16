@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
@@ -13,15 +13,26 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, loading, isMember, isAdmin, isManager, refreshRoles } = useAuth();
+  const { session, loading, isMember, isAdmin, isPromoter, isManager, refreshRoles } = useAuth();
   const isPrimaryAdmin = isAdmin && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
   const navigate = useNavigate();
+  type DashboardMode = "public" | "promoter" | "management" | "gate";
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => {
+    if (typeof window === "undefined") return "management";
+    const saved = window.localStorage.getItem("myt-dashboard-mode");
+    return saved === "public" || saved === "promoter" || saved === "management" || saved === "gate"
+      ? saved
+      : "management";
+  });
 
   useEffect(() => {
     if (!loading && !session) navigate({ to: "/login" });
   }, [loading, session, navigate]);
 
-  if (loading || !session) return <div className="min-h-screen grid place-items-center text-muted-foreground">A carregar…</div>;
+  if (loading || !session)
+    return (
+      <div className="min-h-screen grid place-items-center text-muted-foreground">A carregar…</div>
+    );
 
   if (!isMember)
     return (
@@ -32,24 +43,49 @@ function AppLayout() {
           <p className="text-muted-foreground text-sm">
             Peça ao administrador para lhe dar acesso com o e-mail <b>{session.user.email}</b>.
           </p>
-          <Button className="w-full" onClick={async () => { const { error } = await supabase.from("profiles").update({ wants_promoter: true }).eq("id", session.user.id); if (error) toast.error(error.message); else toast.success("Pedido enviado. O administrador vai analisar."); }}>Quero vender ingressos (promotor)</Button>
+          <Button
+            className="w-full"
+            onClick={async () => {
+              const { error } = await supabase
+                .from("profiles")
+                .update({ wants_promoter: true })
+                .eq("id", session.user.id);
+              if (error) toast.error(error.message);
+              else toast.success("Pedido enviado. O administrador vai analisar.");
+            }}
+          >
+            Quero vender ingressos (promotor)
+          </Button>
           <div className="flex gap-2 justify-center">
-            <Button variant="secondary" onClick={() => refreshRoles()}>Verificar novamente</Button>
-            <Button variant="ghost" onClick={() => supabase.auth.signOut()}>Sair</Button>
+            <Button variant="secondary" onClick={() => refreshRoles()}>
+              Verificar novamente
+            </Button>
+            <Button variant="ghost" onClick={() => supabase.auth.signOut()}>
+              Sair
+            </Button>
           </div>
         </div>
       </div>
     );
 
+  const currentDashboard: DashboardMode = isPrimaryAdmin
+    ? dashboardMode
+    : isAdmin
+      ? "management"
+      : isPromoter
+        ? "promoter"
+        : "gate";
   const nav = [
-    ...(isManager
+    ...((currentDashboard === "promoter" || currentDashboard === "management") && isManager
       ? [
           { to: "/eventos", label: "Eventos", icon: CalendarDays },
           { to: "/encomendas", label: "Vendas", icon: Receipt },
         ]
       : []),
-    { to: "/portaria", label: "Portaria", icon: ScanLine },
-    ...(isAdmin
+    ...(currentDashboard === "gate" || currentDashboard === "management"
+      ? [{ to: "/portaria", label: "Portaria", icon: ScanLine }]
+      : []),
+    ...(isAdmin && currentDashboard === "management"
       ? [
           { to: "/equipa", label: "Equipa", icon: Users },
           { to: "/identidade", label: "Identidade", icon: Palette },
@@ -57,12 +93,20 @@ function AppLayout() {
         ]
       : []),
   ] as const;
+  const switchDashboard = (mode: DashboardMode) => {
+    setDashboardMode(mode);
+    window.localStorage.setItem("myt-dashboard-mode", mode);
+    const path = mode === "public" ? "/" : mode === "gate" ? "/portaria" : "/eventos";
+    void navigate({ to: path });
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 h-16 flex items-center gap-6">
-          <Link to="/"><Logo /></Link>
+          <Link to="/">
+            <Logo />
+          </Link>
           <nav className="hidden md:flex items-center gap-1 flex-1">
             {nav.map(({ to, label, icon: I }) => (
               <Link
@@ -76,19 +120,65 @@ function AppLayout() {
               </Link>
             ))}
           </nav>
+          {isPrimaryAdmin && (
+            <label className="hidden items-center gap-2 text-xs text-muted-foreground lg:flex">
+              Área
+              <select
+                aria-label="Dashboard ativo"
+                value={dashboardMode}
+                onChange={(event) => switchDashboard(event.target.value as DashboardMode)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                <option value="public">Público</option>
+                <option value="promoter">Promotor</option>
+                <option value="management">Administração</option>
+                <option value="gate">Portaria</option>
+              </select>
+            </label>
+          )}
           <div className="flex-1 md:hidden" />
-          <Button asChild variant="ghost" size="icon" title="Loja"><Link to="/"><Store className="h-4 w-4" /></Link></Button>
+          <Button asChild variant="ghost" size="icon" title="Loja">
+            <Link to="/">
+              <Store className="h-4 w-4" />
+            </Link>
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
+      {isPrimaryAdmin && (
+        <div className="border-b px-4 py-2 lg:hidden">
+          <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            Dashboard ativo
+            <select
+              aria-label="Dashboard ativo"
+              value={dashboardMode}
+              onChange={(event) => switchDashboard(event.target.value as DashboardMode)}
+              className="h-9 min-w-40 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            >
+              <option value="public">Público</option>
+              <option value="promoter">Promotor</option>
+              <option value="management">Administração</option>
+              <option value="gate">Portaria</option>
+            </select>
+          </label>
+        </div>
+      )}
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 pb-24 md:pb-8">
         <Outlet />
       </main>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur grid" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur grid"
+        style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}
+      >
         {nav.map(({ to, label, icon: I }) => (
-          <Link key={to} to={to} className="flex flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground" activeProps={{ className: "text-primary" }}>
+          <Link
+            key={to}
+            to={to}
+            className="flex flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground"
+            activeProps={{ className: "text-primary" }}
+          >
             <I className="h-5 w-5" />
             {label}
           </Link>
