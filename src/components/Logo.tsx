@@ -8,7 +8,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       </span>
       {!compact && (
         <span className="font-display font-extrabold tracking-tight leading-none">
-          MACRO YETU <span className="text-primary">TICKETs</span>
+          MY <span className="text-primary">Tickets</span>
         </span>
       )}
     </div>

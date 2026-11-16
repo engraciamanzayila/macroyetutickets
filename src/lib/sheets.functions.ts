@@ -44,7 +44,7 @@ export const syncEventSheet = createServerFn({ method: "POST" })
       const created = await gw("/spreadsheets", {
         method: "POST",
         body: JSON.stringify({
-          properties: { title: `MACRO YETU TICKETs — ${ev.name}` },
+          properties: { title: `MY Tickets — ${ev.name}` },
           sheets: [{ properties: { title: "Resumo" } }, { properties: { title: "Ingressos" } }],
         }),
       });

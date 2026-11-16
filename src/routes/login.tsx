@@ -12,9 +12,9 @@ import { Logo } from "@/components/Logo";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Entrar — MACRO YETU TICKETs" },
-      { name: "description", content: "Aceda ao painel de gestão de ingressos MACRO YETU TICKETs." },
-      { property: "og:title", content: "Entrar — MACRO YETU TICKETs" },
+      { title: "Entrar — MY Tickets" },
+      { name: "description", content: "Aceda ao painel de gestão de ingressos MY Tickets." },
+      { property: "og:title", content: "Entrar — MY Tickets" },
       { property: "og:description", content: "Painel de gestão de ingressos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -33,7 +33,7 @@ function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (session) navigate({ to: "/eventos" });
+    if (session) navigate({ to: "/visao-geral" });
   }, [session, navigate]);
 
   const submit = async (e: React.FormEvent) => {

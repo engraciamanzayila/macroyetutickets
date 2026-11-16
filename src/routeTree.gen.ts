@@ -18,6 +18,7 @@ import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as AppVisaoGeralRouteImport } from './routes/_app.visao-geral'
 import { Route as AppZohoRouteImport } from './routes/_app.zoho'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
@@ -26,6 +27,7 @@ import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as AppEditorGroupIdRouteImport } from './routes/_app.editor.$groupId'
 import { Route as AppEventosIndexRouteImport } from './routes/_app.eventos.index'
 import { Route as AppEventosEventIdRouteImport } from './routes/_app.eventos.$eventId'
+import { Route as ApiPublicCronExpireOrdersRouteImport } from './routes/api/public/cron/expire-orders'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -71,6 +73,11 @@ const AppPortariaRoute = AppPortariaRouteImport.update({
   path: '/portaria',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVisaoGeralRoute = AppVisaoGeralRouteImport.update({
+  id: '/visao-geral',
+  path: '/visao-geral',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppZohoRoute = AppZohoRouteImport.update({
   id: '/zoho',
   path: '/zoho',
@@ -111,6 +118,12 @@ const AppEventosEventIdRoute = AppEventosEventIdRouteImport.update({
   path: '/eventos/$eventId',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiPublicCronExpireOrdersRoute =
+  ApiPublicCronExpireOrdersRouteImport.update({
+    id: '/api/public/cron/expire-orders',
+    path: '/api/public/cron/expire-orders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -121,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
+  '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -129,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos/': typeof AppEventosIndexRoute
+  '/api/public/cron/expire-orders': typeof ApiPublicCronExpireOrdersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -139,6 +154,7 @@ export interface FileRoutesByTo {
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
+  '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -147,6 +163,7 @@ export interface FileRoutesByTo {
   '/editor/$groupId': typeof AppEditorGroupIdRoute
   '/eventos/$eventId': typeof AppEventosEventIdRoute
   '/eventos': typeof AppEventosIndexRoute
+  '/api/public/cron/expire-orders': typeof ApiPublicCronExpireOrdersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,6 +176,7 @@ export interface FileRoutesById {
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/identidade': typeof AppIdentidadeRoute
   '/_app/portaria': typeof AppPortariaRoute
+  '/_app/visao-geral': typeof AppVisaoGeralRoute
   '/_app/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
@@ -167,6 +185,7 @@ export interface FileRoutesById {
   '/_app/editor/$groupId': typeof AppEditorGroupIdRoute
   '/_app/eventos/$eventId': typeof AppEventosEventIdRoute
   '/_app/eventos/': typeof AppEventosIndexRoute
+  '/api/public/cron/expire-orders': typeof ApiPublicCronExpireOrdersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -179,6 +198,7 @@ export interface FileRouteTypes {
     | '/equipa'
     | '/identidade'
     | '/portaria'
+    | '/visao-geral'
     | '/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -187,6 +207,7 @@ export interface FileRouteTypes {
     | '/editor/$groupId'
     | '/eventos/$eventId'
     | '/eventos/'
+    | '/api/public/cron/expire-orders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -197,6 +218,7 @@ export interface FileRouteTypes {
     | '/equipa'
     | '/identidade'
     | '/portaria'
+    | '/visao-geral'
     | '/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -205,6 +227,7 @@ export interface FileRouteTypes {
     | '/editor/$groupId'
     | '/eventos/$eventId'
     | '/eventos'
+    | '/api/public/cron/expire-orders'
   id:
     | '__root__'
     | '/'
@@ -216,6 +239,7 @@ export interface FileRouteTypes {
     | '/_app/equipa'
     | '/_app/identidade'
     | '/_app/portaria'
+    | '/_app/visao-geral'
     | '/_app/zoho'
     | '/e/$slug'
     | '/encomenda/$token'
@@ -224,6 +248,7 @@ export interface FileRouteTypes {
     | '/_app/editor/$groupId'
     | '/_app/eventos/$eventId'
     | '/_app/eventos/'
+    | '/api/public/cron/expire-orders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +261,7 @@ export interface RootRouteChildren {
   EncomendaTokenRoute: typeof EncomendaTokenRoute
   ITokensRoute: typeof ITokensRoute
   PTokenRoute: typeof PTokenRoute
+  ApiPublicCronExpireOrdersRoute: typeof ApiPublicCronExpireOrdersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -303,6 +329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPortariaRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/visao-geral': {
+      id: '/_app/visao-geral'
+      path: '/visao-geral'
+      fullPath: '/visao-geral'
+      preLoaderRoute: typeof AppVisaoGeralRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/zoho': {
       id: '/_app/zoho'
       path: '/zoho'
@@ -359,6 +392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEventosEventIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/public/cron/expire-orders': {
+      id: '/api/public/cron/expire-orders'
+      path: '/api/public/cron/expire-orders'
+      fullPath: '/api/public/cron/expire-orders'
+      preLoaderRoute: typeof ApiPublicCronExpireOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -367,6 +407,7 @@ interface AppRouteChildren {
   AppEquipaRoute: typeof AppEquipaRoute
   AppIdentidadeRoute: typeof AppIdentidadeRoute
   AppPortariaRoute: typeof AppPortariaRoute
+  AppVisaoGeralRoute: typeof AppVisaoGeralRoute
   AppZohoRoute: typeof AppZohoRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
@@ -378,6 +419,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipaRoute: AppEquipaRoute,
   AppIdentidadeRoute: AppIdentidadeRoute,
   AppPortariaRoute: AppPortariaRoute,
+  AppVisaoGeralRoute: AppVisaoGeralRoute,
   AppZohoRoute: AppZohoRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,
@@ -396,6 +438,7 @@ const rootRouteChildren: RootRouteChildren = {
   EncomendaTokenRoute: EncomendaTokenRoute,
   ITokensRoute: ITokensRoute,
   PTokenRoute: PTokenRoute,
+  ApiPublicCronExpireOrdersRoute: ApiPublicCronExpireOrdersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

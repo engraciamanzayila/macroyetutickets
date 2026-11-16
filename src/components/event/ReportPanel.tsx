@@ -147,7 +147,7 @@ export function ReportPanel({
       styles: { fontSize: 7 },
       didDrawPage: () => {
         pdf.setFontSize(8);
-        pdf.text(`MACRO YETU TICKETs · ${eventName}`, 14, pdf.internal.pageSize.getHeight() - 7);
+        pdf.text(`MY Tickets · ${eventName}`, 14, pdf.internal.pageSize.getHeight() - 7);
       },
     });
     pdf.save(`${eventName || "evento"}_relatorio.pdf`);

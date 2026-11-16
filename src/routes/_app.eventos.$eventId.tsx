@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Copy, Download, PenTool, Printer, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { artUrl, ensureTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
+import { artUrl, ensureTickets, fetchAllTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
 import { UploadPanel } from "@/components/event/UploadPanel";
 import { TicketsPanel } from "@/components/event/TicketsPanel";
 import { ReportPanel } from "@/components/event/ReportPanel";
@@ -28,9 +28,9 @@ import { kz } from "@/lib/payments";
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
     meta: [
-      { title: "Evento — MACRO YETU TICKETs" },
+      { title: "Evento — MY Tickets" },
       { name: "description", content: "Grupos de ingressos, geração e relatórios do evento." },
-      { property: "og:title", content: "Evento — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Evento — MY Tickets" },
       { property: "og:description", content: "Grupos de ingressos, geração e relatórios do evento." },
     ],
   }),
@@ -58,10 +58,25 @@ function EventPage() {
       return (data ?? []) as unknown as (Group & { tickets: { count: number }[]; source_filename: string | null })[];
     },
   });
+  const { data: ticketDistribution = {} } = useQuery({
+    queryKey: ["ticket-distribution", eventId],
+    queryFn: async () => {
+      const tickets = await fetchAllTickets({ event_id: eventId });
+      return tickets.reduce<Record<string, { free: number; distributed: number; printed: number; sending: number }>>((counts, ticket) => {
+        const current = counts[ticket.group_id] ?? { free: 0, distributed: 0, printed: 0, sending: 0 };
+        if (ticket.printed_at) current.printed++;
+        else if (ticket.sent_at || ticket.share_id || ticket.email_delivery_status === "sent") current.distributed++;
+        else if (ticket.email_delivery_status === "sending") current.sending++;
+        else if (ticket.status === "valid") current.free++;
+        counts[ticket.group_id] = current;
+        return counts;
+      }, {});
+    },
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [genOpen, setGenOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
-  const [formats, setFormats] = useState<OutputFormat[]>(["zip"]);
+  const [formats, setFormats] = useState<OutputFormat[]>(["pdf"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
   const selectedGroupIds = useMemo(
     () => groups.filter((group) => selected.has(group.id)).map((group) => group.id),
@@ -100,6 +115,7 @@ function EventPage() {
       setGenOpen(false);
       refresh();
       qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+      qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] });
     } catch (e) {
       console.error(e);
       toast.error("Falha ao gerar: " + (e as Error).message);
@@ -162,7 +178,7 @@ function EventPage() {
                   const made = g.tickets[0]?.count ?? 0;
                   return (
                     <div key={g.id} className="p-4 flex flex-wrap items-center gap-4">
-                      <Checkbox checked={selected.has(g.id)} onCheckedChange={(v) => { const s = new Set(selected); v ? s.add(g.id) : s.delete(g.id); setSelected(s); }} />
+                      <Checkbox checked={selected.has(g.id)} onCheckedChange={(v) => { const s = new Set(selected); if (v) s.add(g.id); else s.delete(g.id); setSelected(s); }} />
                       <Thumb path={g.art_path} />
                       <div className="flex-1 min-w-[200px] space-y-1">
                         <Input defaultValue={g.name} disabled={made > 0} onBlur={(e) => e.target.value !== g.name && updateGroup(g.id, { name: e.target.value })} className="h-8 font-semibold" />
@@ -186,7 +202,11 @@ function EventPage() {
                           {g.recipient && <span>→ {g.recipient}</span>}
                           {g.price != null && g.price > 0 && <span>{kz(g.price)}</span>}
                           {g.width_cm && <span>{g.width_cm}×{g.height_cm} cm</span>}
-                          <span>{made} código(s) criados</span>
+                          <span className="font-medium text-foreground">{ticketDistribution[g.id]?.free ?? 0} mesa(s) disponível(is)</span>
+                          <span>{ticketDistribution[g.id]?.distributed ?? 0} distribuída(s)</span>
+                          <span>{ticketDistribution[g.id]?.printed ?? 0} impressa(s)</span>
+                          {(ticketDistribution[g.id]?.sending ?? 0) > 0 ? <span>{ticketDistribution[g.id]?.sending} em envio</span> : null}
+                          <span title="Total de códigos já criados">{made} código(s) criados no total</span>
                           {!g.layout && <span className="text-warning">QR por posicionar</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -237,22 +257,25 @@ function EventPage() {
         )}
         <TabsContent value="ingressos" className="mt-6"><TicketsPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
         <TabsContent value="impressoes" className="mt-6"><PrintHistoryPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} /></TabsContent>
-        <TabsContent value="partilha" className="mt-6">{isAdmin && <AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} />}<SharesPanel eventId={eventId} groups={groups} /></TabsContent>
+        <TabsContent value="partilha" className="mt-6"><AdminDispatchPanel eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} /><SharesPanel eventId={eventId} groups={groups} /></TabsContent>
         <TabsContent value="relatorio" className="mt-6"><ReportPanel eventId={eventId} eventName={event?.name ?? ""} groups={groups} /></TabsContent>
       </Tabs>
 
-      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); }} />
+      <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }); }} />
 
       <Dialog open={genOpen} onOpenChange={(o) => !progress && setGenOpen(o)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Gerar ingressos</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados ou já enviados para impressão não são incluídos — estes são os ingressos digitais.
+            Códigos já criados são reaproveitados — só criamos os que faltam para chegar à quantidade. Ingressos anulados ou já enviados para impressão não são incluídos. Cada ficheiro digital inclui evento, grupo, referência e titular no nome; várias entradas são entregues num ZIP.
           </p>
           <div className="space-y-3">
             {([
-              ["zip", "ZIP de imagens", "Um JPG por ingresso, organizado por grupo"],
-              ["pdf", "PDF único", "Um ingresso por página, no tamanho real"],
+              ["pdf", "PDF por ingresso", "Ficheiros PDF individuais, identificados por referência e titular"],
+              ["jpeg", "JPEG", "Uma imagem JPG por ingresso"],
+              ["png", "PNG", "Uma imagem PNG por ingresso"],
+              ["tiff", "TIFF", "Uma imagem TIFF por ingresso"],
+              ["a4", "Folha A4 para impressão (PDF)", "Gera também uma folha A4 paginada para a gráfica"],
             ] as const).map(([v, t, d]) => (
               <label key={v} className="flex gap-3 items-start rounded-lg border p-3 cursor-pointer has-[:checked]:border-primary">
                 <Checkbox checked={formats.includes(v)} onCheckedChange={(c) => setFormats(c ? [...formats, v] : formats.filter((f) => f !== v))} />

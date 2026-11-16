@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS tickets_event_seq_idx ON public.tickets(event_id, seq);

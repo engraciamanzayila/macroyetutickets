@@ -2,10 +2,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type Role = "admin" | "staff" | "promoter";
+import type { Role } from "@/lib/access";
+export type { Role };
 type AuthState = {
   session: Session | null;
   roles: Role[];
+  realRoles: Role[];
+  isSuperAdmin: boolean;
+  viewAs: Role | null;
+  setViewAs: (r: Role | null) => void;
   loading: boolean;
   isAdmin: boolean;
   isMember: boolean;
@@ -20,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewAs, setViewAs] = useState<Role | null>(null);
 
   const loadRoles = async (uid: string | undefined) => {
     if (!uid) return setRoles([]);
@@ -42,16 +48,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{
+      value={(() => {
+        const isSuperAdmin = roles.includes("admin") && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
+        const eff: Role[] = isSuperAdmin && viewAs ? [viewAs] : roles;
+        return {
         session,
-        roles,
+        roles: eff,
+        realRoles: roles,
+        isSuperAdmin,
+        viewAs: isSuperAdmin ? viewAs : null,
+        setViewAs,
         loading,
-        isAdmin: roles.includes("admin"),
+        isAdmin: eff.includes("admin"),
         isMember: roles.length > 0,
-        isPromoter: roles.includes("promoter"),
-        isManager: roles.includes("admin") || roles.includes("promoter"),
+        isPromoter: eff.includes("promoter"),
+        isManager: eff.includes("admin") || eff.includes("promoter"),
         refreshRoles: () => loadRoles(session?.user.id),
-      }}
+        };
+      })()}
     >
       {children}
     </AuthContext.Provider>

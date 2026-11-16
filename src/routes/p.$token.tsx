@@ -15,9 +15,9 @@ export const Route = createFileRoute("/p/$token")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Portal do parceiro — MACRO YETU TICKETs" },
+      { title: "Portal do parceiro — MY Tickets" },
       { name: "description", content: "Gira e envie os ingressos atribuídos à sua entidade." },
-      { property: "og:title", content: "Portal do parceiro — MACRO YETU TICKETs" },
+      { property: "og:title", content: "Portal do parceiro — MY Tickets" },
       { property: "og:description", content: "Gira e envie os ingressos atribuídos à sua entidade." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

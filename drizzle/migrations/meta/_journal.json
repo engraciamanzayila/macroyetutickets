@@ -85,6 +85,41 @@
       "when": 1793170000000,
       "tag": "0011_zoho_ticket_email",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793697793655,
+      "tag": "0012_ticket_holder_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793780348226,
+      "tag": "0013_support_workspace_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793866477122,
+      "tag": "0014_support_access_and_overview",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793950908883,
+      "tag": "0015_order_expiration",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793951016717,
+      "tag": "0016_confirm_order_expiry_guard",
+      "breakpoints": true
     }
   ]
 }

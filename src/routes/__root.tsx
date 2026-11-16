@@ -70,7 +70,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MACRO YETU TICKETs" },
+      { title: "MY Tickets" },
       { name: "description", content: "Crie, gere e valide ingressos com QR code único para os seus eventos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

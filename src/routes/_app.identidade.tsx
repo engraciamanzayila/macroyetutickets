@@ -5,8 +5,8 @@ import mockups from "@/assets/brand-mockups.jpg";
 export const Route = createFileRoute("/_app/identidade")({
   head: () => ({
     meta: [
-      { title: "Identidade visual — MACRO YETU TICKETs" },
-      { name: "description", content: "Conceitos visuais da marca MACRO YETU TICKETs." },
+      { title: "Identidade visual — MY Tickets" },
+      { name: "description", content: "Conceitos visuais da marca MY Tickets." },
     ],
   }),
   component: BrandIdentity,
@@ -25,7 +25,7 @@ function BrandIdentity() {
         </p>
         <h1 className="text-3xl font-bold">Identidade visual</h1>
         <p className="text-muted-foreground">
-          Uma primeira direção visual para a MACRO YETU TICKETs, aplicada a eventos, equipa e
+          Uma primeira direção visual para a MY Tickets, aplicada a eventos, equipa e
           materiais promocionais.
         </p>
       </header>
@@ -33,7 +33,7 @@ function BrandIdentity() {
       <figure className="overflow-hidden rounded-lg border bg-neutral-950">
         <img
           src={mockups}
-          alt="Conceitos de merchandising MACRO YETU TICKETS: t-shirt, boné, copo, pulseiras, credenciais e ingresso"
+          alt="Conceitos de merchandising MY Tickets: t-shirt, boné, copo, pulseiras, credenciais e ingresso"
           className="block h-auto w-full"
         />
         <figcaption className="border-t border-white/10 px-4 py-3 text-sm text-neutral-300">

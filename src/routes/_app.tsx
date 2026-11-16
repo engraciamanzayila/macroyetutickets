@@ -1,6 +1,7 @@
-import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { CalendarDays, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
+import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { canOpen, ROLE_LABEL, type Role } from "@/lib/access";
+import { useEffect } from "react";
+import { CalendarDays, LayoutGrid, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,17 +14,10 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, loading, isMember, isAdmin, isPromoter, isManager, refreshRoles } = useAuth();
-  const isPrimaryAdmin = isAdmin && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
+  const { session, loading, isMember, isAdmin, roles, isSuperAdmin, viewAs, setViewAs, refreshRoles } = useAuth();
+  const isPrimaryAdmin = isAdmin && isSuperAdmin;
   const navigate = useNavigate();
-  type DashboardMode = "public" | "promoter" | "management" | "gate";
-  const [dashboardMode, setDashboardMode] = useState<DashboardMode>(() => {
-    if (typeof window === "undefined") return "management";
-    const saved = window.localStorage.getItem("myt-dashboard-mode");
-    return saved === "public" || saved === "promoter" || saved === "management" || saved === "gate"
-      ? saved
-      : "management";
-  });
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (!loading && !session) navigate({ to: "/login" });
@@ -68,37 +62,18 @@ function AppLayout() {
       </div>
     );
 
-  const currentDashboard: DashboardMode = isPrimaryAdmin
-    ? dashboardMode
-    : isAdmin
-      ? "management"
-      : isPromoter
-        ? "promoter"
-        : "gate";
-  const nav = [
-    ...((currentDashboard === "promoter" || currentDashboard === "management") && isManager
-      ? [
-          { to: "/eventos", label: "Eventos", icon: CalendarDays },
-          { to: "/encomendas", label: "Vendas", icon: Receipt },
-        ]
-      : []),
-    ...(currentDashboard === "gate" || currentDashboard === "management"
-      ? [{ to: "/portaria", label: "Portaria", icon: ScanLine }]
-      : []),
-    ...(isAdmin && currentDashboard === "management"
-      ? [
-          { to: "/equipa", label: "Equipa", icon: Users },
-          { to: "/identidade", label: "Identidade", icon: Palette },
-          ...(isPrimaryAdmin ? [{ to: "/zoho", label: "E-mail Zoho", icon: Mail }] : []),
-        ]
-      : []),
-  ] as const;
-  const switchDashboard = (mode: DashboardMode) => {
-    setDashboardMode(mode);
-    window.localStorage.setItem("myt-dashboard-mode", mode);
-    const path = mode === "public" ? "/" : mode === "gate" ? "/portaria" : "/eventos";
-    void navigate({ to: path });
-  };
+  const nav = (
+    [
+      { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
+      { to: "/eventos", label: "Eventos", icon: CalendarDays },
+      { to: "/encomendas", label: "Vendas", icon: Receipt },
+      { to: "/portaria", label: "Portaria", icon: ScanLine },
+      { to: "/equipa", label: "Equipa", icon: Users },
+      { to: "/identidade", label: "Identidade", icon: Palette },
+      ...(isPrimaryAdmin ? [{ to: "/zoho", label: "E-mail Zoho", icon: Mail }] : []),
+    ] as const
+  ).filter((item) => canOpen(item.to, roles));
+  const allowed = canOpen(pathname, roles);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -120,53 +95,34 @@ function AppLayout() {
               </Link>
             ))}
           </nav>
-          {isPrimaryAdmin && (
-            <label className="hidden items-center gap-2 text-xs text-muted-foreground lg:flex">
-              Área
-              <select
-                aria-label="Dashboard ativo"
-                value={dashboardMode}
-                onChange={(event) => switchDashboard(event.target.value as DashboardMode)}
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-              >
-                <option value="public">Público</option>
-                <option value="promoter">Promotor</option>
-                <option value="management">Administração</option>
-                <option value="gate">Portaria</option>
-              </select>
-            </label>
-          )}
           <div className="flex-1 md:hidden" />
-          <Button asChild variant="ghost" size="icon" title="Loja">
-            <Link to="/">
-              <Store className="h-4 w-4" />
-            </Link>
-          </Button>
+          {isSuperAdmin && (
+            <select
+              aria-label="Mudar de painel"
+              value={viewAs ?? ""}
+              onChange={(e) => { setViewAs((e.target.value || null) as Role | null); navigate({ to: "/visao-geral" }); }}
+              className="h-9 max-w-[150px] rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="">Administração máxima</option>
+              {(Object.keys(ROLE_LABEL) as Role[]).filter((r) => r !== "admin").map((r) => (
+                <option key={r} value={r}>Ver como: {ROLE_LABEL[r]}</option>
+              ))}
+            </select>
+          )}
+          <Button asChild variant="ghost" size="icon" title="Loja"><Link to="/"><Store className="h-4 w-4" /></Link></Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
-      {isPrimaryAdmin && (
-        <div className="border-b px-4 py-2 lg:hidden">
-          <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            Dashboard ativo
-            <select
-              aria-label="Dashboard ativo"
-              value={dashboardMode}
-              onChange={(event) => switchDashboard(event.target.value as DashboardMode)}
-              className="h-9 min-w-40 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-            >
-              <option value="public">Público</option>
-              <option value="promoter">Promotor</option>
-              <option value="management">Administração</option>
-              <option value="gate">Portaria</option>
-            </select>
-          </label>
-        </div>
-      )}
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-8 pb-24 md:pb-8">
-        <Outlet />
+        {allowed ? <Outlet /> : (
+          <div className="py-20 text-center space-y-3">
+            <h1 className="text-2xl font-bold">Sem acesso a esta área</h1>
+            <p className="text-muted-foreground text-sm">O seu nível de acesso não inclui esta página.</p>
+            {nav[0] && <Button asChild><Link to={nav[0].to}>Ir para {nav[0].label}</Link></Button>}
+          </div>
+        )}
       </main>
       <nav
         className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur grid"

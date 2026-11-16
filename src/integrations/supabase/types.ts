@@ -253,17 +253,12 @@ export type Database = {
           buyer_user_id: string | null
           created_at: string
           delivery_channel: string
-          email_delivery_cc: string[]
-          email_delivery_error: string | null
-          email_delivery_status: string
-          email_delivery_to: string | null
-          email_delivery_updated_at: string | null
           event_id: string
+          expires_at: string
           id: string
           paid_at: string | null
           payment_method: string
           payment_reference: string | null
-          email_sent_at: string | null
           status: string
           total: number
         }
@@ -275,17 +270,12 @@ export type Database = {
           buyer_user_id?: string | null
           created_at?: string
           delivery_channel?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
           event_id: string
+          expires_at?: string
           id?: string
           paid_at?: string | null
           payment_method: string
           payment_reference?: string | null
-          email_sent_at?: string | null
           status?: string
           total?: number
         }
@@ -297,23 +287,65 @@ export type Database = {
           buyer_user_id?: string | null
           created_at?: string
           delivery_channel?: string
-          email_delivery_cc?: string[]
-          email_delivery_error?: string | null
-          email_delivery_status?: string
-          email_delivery_to?: string | null
-          email_delivery_updated_at?: string | null
           event_id?: string
+          expires_at?: string
           id?: string
           paid_at?: string | null
           payment_method?: string
           payment_reference?: string | null
-          email_sent_at?: string | null
           status?: string
           total?: number
         }
         Relationships: [
           {
             foreignKeyName: "orders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      print_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          file_name: string
+          id: string
+          page_count: number
+          source_printed_at: string
+          storage_path: string | null
+          ticket_count: number
+          ticket_ids: string[]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          file_name: string
+          id?: string
+          page_count?: number
+          source_printed_at: string
+          storage_path?: string | null
+          ticket_count?: number
+          ticket_ids?: string[]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          file_name?: string
+          id?: string
+          page_count?: number
+          source_printed_at?: string
+          storage_path?: string | null
+          ticket_count?: number
+          ticket_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_jobs_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
@@ -516,83 +548,6 @@ export type Database = {
           },
         ]
       }
-      print_jobs: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          event_id: string
-          file_name: string
-          id: string
-          page_count: number
-          source_printed_at: string
-          storage_path: string | null
-          ticket_count: number
-          ticket_ids: string[]
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          event_id: string
-          file_name: string
-          id?: string
-          page_count?: number
-          source_printed_at: string
-          storage_path?: string | null
-          ticket_count?: number
-          ticket_ids?: string[]
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          event_id?: string
-          file_name?: string
-          id?: string
-          page_count?: number
-          source_printed_at?: string
-          storage_path?: string | null
-          ticket_count?: number
-          ticket_ids?: string[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "print_jobs_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      zoho_mail_config: {
-        Row: {
-          ciphertext: string
-          created_at: string
-          data_center: string
-          id: number
-          sender_email: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          ciphertext: string
-          created_at?: string
-          data_center: string
-          id?: number
-          sender_email: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          ciphertext?: string
-          created_at?: string
-          data_center?: string
-          id?: number
-          sender_email?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
@@ -611,15 +566,41 @@ export type Database = {
         }
         Relationships: []
       }
+      zoho_mail_config: {
+        Row: {
+          ciphertext: string
+          created_at: string
+          data_center: string
+          id: number
+          sender_email: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ciphertext: string
+          created_at?: string
+          data_center: string
+          id: number
+          sender_email: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ciphertext?: string
+          created_at?: string
+          data_center?: string
+          id?: number
+          sender_email?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      claim_ticket_email_delivery: {
-        Args: { p_event: string; p_ticket_ids: string[] }
-        Returns: boolean
-      }
       can_manage_event: {
         Args: { _event: string; _uid: string }
         Returns: boolean
@@ -631,6 +612,10 @@ export type Database = {
       check_in: {
         Args: { p_at?: string; p_code: string; p_event: string }
         Returns: Json
+      }
+      claim_ticket_email_delivery: {
+        Args: { p_event: string; p_ticket_ids: string[] }
+        Returns: boolean
       }
       confirm_order: { Args: { p_order: string }; Returns: undefined }
       create_order: {
@@ -645,6 +630,7 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_stale_orders: { Args: never; Returns: number }
       get_order: { Args: { p_token: string }; Returns: Json }
       group_available: { Args: { _group: string }; Returns: number }
       has_role: {
@@ -673,9 +659,32 @@ export type Database = {
         Args: { p_ref: string; p_token: string }
         Returns: undefined
       }
+      ticket_overview: {
+        Args: never
+        Returns: {
+          digital_sent: number
+          event_date: string
+          event_id: string
+          event_name: string
+          generated: number
+          group_id: string
+          group_name: string
+          planned: number
+          printed: number
+          sold: number
+          ticket_type: string
+          used: number
+          voided: number
+        }[]
+      }
     }
     Enums: {
-      app_role: "admin" | "staff" | "promoter"
+      app_role:
+        | "admin"
+        | "staff"
+        | "promoter"
+        | "consumer_support"
+        | "promoter_support"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -803,7 +812,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "staff", "promoter"],
+      app_role: [
+        "admin",
+        "staff",
+        "promoter",
+        "consumer_support",
+        "promoter_support",
+      ],
     },
   },
 } as const

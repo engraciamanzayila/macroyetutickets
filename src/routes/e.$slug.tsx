@@ -22,7 +22,7 @@ export const Route = createFileRoute("/e/$slug")({
     return data;
   },
   head: ({ loaderData }) => {
-    const title = `${loaderData?.event.name ?? "Evento indisponível"} — MACRO YETU TICKETs`;
+    const title = `${loaderData?.event.name ?? "Evento indisponível"} — MY Tickets`;
     const description =
       loaderData?.event.description?.slice(0, 160) ||
       "Escolha os seus ingressos para este evento em Angola.";
