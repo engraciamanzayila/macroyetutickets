@@ -10,7 +10,7 @@ export function artFromUrl(url: string) {
 
 export async function ticketImage(g: RenderGroup, code: string, holderName?: string | null) {
   const art = await artFromUrl(g.art_url);
-  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code, g.ticket_type?.toUpperCase().includes("MESA") ? holderName : null);
+  return renderTicket(art, (g.layout as Layout) ?? DEFAULT_LAYOUT, code, holderName);
 }
 
 /** One ticket per page, real size, downloaded as a single PDF. */

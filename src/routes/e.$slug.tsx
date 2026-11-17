@@ -1,15 +1,13 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { CalendarDays, MapPin, Minus, Plus, Ticket } from "lucide-react";
+import { CalendarDays, MapPin, Minus, Plus, ShoppingCart, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { getStoreEvent } from "@/lib/store.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { readCart, writeCart } from "@/lib/cart";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DELIVERY_CHANNELS, PAYMENT_METHODS, kz } from "@/lib/payments";
+import { kz } from "@/lib/payments";
 const eventQuery = (slug: string) =>
   queryOptions({
     queryKey: ["store-event", slug],
@@ -50,42 +48,32 @@ function EventShop() {
   const { slug } = Route.useParams();
   const { data } = useSuspenseQuery(eventQuery(slug));
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [busy, setBusy] = useState(false);
-  const [token, setToken] = useState("");
-  const [delivery, setDelivery] = useState<(typeof DELIVERY_CHANNELS)[number]["id"]>("email");
   if (!data) return null;
   const { event, groups } = data;
   const total = groups.reduce((s, g) => s + g.price * (qty[g.id] || 0), 0);
   const count = Object.values(qty).reduce((s, v) => s + v, 0);
-  const includesTableTicket = groups.some(
-    (g) => g.ticket_type.toUpperCase().startsWith("MESA") && qty[g.id] > 0,
-  );
-  const buy = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    setBusy(true);
-    try {
-      const { data: order, error } = await supabase.rpc("create_order", {
-        p_event: event.id,
-        p_items: groups
-          .filter((g) => qty[g.id] > 0)
-          .map((g) => ({ group_id: g.id, quantity: qty[g.id] })),
-        p_name: String(f.get("name")),
-        p_phone: String(f.get("phone")),
-        p_email: String(f.get("email") || ""),
-        p_method: String(f.get("method")),
-        p_delivery: delivery,
-      });
-      if (error) throw error;
-      const result = order as { token: string };
-      setToken(result.token);
-      const saved = JSON.parse(localStorage.getItem("myt-orders") || "[]") as string[];
-      localStorage.setItem("myt-orders", JSON.stringify([...new Set([...saved, result.token])]));
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
+  const addToCart = () => {
+    const selected = groups.filter((group) => qty[group.id] > 0);
+    if (!selected.length) return toast.error("Escolhe pelo menos um ingresso.");
+    const next = readCart();
+    for (const group of selected) {
+      const current = next.find(
+        (item) => item.eventId === event.id && item.groupId === group.id,
+      )?.quantity ?? 0;
+      if (current + qty[group.id] > Math.min(20, group.available)) {
+        return toast.error(`Só podes reservar até ${Math.min(20, group.available)} ingresso(s) de ${group.name}.`);
+      }
     }
+    for (const group of selected) {
+      const existing = next.find(
+        (item) => item.eventId === event.id && item.groupId === group.id,
+      );
+      if (existing) existing.quantity += qty[group.id];
+      else next.push({ eventId: event.id, slug, groupId: group.id, quantity: qty[group.id] });
+    }
+    writeCart(next);
+    setQty({});
+    toast.success("Ingressos adicionados ao carrinho.");
   };
   return (
     <>
@@ -138,22 +126,8 @@ function EventShop() {
           </section>
           <section className="min-w-0">
             <h2 className="text-2xl font-bold">Os seus ingressos</h2>
-            {token ? (
-              <div className="mt-6 space-y-4 border-y py-6">
-                <h3 className="text-xl font-bold text-success">Encomenda criada</h3>
-                <p className="text-sm text-muted-foreground">
-                  O pagamento aguarda confirmação. Guarde o link da encomenda.
-                </p>
-                <Button asChild>
-                  <Link to="/encomenda/$token" params={{ token }}>
-                    Ver pagamento e ingressos
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="mt-5 divide-y border-y">
-                  {groups.map((g) => (
+            <div className="mt-5 divide-y border-y">
+              {groups.map((g) => (
                     <div
                       key={g.id}
                       className="flex flex-wrap items-center justify-between gap-3 py-4"
@@ -190,87 +164,26 @@ function EventShop() {
                         </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-                {!groups.length && (
-                  <p className="mt-4 text-muted-foreground">
-                    Venda de ingressos ainda não disponível.
-                  </p>
-                )}
-                <div className="my-5 flex justify-between text-lg font-bold">
-                  <span>Total · {count} ingresso(s)</span>
-                  <span>{kz(total)}</span>
-                </div>
-                {count > 0 && (
-                  <form onSubmit={buy} className="space-y-4">
-                    <div>
-                      <Label htmlFor="buyer-name">Nome completo</Label>
-                      <Input id="buyer-name" name="name" required minLength={2} />
-                      {includesTableTicket && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          A equipa de gestão associa manualmente um nome diferente a cada ingresso de Mesa após a compra.
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="buyer-phone">Telefone</Label>
-                      <Input id="buyer-phone" name="phone" type="tel" required minLength={6} />
-                    </div>
-                    <div>
-                      <Label htmlFor="buyer-email">E-mail</Label>
-                      <Input
-                        id="buyer-email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        required={delivery === "email"}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="delivery-channel">
-                        Canal preferido para receber os ingressos
-                      </Label>
-                      <select
-                        id="delivery-channel"
-                        name="delivery"
-                        value={delivery}
-                        onChange={(e) =>
-                          setDelivery(e.target.value as (typeof DELIVERY_CHANNELS)[number]["id"])
-                        }
-                        className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
-                      >
-                        {DELIVERY_CHANNELS.map((channel) => (
-                          <option key={channel.id} value={channel.id}>
-                            {channel.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="payment-method">Método de pagamento</Label>
-                      <select
-                        id="payment-method"
-                        name="method"
-                        className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
-                      >
-                        {PAYMENT_METHODS.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      O pagamento requer confirmação manual. Registaremos o canal escolhido; após a
-                      confirmação, os ingressos ficam disponíveis nesta encomenda. O envio por
-                      e-mail, WhatsApp ou SMS ainda é manual.
-                    </p>
-                    <Button className="w-full" disabled={busy}>
-                      {busy ? "A criar encomenda…" : "Confirmar encomenda"}
-                    </Button>
-                  </form>
-                )}
-              </>
+              ))}
+            </div>
+            {!groups.length && (
+              <p className="mt-4 text-muted-foreground">
+                Venda de ingressos ainda não disponível.
+              </p>
+            )}
+            <div className="my-5 flex justify-between text-lg font-bold">
+              <span>Total · {count} ingresso(s)</span>
+              <span>{kz(total)}</span>
+            </div>
+            {count > 0 && (
+              <div className="space-y-3">
+                <Button className="w-full" onClick={addToCart}>
+                  <ShoppingCart className="size-4" /> Adicionar ao carrinho
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Podes continuar a escolher ingressos noutros eventos antes de finalizar a compra.
+                </p>
+              </div>
             )}
           </section>
         </div>

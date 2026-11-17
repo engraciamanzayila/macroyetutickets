@@ -14,10 +14,16 @@
 - [ ] Google Sheets: implementação feita; falta validar a atualização em tempo real com as credenciais da integração
 - [x] Loja pública inicial: catálogo, detalhe do evento, seleção por grupo, encomenda e preferência de canal
 - [x] Configuração do preço por grupo, ativação da venda e publicação do evento após aprovação
-- [ ] Loja pública completa: carrinho entre eventos, pagamentos automáticos e envio automático de ingressos
+- [x] Loja pública: carrinho entre eventos com encomenda e checkout separados por evento
+- [ ] Pagamentos automáticos e envio automático de ingressos
+- [ ] Aplicar no Supabase as migrações de flyers, titular e carrinho (0017–0019)
 - [x] Mockups de identidade visual
 - [x] Grupos de Mesa numa área própria, com nome individual por ingresso; ficheiros determinam quantidade e preço do grupo
 - [x] Arquivo de PDFs de impressão por evento e recuperação dos lotes antigos com base em `printed_at`
+- [x] Geração adicional de ingressos por grupo, com confirmação da quantidade a acrescentar
+- [x] Modelo de ingresso MY Tickets com dados do evento, grupo, tipo, preço, QR, referência e titular
+- [x] Upload de flyers por formato para divulgação, incluindo formatos personalizados e capa pública do evento
+
 - [ ] Autenticação Google e Google Sheets: testar com as integrações/credenciais oficiais no ambiente publicado
 - [ ] Publicação Vercel em `mytickets.macroyetu.com`: confirmar variáveis do Lovable Cloud e resolver erro de cache da tabela de eventos (depende de acesso às definições do Vercel)
 - [x] Nome final da plataforma: MY Tickets

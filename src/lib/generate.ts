@@ -192,7 +192,7 @@ export async function generate(
           art,
           layout,
           ticket.code,
-          g.ticket_type.toUpperCase().includes("MESA") ? ticket.holder_name : null,
+          ticket.holder_name,
         );
         for (const format of fileFormats) {
           const file = await ticketFileFromCanvas(canvas, fileBase, g, ticket, format);

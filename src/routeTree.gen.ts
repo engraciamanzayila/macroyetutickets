@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as CarrinhoRouteImport } from './routes/carrinho'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MeusIngressosRouteImport } from './routes/meus-ingressos'
 import { Route as PromotoresRouteImport } from './routes/promotores'
@@ -36,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarrinhoRoute = CarrinhoRouteImport.update({
+  id: '/carrinho',
+  path: '/carrinho',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -127,6 +133,7 @@ const ApiPublicCronExpireOrdersRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/carrinho': typeof CarrinhoRoute
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/carrinho': typeof CarrinhoRoute
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/carrinho': typeof CarrinhoRoute
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/carrinho'
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/carrinho'
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_app'
+    | '/carrinho'
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
@@ -254,6 +266,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  CarrinhoRoute: typeof CarrinhoRoute
   LoginRoute: typeof LoginRoute
   MeusIngressosRoute: typeof MeusIngressosRoute
   PromotoresRoute: typeof PromotoresRoute
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/carrinho': {
+      id: '/carrinho'
+      path: '/carrinho'
+      fullPath: '/carrinho'
+      preLoaderRoute: typeof CarrinhoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -431,6 +451,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  CarrinhoRoute: CarrinhoRoute,
   LoginRoute: LoginRoute,
   MeusIngressosRoute: MeusIngressosRoute,
   PromotoresRoute: PromotoresRoute,

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_app/eventos/")({
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_app/eventos/")({
 function Events() {
   const { isManager, session } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["events"],
     queryFn: async () => {
@@ -34,21 +36,35 @@ function Events() {
     },
   });
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", event_date: "", venue: "" });
+  const [form, setForm] = useState({
+    name: "",
+    event_date: "",
+    event_time: "",
+    venue: "",
+    city: "",
+    category: "",
+    description: "",
+  });
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("events").insert({
+    const { data: created, error } = await supabase.from("events").insert({
       name: form.name,
       event_date: form.event_date || null,
+      event_time: form.event_time || null,
       venue: form.venue || null,
+      city: form.city || null,
+      category: form.category || null,
+      description: form.description || null,
       created_by: session?.user.id,
       owner_id: session?.user.id,
-    });
+    }).select("id").single();
     if (error) return toast.error(error.message);
     setOpen(false);
-    setForm({ name: "", event_date: "", venue: "" });
-    qc.invalidateQueries({ queryKey: ["events"] });
+    setForm({ name: "", event_date: "", event_time: "", venue: "", city: "", category: "", description: "" });
+    toast.success("Evento criado. Agora podes carregar os flyers e criar os grupos de ingressos.");
+    await qc.invalidateQueries({ queryKey: ["events"] });
+    await navigate({ to: "/eventos/$eventId", params: { eventId: created.id } });
   };
 
   return (
@@ -56,7 +72,7 @@ function Events() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Eventos</h1>
-          <p className="text-muted-foreground">Crie um evento e carregue as artes dos ingressos.</p>
+          <p className="text-muted-foreground">Crie um evento, carregue os flyers de divulgação e configure os ingressos.</p>
         </div>
         {isManager && (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -67,8 +83,14 @@ function Events() {
                 <div className="space-y-2"><Label>Nome</Label><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="This Is House Music" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>Data</Label><Input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>Local</Label><Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Hora</Label><Input type="time" value={form.event_time} onChange={(e) => setForm({ ...form, event_time: e.target.value })} /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Local</Label><Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Cidade</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+                </div>
+                <div className="space-y-2"><Label>Categoria</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Música, festa, teatro…" /></div>
+                <div className="space-y-2"><Label>Descrição</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
                 <Button type="submit" className="w-full">Criar</Button>
               </form>
             </DialogContent>

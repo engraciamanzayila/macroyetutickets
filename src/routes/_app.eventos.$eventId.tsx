@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Download, PenTool, Printer, Share2, Trash2 } from "lucide-react";
 import { PrintDialog } from "@/components/event/PrintDialog";
+import { EventFlyersPanel } from "@/components/event/EventFlyersPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { artUrl, ensureTickets, fetchAllTickets, generate, type Group, type OutputFormat } from "@/lib/generate";
 import { UploadPanel } from "@/components/event/UploadPanel";
@@ -77,6 +78,10 @@ function EventPage() {
   const [genOpen, setGenOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [additionalOpen, setAdditionalOpen] = useState(false);
+  const [additionalGroup, setAdditionalGroup] = useState<Group | null>(null);
+  const [additionalQuantity, setAdditionalQuantity] = useState("1");
+  const [addingGroupId, setAddingGroupId] = useState<string | null>(null);
   const [preparingShare, setPreparingShare] = useState(false);
   const [formats, setFormats] = useState<OutputFormat[]>(["pdf"]);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
@@ -138,6 +143,52 @@ function EventPage() {
     }
   };
 
+  const openAdditionalTickets = (g: Group) => {
+    setAdditionalGroup(g);
+    setAdditionalQuantity("1");
+    setAdditionalOpen(true);
+  };
+
+  const generateAdditionalTickets = async () => {
+    const g = additionalGroup;
+    const quantity = Number(additionalQuantity);
+    if (!g) return;
+    if (!Number.isSafeInteger(quantity) || quantity < 1) {
+      return toast.error("Indique uma quantidade inteira maior que zero.");
+    }
+    if (!g.layout) return toast.error(`Posicione o QR do grupo "${g.name}" antes de gerar.`);
+
+    setAddingGroupId(g.id);
+    try {
+      const currentTickets = await fetchAllTickets({ group_id: g.id });
+      const currentQuantity = Math.max(g.quantity, currentTickets.length);
+      const targetQuantity = currentQuantity + quantity;
+      if (!Number.isSafeInteger(targetQuantity)) {
+        throw new Error("A quantidade total de ingressos excede o limite permitido.");
+      }
+
+      const { error } = await supabase
+        .from("ticket_groups")
+        .update({ quantity: targetQuantity })
+        .eq("id", g.id);
+      if (error) throw error;
+
+      const tickets = await ensureTickets({ ...g, quantity: targetQuantity });
+      toast.success(
+        `${tickets.length - currentTickets.length} ingresso(s) criado(s); ${tickets.length} no total para ${g.name}`,
+      );
+      setAdditionalOpen(false);
+      setAdditionalGroup(null);
+      refresh();
+      qc.invalidateQueries({ queryKey: ["tickets", eventId] });
+      qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] });
+    } catch (error) {
+      toast.error(`Não foi possível gerar os ingressos: ${(error as Error).message}`);
+    } finally {
+      setAddingGroupId(null);
+    }
+  };
+
   const prepareSelectedGroupsForSharing = async () => {
     const chosen = groups.filter((group) => selected.has(group.id));
     if (!chosen.length) return toast.error("Selecione pelo menos um grupo");
@@ -184,7 +235,8 @@ function EventPage() {
         <TabsContent value="contrato" className="mt-6">{event && <ContractPanel event={event} />}</TabsContent>
 
         <TabsContent value="grupos" className="space-y-6 mt-6">
-          <UploadPanel eventId={eventId} onDone={refresh} />
+          <EventFlyersPanel eventId={eventId} />
+          <UploadPanel eventId={eventId} event={event} onDone={refresh} />
 
           {groups.length > 0 && (
             <div className="rounded-2xl border bg-card">
@@ -264,8 +316,14 @@ function EventPage() {
                       </div>
                       <div className="flex gap-1 flex-wrap">
                         {made === 0 && <Button asChild variant="secondary" size="sm"><Link to="/editor/$groupId" params={{ groupId: g.id }}><PenTool className="h-4 w-4" /> Editor</Link></Button>}
-                        <Button variant="secondary" size="sm" onClick={() => void generateGroupTickets(g)}>
-                          {made > 0 ? "Gerar novos" : "Gerar ingressos"}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={addingGroupId === g.id || (made > 0 && !isAdmin)}
+                          title={made > 0 && !isAdmin ? "Só a administração pode gerar ingressos adicionais" : undefined}
+                          onClick={() => made > 0 ? openAdditionalTickets(g) : void generateGroupTickets(g)}
+                        >
+                          {addingGroupId === g.id ? "A gerar…" : made > 0 ? "Gerar novos" : "Gerar ingressos"}
                         </Button>
                         <Button variant="ghost" size="icon" title="Aplicar posição do QR aos grupos com o mesmo formato" onClick={() => copyLayoutToSameSize(g)}><Copy className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => deleteGroup(g)}><Trash2 className="h-4 w-4" /></Button>
@@ -290,6 +348,44 @@ function EventPage() {
       </Tabs>
 
       <PrintDialog open={printOpen} onOpenChange={setPrintOpen} eventId={eventId} eventName={event?.name ?? "evento"} groups={groups} initialGroupIds={selectedGroupIds} onDone={() => { setSelected(new Set()); refresh(); qc.invalidateQueries({ queryKey: ["tickets", eventId] }); qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }); }} />
+
+      <Dialog
+        open={additionalOpen}
+        onOpenChange={(open) => {
+          if (addingGroupId) return;
+          setAdditionalOpen(open);
+          if (!open) setAdditionalGroup(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gerar novos ingressos{additionalGroup ? ` — ${additionalGroup.name}` : ""}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Indica quantos ingressos adicionais queres criar. A quantidade será somada ao total atual do grupo, sem alterar os ingressos já criados.
+          </p>
+          <label className="space-y-2 text-sm font-medium">
+            Quantidade adicional
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              autoFocus
+              value={additionalQuantity}
+              onChange={(e) => setAdditionalQuantity(e.target.value)}
+              disabled={!!addingGroupId}
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setAdditionalOpen(false)} disabled={!!addingGroupId}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void generateAdditionalTickets()} disabled={!!addingGroupId}>
+              {addingGroupId ? "A gerar…" : "Confirmar e gerar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">

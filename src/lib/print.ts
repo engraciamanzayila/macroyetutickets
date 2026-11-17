@@ -111,7 +111,7 @@ export async function exportForPrint(
     for (const t of tickets) {
       if (first) first = false;
       else if (slot === 0) pdf.addPage("a4", "portrait");
-      let canvas = await renderTicket(art, g.layout ?? DEFAULT_LAYOUT, t.code, g.ticket_type.toUpperCase().includes("MESA") ? t.holder_name : null);
+      let canvas = await renderTicket(art, g.layout ?? DEFAULT_LAYOUT, t.code, t.holder_name);
       if (grid.rot) {
         const rc = document.createElement("canvas");
         rc.width = canvas.height; rc.height = canvas.width;

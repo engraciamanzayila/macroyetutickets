@@ -1,11 +1,19 @@
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Ticket, UserRound } from "lucide-react";
+import { ShoppingCart, Ticket, UserRound } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { readCart, subscribeToCartChanges } from "@/lib/cart";
 export function StoreHeader() {
   const { session, isMember, isAdmin } = useAuth();
+  const [cartCount, setCartCount] = useState(0);
   const isPrimaryAdmin = isAdmin && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
+  useEffect(() => {
+    const refresh = () => setCartCount(readCart().reduce((sum, item) => sum + item.quantity, 0));
+    refresh();
+    return subscribeToCartChanges(refresh);
+  }, []);
   return (
     <header className="border-b bg-background">
       <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3">
@@ -13,6 +21,12 @@ export function StoreHeader() {
           <Logo />
         </Link>
         <nav className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/carrinho" aria-label={`Carrinho, ${cartCount} ingresso(s)`}>
+              <ShoppingCart className="size-4" />
+              Carrinho ({cartCount})
+            </Link>
+          </Button>
           <Button asChild variant="ghost" size="sm">
             <Link to="/meus-ingressos">
               <Ticket className="size-4" />

@@ -4,9 +4,12 @@ import { FileUp, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { processArt, ACCEPTED, type ProcessedArt } from "@/lib/art";
 import { parseFilename, TICKET_TYPES } from "@/lib/filename";
+import { createStandardTicketArt, STANDARD_TICKET_LAYOUT } from "@/lib/render";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Item = {
   key: string;
@@ -22,11 +25,24 @@ type Item = {
   heightCm: string;
 };
 
-export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () => void }) {
+type EventDetails = {
+  name: string;
+  event_date: string | null;
+  event_time: string | null;
+  venue: string | null;
+  city: string | null;
+  category: string | null;
+  cover_url: string | null;
+};
+
+export function UploadPanel({ eventId, event, onDone }: { eventId: string; event?: EventDetails | null; onDone: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState<number | null>(null);
+  const [standardOpen, setStandardOpen] = useState(false);
+  const [creatingStandard, setCreatingStandard] = useState(false);
+  const [standardForm, setStandardForm] = useState({ name: "Normal", ticketType: "Normal", quantity: "1", price: "0" });
   const [drag, setDrag] = useState(false);
 
   const addFiles = async (list: FileList | File[]) => {
@@ -71,6 +87,68 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
 
   const update = (key: string, patch: Partial<Item>) => setItems((prev) => prev.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
+  const createStandardGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!event) return toast.error("Os dados do evento ainda estão a carregar.");
+    const quantity = Number(standardForm.quantity);
+    const price = Number(standardForm.price.replace(",", "."));
+    if (!standardForm.name.trim()) return toast.error("Indique o nome do grupo.");
+    if (!Number.isSafeInteger(quantity) || quantity < 1) return toast.error("Indique uma quantidade inteira maior que zero.");
+    if (!Number.isFinite(price) || price < 0) return toast.error("Indique um preço válido.");
+
+    setCreatingStandard(true);
+    let path: string | null = null;
+    let artUploaded = false;
+    try {
+      const art = await createStandardTicketArt({
+        eventName: event.name,
+        eventDate: event.event_date,
+        eventTime: event.event_time,
+        venue: event.venue,
+        city: event.city,
+        category: event.category,
+        coverUrl: event.cover_url,
+        groupName: standardForm.name.trim(),
+        ticketType: standardForm.ticketType,
+        price,
+      });
+      path = `${eventId}/${crypto.randomUUID()}.png`;
+      const { error: uploadError } = await supabase.storage.from("arts").upload(path, art, { contentType: "image/png" });
+      if (uploadError) throw uploadError;
+      artUploaded = true;
+
+      const { error } = await supabase.from("ticket_groups").insert({
+        event_id: eventId,
+        name: standardForm.name.trim(),
+        ticket_type: standardForm.ticketType,
+        quantity,
+        price,
+        source_filename: "Modelo padrão MY Tickets",
+        art_path: path,
+        art_width: 900,
+        art_height: 1600,
+        width_cm: 9,
+        height_cm: 16,
+        layout: STANDARD_TICKET_LAYOUT as never,
+      });
+      if (error) throw error;
+
+      toast.success("Grupo criado com o modelo padrão MY Tickets");
+      setStandardOpen(false);
+      setStandardForm({ name: "Normal", ticketType: "Normal", quantity: "1", price: "0" });
+      onDone();
+    } catch (error) {
+      let cleanupError = "";
+      if (path && artUploaded) {
+        const { error: removeError } = await supabase.storage.from("arts").remove([path]);
+        if (removeError) cleanupError = ` Também não foi possível remover a arte: ${removeError.message}`;
+      }
+      toast.error(`Não foi possível criar o grupo: ${(error as Error).message}.${cleanupError}`);
+    } finally {
+      setCreatingStandard(false);
+    }
+  };
+
   const save = async () => {
     const ready = items.filter((i) => i.art);
     setSaving(0);
@@ -105,6 +183,45 @@ export function UploadPanel({ eventId, onDone }: { eventId: string; onDone: () =
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Escolha um modelo MY Tickets ou carregue a sua própria arte.</p>
+        <Button variant="secondary" onClick={() => setStandardOpen(true)} disabled={!event || creatingStandard}>
+          Usar modelo MY Tickets
+        </Button>
+      </div>
+      <Dialog open={standardOpen} onOpenChange={(open) => !creatingStandard && setStandardOpen(open)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Novo grupo com modelo MY Tickets</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            O ingresso incluirá a capa e os dados do evento, o tipo de ingresso, o QR code, a referência e a marca MY Tickets.
+          </p>
+          <form onSubmit={createStandardGroup} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="standard-group-name">Nome do grupo</Label>
+              <Input id="standard-group-name" required value={standardForm.name} onChange={(e) => setStandardForm({ ...standardForm, name: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="standard-ticket-type">Tipo de ingresso</Label>
+                <select id="standard-ticket-type" value={standardForm.ticketType} onChange={(e) => setStandardForm({ ...standardForm, ticketType: e.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  {[...new Set([...TICKET_TYPES, standardForm.ticketType])].map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="standard-ticket-quantity">Quantidade</Label>
+                <Input id="standard-ticket-quantity" type="number" min={1} step={1} required value={standardForm.quantity} onChange={(e) => setStandardForm({ ...standardForm, quantity: e.target.value })} />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="standard-ticket-price">Preço por ingresso (Kz)</Label>
+                <Input id="standard-ticket-price" type="number" min={0} step={1} required value={standardForm.price} onChange={(e) => setStandardForm({ ...standardForm, price: e.target.value })} />
+              </div>
+            </div>
+            <Button className="w-full" disabled={creatingStandard}>
+              {creatingStandard ? "A criar grupo…" : "Criar grupo com modelo"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
       <div
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}

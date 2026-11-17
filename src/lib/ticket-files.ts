@@ -103,7 +103,7 @@ export async function createTicketFiles(
         art,
         group.layout ?? DEFAULT_LAYOUT,
         ticket.code,
-        group.ticket_type.toUpperCase().includes("MESA") ? ticket.holder_name : null,
+        ticket.holder_name,
       );
       files.push(await ticketFileFromCanvas(canvas, eventName, group, ticket, format));
     }

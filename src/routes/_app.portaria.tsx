@@ -43,6 +43,7 @@ function Gate() {
   const resultOpen = useRef(false);
   const validating = useRef(false);
   const [camOn, setCamOn] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [count, setCount] = useState(0);
   const scanner = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const last = useRef<{ code: string; t: number }>({ code: "", t: 0 });
@@ -164,14 +165,22 @@ function Gate() {
   validateRef.current = validate;
 
   const startCam = async () => {
-    const { Html5Qrcode } = await import("html5-qrcode");
-    const s = new Html5Qrcode("qr-reader");
-    scanner.current = s as never;
+    setCameraStarting(true);
     try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const s = new Html5Qrcode("qr-reader");
+      scanner.current = s as never;
       await s.start({ facingMode: "environment" }, { fps: 12, qrbox: (w, h) => { const m = Math.min(w, h) * 0.7; return { width: m, height: m }; } }, (text) => validateRef.current(text), () => {});
       setCamOn(true);
     } catch (e) {
+      try { await scanner.current?.stop(); } catch { /* ignore startup cleanup errors */ }
+      try { scanner.current?.clear(); } catch { /* ignore startup cleanup errors */ }
+      scanner.current = null;
+      setCamOn(false);
       toast.error("Não foi possível abrir a câmara: " + (e as Error).message);
+    } finally {
+      setCameraStarting(false);
     }
   };
   const stopCam = async () => {
@@ -235,10 +244,10 @@ function Gate() {
           </div>
 
           <div className="rounded-2xl border bg-card overflow-hidden">
-            <div id="qr-reader" className={camOn ? "w-full" : "hidden"} />
+            <div id="qr-reader" className={camOn || cameraStarting ? "w-full" : "hidden"} />
             <div className="p-4 flex gap-2">
-              <Button className="flex-1" variant={camOn ? "secondary" : "default"} onClick={camOn ? stopCam : startCam}>
-                {camOn ? <><CameraOff className="h-4 w-4" /> Parar câmara</> : <><Camera className="h-4 w-4" /> Ler QR com a câmara</>}
+              <Button className="flex-1" variant={camOn ? "secondary" : "default"} onClick={camOn ? stopCam : startCam} disabled={cameraStarting}>
+                {camOn ? <><CameraOff className="h-4 w-4" /> Parar câmara</> : <><Camera className="h-4 w-4" /> {cameraStarting ? "A abrir câmara…" : "Ler QR com a câmara"}</>}
               </Button>
             </div>
           </div>

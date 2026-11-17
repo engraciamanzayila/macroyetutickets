@@ -630,6 +630,17 @@ export type Database = {
         }
         Returns: Json
       }
+      create_cart_orders: {
+        Args: {
+          p_delivery: string
+          p_email: string
+          p_items: Json
+          p_method: string
+          p_name: string
+          p_phone: string
+        }
+        Returns: Json
+      }
       expire_stale_orders: { Args: never; Returns: number }
       get_order: { Args: { p_token: string }; Returns: Json }
       group_available: { Args: { _group: string }; Returns: number }
