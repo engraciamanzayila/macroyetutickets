@@ -653,6 +653,10 @@ export type Database = {
       }
       is_member: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
+      release_tickets_for_redistribution: {
+        Args: { p_event: string; p_ticket_ids: string[] }
+        Returns: number
+      }
       review_event: {
         Args: { p_approve: boolean; p_event: string; p_note: string }
         Returns: undefined

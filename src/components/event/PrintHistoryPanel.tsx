@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllTickets, type Group } from "@/lib/generate";
 import { exportForPrint } from "@/lib/print";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
@@ -29,6 +30,7 @@ export function PrintHistoryPanel({
   groups: Group[];
 }) {
   const qc = useQueryClient();
+  const { isSuperAdmin } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(
     null,
@@ -168,22 +170,24 @@ export function PrintHistoryPanel({
                     .join(" · ")}
                 </p>
               </div>
-              <Button
-                variant={job.storage_path ? "secondary" : "default"}
-                disabled={!!busy}
-                onClick={() => void download(job)}
-              >
-                {job.storage_path ? (
-                  <Download className="h-4 w-4" />
-                ) : (
-                  <Printer className="h-4 w-4" />
-                )}
-                {busy === job.id
-                  ? "A preparar…"
-                  : job.storage_path
-                    ? "Baixar PDF"
-                    : "Recuperar PDF"}
-              </Button>
+              {isSuperAdmin && (
+                <Button
+                  variant={job.storage_path ? "secondary" : "default"}
+                  disabled={!!busy}
+                  onClick={() => void download(job)}
+                >
+                  {job.storage_path ? (
+                    <Download className="h-4 w-4" />
+                  ) : (
+                    <Printer className="h-4 w-4" />
+                  )}
+                  {busy === job.id
+                    ? "A preparar…"
+                    : job.storage_path
+                      ? "Baixar PDF"
+                      : "Recuperar PDF"}
+                </Button>
+              )}
             </div>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { assertSuperAdminTicketAccess } from "@/lib/ticket-admin.functions";
 import { DEFAULT_LAYOUT, canvasJpeg, physicalMm } from "./render";
 import { renderTicket } from "./render";
 import { ensureTickets, fetchAllTickets, loadArt, type Group } from "./generate";
@@ -66,6 +67,7 @@ export async function exportForPrint(
   reprintAt?: string,
   ticketIds?: ReadonlySet<string>,
 ) {
+  if (reprintAt) await assertSuperAdminTicketAccess();
   const jobs: { g: Group; tickets: { id: string; code: string; seq: number; holder_name?: string | null }[] }[] = [];
   for (const { g, count } of picks) {
     if (count <= 0) continue;

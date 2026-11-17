@@ -22,6 +22,7 @@ type Props = {
   eventName: string;
   groups: Group[];
   initialGroupIds?: string[];
+  isSuperAdmin: boolean;
   onDone: () => void;
 };
 
@@ -32,6 +33,7 @@ export function PrintDialog({
   eventName,
   groups,
   initialGroupIds = [],
+  isSuperAdmin,
   onDone,
 }: Props) {
   const [avail, setAvail] = useState<PrintAvail | null>(null);
@@ -174,7 +176,7 @@ export function PrintDialog({
           </div>
         )}
         <div className="flex flex-wrap gap-2 justify-end">
-          {lastSelection && (
+          {lastSelection && isSuperAdmin && (
             <Button variant="secondary" onClick={downloadLastSelection} disabled={!!progress}>
               Baixar última seleção novamente ({lastSelection.total})
             </Button>

@@ -5,6 +5,11 @@ import { Ban, Download, Mail, MessageCircle, RotateCcw, Search, Link2 } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { artUrl, type Group } from "@/lib/generate";
 import { sendTicketEmail } from "@/lib/order-email.functions";
+import {
+  assertSuperAdminTicketAccess,
+  releaseTicketsForRedistribution,
+} from "@/lib/ticket-admin.functions";
+import { useAuth } from "@/lib/auth";
 import { holderLink, downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +18,7 @@ import { StatusBadge } from "./StatusBadge";
 
 export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; eventName: string; groups: Group[] }) {
   const qc = useQueryClient();
+  const { isSuperAdmin } = useAuth();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
   const [status, setStatus] = useState("");
@@ -37,17 +43,68 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
   const { data = [], isLoading } = useQuery({
     queryKey: ["tickets", eventId, q, group, status],
     queryFn: async () => {
-      let query = supabase.from("tickets").select("id,code,seq,status,used_at,group_id,share_token").eq("event_id", eventId).order("seq").limit(200);
+      let query = supabase.from("tickets").select("id,code,seq,status,used_at,group_id,share_token,printed_at,sent_at,email_delivery_status,email_delivery_to").eq("event_id", eventId).order("seq").limit(200);
       if (q) query = query.ilike("code", `%${q.trim().toUpperCase()}%`);
       if (group) query = query.eq("group_id", group);
       if (status) query = query.eq("status", status);
       return (await query).data ?? [];
     },
   });
+  const releasable = data.filter(
+    (ticket) =>
+      picked.has(ticket.id) &&
+      ticket.status === "valid" &&
+      (!!ticket.printed_at || !!ticket.sent_at || ticket.email_delivery_status === "sent"),
+  );
+  const releaseSelected = async () => {
+    if (!releasable.length) return;
+    if (
+      !confirm(
+        `Libertar ${releasable.length} ingresso(s) para novo envio ou impressão? Os links anteriores poderão continuar válidos.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const { releasedCount } = await releaseTicketsForRedistribution({
+        data: { eventId, ticketIds: releasable.map((ticket) => ticket.id) },
+      });
+      toast.success(`${releasedCount} ingresso(s) libertados para novo envio ou impressão.`);
+      setPicked(new Set());
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+        qc.invalidateQueries({ queryKey: ["admin-dispatch", eventId] }),
+        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+      ]);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
   const gname = (id: string) => groups.find((g) => g.id === id)?.name ?? "";
 
-  const shareTicket = async (ticket: { id: string; code: string; group_id: string; share_token: string | null }, via: "whatsapp" | "email" | "link" | "download") => {
+  const shareTicket = async (
+    ticket: {
+      id: string;
+      code: string;
+      group_id: string;
+      share_token: string | null;
+      printed_at: string | null;
+      sent_at: string | null;
+      email_delivery_status: string;
+      email_delivery_to: string | null;
+    },
+    via: "whatsapp" | "email" | "link" | "download",
+  ) => {
+    const alreadyDistributed =
+      !!ticket.printed_at || !!ticket.sent_at || ticket.email_delivery_status === "sent";
+    if (alreadyDistributed && !isSuperAdmin) {
+      return toast.error("Apenas o superadministrador pode reenviar ingressos já enviados ou impressos");
+    }
+
+    let released = false;
     try {
+      if (alreadyDistributed) await assertSuperAdminTicketAccess();
       const ticketGroup = groups.find((g) => g.id === ticket.group_id);
       if (!ticketGroup) throw new Error("Grupo não encontrado");
       if (!ticket.share_token) throw new Error("Este ingresso não tem um link seguro disponível");
@@ -73,7 +130,7 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
 
       const contact = window.prompt(
         via === "whatsapp" ? "Número do WhatsApp do destinatário:" : "E-mail do destinatário:",
-        "",
+        via === "email" ? ticket.email_delivery_to ?? "" : "",
       )?.trim();
       if (!contact) return;
 
@@ -86,12 +143,36 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
       }
 
       if (!contact.includes("@")) return toast.error("Indique um e-mail válido");
+      if (
+        alreadyDistributed &&
+        !confirm(`Este ingresso já está enviado ou impresso. Libertar e reenviar para ${contact}?`)
+      ) {
+        return;
+      }
+      if (alreadyDistributed) {
+        await releaseTicketsForRedistribution({
+          data: { eventId, ticketIds: [ticket.id] },
+        });
+        released = true;
+      }
       const result = await sendTicketEmail({
         data: { eventId, ticketIds: [ticket.id], recipient: contact },
       });
       if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
       toast.success(`E-mail enviado a ${result.recipient}`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+        qc.invalidateQueries({ queryKey: ["admin-dispatch", eventId] }),
+        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+      ]);
     } catch (error) {
+      if (released) {
+        void Promise.all([
+          qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+          qc.invalidateQueries({ queryKey: ["admin-dispatch", eventId] }),
+          qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+        ]);
+      }
       toast.error((error as Error).message);
     }
   };
@@ -131,12 +212,20 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
         <Button size="sm" variant="destructive" disabled={!picked.size} onClick={() => confirm(`Anular ${picked.size} ingresso(s)?`) && voidMany([...picked])}>
           <Ban className="h-4 w-4" /> Anular selecionados ({picked.size})
         </Button>
+        {isSuperAdmin && (
+          <Button size="sm" variant="outline" disabled={!releasable.length} onClick={() => void releaseSelected()}>
+            <RotateCcw className="h-4 w-4" /> Libertar enviados/impressos ({releasable.length})
+          </Button>
+        )}
         {group && <Button size="sm" variant="outline" className="text-destructive" onClick={voidGroup}><Ban className="h-4 w-4" /> Anular grupo inteiro</Button>}
       </div>
       <div className="rounded-2xl border bg-card divide-y">
         {isLoading ? <p className="p-6 text-muted-foreground">A carregar…</p> : data.length === 0 ? <p className="p-6 text-muted-foreground">Nenhum ingresso. Gere ingressos no separador “Grupos”.</p> :
-          data.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+          data.map((t) => {
+            const distributionLocked =
+              !!t.printed_at || !!t.sent_at || t.email_delivery_status === "sent";
+            return (
+              <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <Checkbox
                 aria-label={`Selecionar ${t.code}`}
                 disabled={t.status === "used"}
@@ -145,13 +234,15 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
               />
               <span className="font-mono font-bold w-44">{t.code}</span>
               <span className="text-sm text-muted-foreground flex-1 truncate">#{t.seq} · {gname(t.group_id)}</span>
+              {t.printed_at && <span className="text-xs text-muted-foreground">Impresso</span>}
+              {(t.sent_at || t.email_delivery_status === "sent") && <span className="text-xs text-muted-foreground">Enviado</span>}
               {t.used_at && <span className="text-xs text-muted-foreground">{new Date(t.used_at).toLocaleString("pt-PT")}</span>}
               <StatusBadge status={t.status} />
               <div className="flex items-center gap-1">
-                <Button size="icon" variant="ghost" title="WhatsApp" onClick={() => void shareTicket(t, "whatsapp")}><MessageCircle className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" title="E-mail" onClick={() => void shareTicket(t, "email")}><Mail className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" title="Copiar link" onClick={() => void shareTicket(t, "link")}><Link2 className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" title="Baixar PDF" onClick={() => void shareTicket(t, "download")}><Download className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="WhatsApp" disabled={distributionLocked && !isSuperAdmin} onClick={() => void shareTicket(t, "whatsapp")}><MessageCircle className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="E-mail" disabled={distributionLocked && !isSuperAdmin} onClick={() => void shareTicket(t, "email")}><Mail className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="Copiar link" disabled={distributionLocked && !isSuperAdmin} onClick={() => void shareTicket(t, "link")}><Link2 className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" title="Baixar PDF" disabled={distributionLocked && !isSuperAdmin} onClick={() => void shareTicket(t, "download")}><Download className="h-4 w-4" /></Button>
               </div>
               {t.status === "void" ? (
                 <Button size="sm" variant="ghost" onClick={() => setTicket(t.id, { status: "valid" })}><RotateCcw className="h-4 w-4" /> Reativar</Button>
@@ -161,8 +252,9 @@ export function TicketsPanel({ eventId, eventName, groups }: { eventId: string; 
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => confirm(`Anular ${t.code}?`) && setTicket(t.id, { status: "void" })}><Ban className="h-4 w-4" /> Anular</Button>
                 </>
               )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
       </div>
       {data.length === 200 && <p className="text-xs text-muted-foreground">A mostrar os primeiros 200. Use a pesquisa para filtrar.</p>}
     </div>
