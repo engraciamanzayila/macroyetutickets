@@ -1,4 +1,5 @@
 DROP POLICY IF EXISTS "event managers read print files" ON storage.objects;
+DROP POLICY IF EXISTS "super admin read print files" ON storage.objects;
 CREATE POLICY "super admin read print files" ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id = 'print-files' AND public.is_super_admin(auth.uid()));
 
