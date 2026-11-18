@@ -151,11 +151,19 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
   };
 
   const saveQrLayout = async (batch: Batch, patch: { x?: number; y?: number; size?: number }) => {
-    const next = { x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, size: batch.qr_layout?.size ?? 0.18, ...patch };
+    const next = { ...batch.qr_layout, x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, size: batch.qr_layout?.size ?? 0.18, ...patch };
     const { error } = await (supabase as any).from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
     if (error) return toast.error("Não foi possível guardar a posição do QR: " + error.message);
     setBatches((prev) => prev.map((item) => item.id === batch.id ? { ...item, qr_layout: next } : item));
     toast.success("Posição do QR guardada.");
+  };
+
+  const saveCodeLayout = async (batch: Batch, patch: { code_x?: number; code_y?: number }) => {
+    const next = { ...batch.qr_layout, code_x: batch.qr_layout?.code_x ?? 0.87, code_y: batch.qr_layout?.code_y ?? 0.85, ...patch };
+    const { error } = await (supabase as any).from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
+    if (error) return toast.error("Não foi possível guardar a posição do código: " + error.message);
+    setBatches((prev) => prev.map((item) => item.id === batch.id ? { ...item, qr_layout: next } : item));
+    toast.success("Posição do código guardada.");
   };
 
   const deleteBatch = async (batch: Batch) => {
@@ -201,6 +209,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           const layout = {
             ...DEFAULT_LAYOUT,
             qr: { ...DEFAULT_LAYOUT.qr, x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, w: batch.qr_layout?.size ?? 0.18 },
+            code: { ...DEFAULT_LAYOUT.code, x: batch.qr_layout?.code_x ?? 0.87, y: batch.qr_layout?.code_y ?? 0.85 },
           };
           const canvas = await renderTicket(art, layout, credential.code);
           const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Falha ao gerar imagem.")), "image/png"));
@@ -289,7 +298,9 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
               <div><Label className="text-[10px]">QR X</Label><Input aria-label="Posição horizontal QR" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.x ?? 0.82} className="h-8 w-20" onBlur={(e) => void saveQrLayout(b,{x:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.82))})} /></div>
               <div><Label className="text-[10px]">QR Y</Label><Input aria-label="Posição vertical QR" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.y ?? 0.78} className="h-8 w-20" onBlur={(e) => void saveQrLayout(b,{y:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.78))})} /></div>
               <div><Label className="text-[10px]">Tamanho QR</Label><Input aria-label="Tamanho QR" type="number" min={0.08} max={0.35} step={0.01} defaultValue={b.qr_layout?.size ?? 0.18} className="h-8 w-24" onBlur={(e) => void saveQrLayout(b,{size:Math.max(0.08,Math.min(0.35,Number(e.target.value)||0.18))})} /></div>
-              <span className="pb-2 text-[10px] text-muted-foreground">Posição proporcional à arte (0–1)</span>
+              <div><Label className="text-[10px]">Código X</Label><Input aria-label="Posição horizontal do código" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.code_x ?? 0.87} className="h-8 w-24" onBlur={(e) => void saveCodeLayout(b,{code_x:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.87))})} /></div>
+              <div><Label className="text-[10px]">Código Y</Label><Input aria-label="Posição vertical do código" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.code_y ?? 0.85} className="h-8 w-24" onBlur={(e) => void saveCodeLayout(b,{code_y:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.85))})} /></div>
+              <span className="pb-2 text-[10px] text-muted-foreground">Posições proporcionais à arte (0–1). As alterações são guardadas ao sair do campo.</span>
             </div>
             
             <Button size="icon" variant="ghost" onClick={() => void deleteBatch(b)} aria-label="Eliminar grupo"><Trash2 className="h-4 w-4" /></Button>
