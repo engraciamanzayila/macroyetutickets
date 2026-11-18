@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Copy, ExternalLink, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureTickets, type Group } from "@/lib/generate";
+import { sendPartnerShareEmail } from "@/lib/order-email.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,11 +63,25 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
         const { error: e2 } = await supabase.from("tickets").update({ share_id: s.id }).in("id", pick.slice(i, i + 300).map((t) => t.id));
         if (e2) throw e2;
       }
-      await navigator.clipboard.writeText(link(s.token)).catch(() => {});
-      toast.success(`Link criado com ${pick.length} ingressos (copiado)`);
+      toast.success(`Portal criado com ${pick.length} ingressos. Escolha como enviar o convite.`);
       setOpen(false); setF({ ...f, partner_name: "", contact: "", note: "", qty: 0 });
       refresh();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const sendPartnerEmail = async (share: (typeof shares)[number]) => {
+    const recipient = share.contact?.includes("@")
+      ? share.contact.trim()
+      : window.prompt(`E-mail de ${share.partner_name}:`)?.trim();
+    if (!recipient) return;
+    try {
+      const result = await sendPartnerShareEmail({
+        data: { token: share.token, recipient },
+      });
+      toast.success(`Convite MY Tickets enviado para ${result.recipient}.`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
 
   const remove = async (id: string) => {
@@ -103,7 +118,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
               <Button size="icon" variant="ghost" title="Copiar link" onClick={() => navigator.clipboard.writeText(link(s.token)).then(() => toast.success("Link copiado"))}><Copy className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Abrir portal" asChild><a href={link(s.token)} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
               {wa && <Button size="icon" variant="ghost" title="Enviar link por WhatsApp" asChild><a href={wa} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a></Button>}
-              {s.contact?.includes("@") && <Button size="icon" variant="ghost" title="Enviar link por e-mail" asChild><a href={`mailto:${s.contact}?subject=${encodeURIComponent("Ingressos — " + (g?.name ?? ""))}&body=${encodeURIComponent(`Olá ${s.partner_name}, aqui está o seu portal para gerir e enviar os ingressos: ${link(s.token)}`)}`}><Mail className="h-4 w-4" /></a></Button>}
+              <Button size="icon" variant="ghost" title="Enviar convite MY Tickets por e-mail" onClick={() => void sendPartnerEmail(s)}><Mail className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Apagar" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           );
