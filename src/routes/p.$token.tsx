@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Download, Mail, MessageCircle, Search } from "lucide-react";
+import { ContactRound, Copy, Download, Mail, MessageCircle, Search } from "lucide-react";
 import { getShare, markSent } from "@/lib/shares.functions";
 import { sendSharedTicketEmail } from "@/lib/order-email.functions";
 import { holderLink } from "@/lib/share-render";
+import { pickDeviceContact } from "@/lib/contact-picker";
 import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import type { Group, TicketRow } from "@/lib/generate";
 import { WhatsAppShareFlow, type WhatsAppFilePayload } from "@/components/event/WhatsAppShareFlow";
@@ -54,8 +55,22 @@ function PartnerPortal() {
   const [q, setQ] = useState("");
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
+  const [pickedEmail, setPickedEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [whatsAppLocked, setWhatsAppLocked] = useState(false);
+
+  const pickRecipientContact = async () => {
+    try {
+      const picked = await pickDeviceContact();
+      if (!picked) return;
+      setName(picked.name || name);
+      setContact(picked.phone || picked.email || contact);
+      setPickedEmail(picked.email || "");
+      toast.success("Contacto preenchido a partir do dispositivo.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
 
   const tickets = useMemo(() => data?.tickets ?? [], [data?.tickets]);
   const shown = useMemo(
@@ -165,7 +180,7 @@ function PartnerPortal() {
         data: {
           token,
           ticketIds: selectedForSharing.map((ticket) => ticket.id),
-          recipient: contact.trim(),
+          recipient: emailRecipient,
           recipientName: name.trim(),
         },
       });
@@ -453,6 +468,16 @@ function PartnerPortal() {
               disabled={whatsAppLocked || busy}
             />
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full"
+            disabled={whatsAppLocked || busy}
+            onClick={() => void pickRecipientContact()}
+          >
+            <ContactRound className="h-4 w-4" /> Escolher contacto do dispositivo
+          </Button>
           <WhatsAppShareFlow
             title={`Ingressos — ${data.event?.name ?? "MY Tickets"}`}
             onPrepare={prepareWhatsApp}
