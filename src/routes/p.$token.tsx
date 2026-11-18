@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Mail, Search } from "lucide-react";
+import { Copy, Download, Mail, Search } from "lucide-react";
 import { getShare, markSent } from "@/lib/shares.functions";
 import { sendSharedTicketEmail } from "@/lib/order-email.functions";
+import { holderLink } from "@/lib/share-render";
 import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import type { Group, TicketRow } from "@/lib/generate";
 import { WhatsAppShareFlow, type WhatsAppFilePayload } from "@/components/event/WhatsAppShareFlow";
@@ -187,6 +188,35 @@ function PartnerPortal() {
     } catch (sendError) {
       toast.error((sendError as Error).message);
       await qc.invalidateQueries({ queryKey: ["share", token] });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyLinks = async () => {
+    if (!selectedForSharing.length) return toast.error("Selecione ingressos ainda disponíveis.");
+    if (selectedForSharing.length > 50)
+      return toast.error("Selecione até 50 ingressos por mensagem.");
+    setBusy(true);
+    try {
+      const link = holderLink(selectedForSharing.map((ticket) => ticket.share_token));
+      await navigator.clipboard.writeText(
+        `Olá! Seguem ${selectedForSharing.length} ingresso(s) de ${data.event?.name ?? "este evento"}:\n${link}`,
+      );
+      await markSent({
+        data: {
+          token,
+          ids: selectedForSharing.map((ticket) => ticket.id),
+          via: "link",
+          name,
+          contact,
+        },
+      });
+      await qc.invalidateQueries({ queryKey: ["share", token] });
+      setSel(new Set());
+      toast.success("Link copiado. Pode enviá-lo ao destinatário.");
+    } catch (copyError) {
+      toast.error((copyError as Error).message);
     } finally {
       setBusy(false);
     }
@@ -425,13 +455,21 @@ function PartnerPortal() {
               size="sm"
               variant="secondary"
               disabled={busy || whatsAppLocked || !selectedForSharing.length}
+              onClick={() => void copyLinks()}
+            >
+              <Copy className="h-4 w-4" /> Copiar link (opcional)
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || whatsAppLocked || !selectedForSharing.length}
               onClick={() => void downloadSelected()}
             >
               <Download className="h-4 w-4" /> Baixar PDFs
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            O destinatário recebe apenas os ficheiros PDF. Nenhum link de consulta ou acesso ao portal é enviado.
+            O envio principal é por PDF. Se necessário, o parceiro também pode escolher “Copiar link” e enviar um link individual seguro.
           </p>
         </div>
       </div>
