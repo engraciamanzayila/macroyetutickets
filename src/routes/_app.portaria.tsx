@@ -34,6 +34,7 @@ const writeQueue = (q: QueueItem[]) => localStorage.setItem(QUEUE, JSON.stringif
 
 function Gate() {
   const [eventId, setEventId] = useState<string>(() => localStorage.getItem("myt-event") || "");
+  const [scanMode, setScanMode] = useState<"ticket" | "credential">("ticket");
   const [online, setOnline] = useState(navigator.onLine);
   const [cache, setCache] = useState<Cache | null>(null);
   const [queueLen, setQueueLen] = useState(readQueue().length);
@@ -126,7 +127,21 @@ function Gate() {
     validating.current = true;
 
     let r: Result | null = null;
-    if (navigator.onLine) {
+    if (scanMode === "credential") {
+      if (!navigator.onLine) {
+        validating.current = false;
+        toast.error("A validação de credenciais requer ligação à internet neste momento.");
+        return;
+      }
+      const { data, error } = await (supabase as any).rpc("check_in_credential", { p_event: eventId, p_code: code });
+      if (error) {
+        validating.current = false;
+        toast.error("Falha ao validar credencial: " + error.message);
+        return;
+      }
+      r = data as Result;
+      r.code = r.code ?? code;
+    } else if (navigator.onLine) {
       const { data, error } = await supabase.rpc("check_in", { p_event: eventId, p_code: code });
       if (!error && data) {
         r = data as unknown as Result;
@@ -159,7 +174,7 @@ function Gate() {
     setResult(r);
     setShowResult(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, cache]);
+  }, [eventId, cache, scanMode]);
 
   const validateRef = useRef(validate);
   validateRef.current = validate;
@@ -192,12 +207,12 @@ function Gate() {
   const tone = result
     ? result.result === "ok" ? "bg-success text-success-foreground" : result.result === "used" ? "bg-warning text-warning-foreground" : "bg-destructive text-destructive-foreground"
     : "bg-card";
-  const title = result ? { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" }[result.result] : "Pronto para ler";
+  const title = result ? (scanMode === "credential" ? { ok: "CREDENCIAL VALIDADA", used: "CREDENCIAL JÁ UTILIZADA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO ENCONTRADA" } : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" })[result.result] : "Pronto para ler";
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <div className="flex flex-wrap items-center gap-3 justify-between">
-        <h1 className="text-3xl font-bold">Portaria</h1>
+        <h1 className="text-3xl font-bold">Portaria e credenciamento</h1>
         <div className="flex items-center gap-3 text-sm">
           {online ? <span className="flex items-center gap-1 text-success"><Wifi className="h-4 w-4" /> Online</span> : <span className="flex items-center gap-1 text-warning"><CloudOff className="h-4 w-4" /> Sem internet</span>}
           {queueLen > 0 && <span className="text-warning">{queueLen} por sincronizar</span>}
@@ -205,6 +220,8 @@ function Gate() {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Button variant={scanMode === "ticket" ? "default" : "secondary"} onClick={() => { setScanMode("ticket"); setResult(null); setShowResult(false); resultOpen.current = false; }}>Ingressos</Button>
+        <Button variant={scanMode === "credential" ? "default" : "secondary"} onClick={() => { setScanMode("credential"); setResult(null); setShowResult(false); resultOpen.current = false; }}>Credenciais</Button>
         <select value={eventId} onChange={(e) => { setEventId(e.target.value); setResult(null); setShowResult(false); resultOpen.current = false; validating.current = false; }} className="h-10 flex-1 min-w-[200px] rounded-md border border-input bg-transparent px-3">
           <option value="" className="bg-popover">Escolha o evento…</option>
           {events.map((e) => <option key={e.id} value={e.id} className="bg-popover">{e.name}</option>)}
@@ -213,7 +230,8 @@ function Gate() {
           {cache ? <RefreshCw className="h-4 w-4" /> : <Download className="h-4 w-4" />} {cache ? "Atualizar lista" : "Baixar para modo offline"}
         </Button>
       </div>
-      {cache && <p className="text-xs text-muted-foreground -mt-3">Lista offline: {Object.keys(cache.tickets).length} ingressos · {new Date(cache.savedAt).toLocaleString("pt-PT")}</p>}
+      {cache && scanMode === "ticket" && <p className="text-xs text-muted-foreground -mt-3">Lista offline: {Object.keys(cache.tickets).length} ingressos · {new Date(cache.savedAt).toLocaleString("pt-PT")}</p>}
+      {scanMode === "credential" && <p className="text-xs text-muted-foreground -mt-3">Modo de credenciamento: valida e regista a entrada de funcionários, músicos, feirantes, produção e restantes grupos.</p>}
 
       {showResult && result && (
         <div role="dialog" aria-modal="true" aria-live="assertive" aria-label={title} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-5 backdrop-blur-sm">
