@@ -3,6 +3,7 @@ import { encodeImage } from "utif2";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_LAYOUT, physicalMm, renderTicket } from "@/lib/render";
 import type { Group, TicketRow } from "@/lib/generate";
+import { downloadFilesIndividually } from "@/lib/whatsapp-share";
 
 export type TicketFileFormat = "pdf" | "jpeg" | "png" | "tiff";
 export type TicketFileRequest = { group: Group; ticket: TicketRow };
@@ -90,13 +91,23 @@ export async function createTicketFiles(
   const files: File[] = [];
   try {
     for (const { group, ticket } of items) {
-      if (!group.art_path) throw new Error(`O grupo "${group.name}" não tem arte configurada.`);
+      if (!group.art_path && !group.art_url)
+        throw new Error(`O grupo "${group.name}" não tem arte configurada.`);
       let art = artByGroup.get(group.id);
       if (!art) {
-        const { data, error } = await supabase.storage.from("arts").download(group.art_path);
-        if (error || !data)
-          throw new Error(error?.message ?? `Arte em falta no grupo "${group.name}".`);
-        art = await createImageBitmap(data);
+        let image: Blob | null = null;
+        if (group.art_path) {
+          const { data, error } = await supabase.storage.from("arts").download(group.art_path);
+          if (error || !data)
+            throw new Error(error?.message ?? `Arte em falta no grupo "${group.name}".`);
+          image = data;
+        } else if (group.art_url) {
+          const response = await fetch(group.art_url);
+          if (!response.ok) throw new Error(`Arte indisponível no grupo "${group.name}".`);
+          image = await response.blob();
+        }
+        if (!image) throw new Error(`Arte em falta no grupo "${group.name}".`);
+        art = await createImageBitmap(image);
         artByGroup.set(group.id, art);
       }
       const canvas = await renderTicket(
@@ -131,13 +142,8 @@ export async function ticketFilesZip(files: File[], archiveName: string) {
   return new File([blob], name, { type: "application/zip" });
 }
 
-export async function downloadTicketFiles(files: File[], archiveName: string) {
+export async function downloadTicketFiles(files: File[]) {
   if (!files.length) throw new Error("Não há ficheiros para descarregar.");
-  if (files.length === 1) {
-    downloadFile(files[0]);
-    return files[0];
-  }
-  const archive = await ticketFilesZip(files, archiveName);
-  downloadFile(archive);
-  return archive;
+  downloadFilesIndividually(files);
+  return files;
 }

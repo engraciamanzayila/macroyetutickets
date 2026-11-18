@@ -30,7 +30,8 @@ type ZohoCredentials = {
 type ZohoAccount = { accountId?: string; primaryEmailAddress?: string; primaryEmail?: string };
 
 async function encryptionKey() {
-  const secret = process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  const secret =
+    process.env["ZOHO_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
   if (!secret) throw new Error("A chave de cifragem do servidor não está configurada");
   const material = await crypto.subtle.importKey(
     "raw",
@@ -359,9 +360,10 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         ),
       ].filter((email) => email !== data.recipient);
 
-      const baseUrl = (
-        process.env["APP_PUBLIC_URL"] ?? "https://macroyetutickets.lovable.app"
-      ).replace(/\/$/, "");
+      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? "https://mytickets.macroyetu.com").replace(
+        /\/$/,
+        "",
+      );
       const holderLinks: string[] = [];
       for (let offset = 0; offset < tickets.length; offset += 50) {
         const batch = tickets.slice(offset, offset + 50);
@@ -458,6 +460,164 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         .eq("event_id", data.eventId)
         .in("id", data.ticketIds);
       return { status: "sent" as const, recipient: data.recipient, cc, count: tickets.length };
+    } catch (error) {
+      const message = (error as Error).message;
+      await failTickets(message);
+      throw new Error(message);
+    }
+  });
+
+/** A share-link holder can email only unassigned-to-a-holder tickets in that active share. */
+export const sendSharedTicketEmail = createServerFn({ method: "POST" })
+  .inputValidator((input: { token: string; ticketIds: string[]; recipient: string }) => {
+    const token = String(input?.token ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(token)) throw new Error("Link de partilha inválido");
+    const ticketIds = [...new Set(input.ticketIds ?? [])];
+    if (
+      !ticketIds.length ||
+      ticketIds.length > 100 ||
+      ticketIds.some((id) => !/^[0-9a-f-]{36}$/i.test(id))
+    ) {
+      throw new Error("Selecione entre 1 e 100 ingressos válidos");
+    }
+    const recipient = String(input.recipient ?? "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(recipient)) throw new Error("Indique um e-mail de destino válido");
+    return { token, ticketIds, recipient };
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: share } = await supabaseAdmin
+      .from("group_shares")
+      .select("id,event_id,group_id,active,expires_at,partner_name")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!share || !share.active || (share.expires_at && new Date(share.expires_at) < new Date())) {
+      throw new Error("Este link foi desativado ou expirou");
+    }
+
+    const { data: tickets, error: ticketError } = await supabaseAdmin
+      .from("tickets")
+      .select("id,code,share_token,group_id,holder_name")
+      .eq("share_id", share.id)
+      .eq("event_id", share.event_id)
+      .eq("status", "valid")
+      .is("printed_at", null)
+      .is("sent_at", null)
+      .in("id", data.ticketIds)
+      .order("seq");
+    if (ticketError) throw new Error(ticketError.message);
+    if (!tickets || tickets.length !== data.ticketIds.length) {
+      throw new Error("Um ou mais ingressos já foram distribuídos ou não pertencem a este link");
+    }
+
+    const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
+      "claim_ticket_email_delivery",
+      {
+        p_event: share.event_id,
+        p_ticket_ids: data.ticketIds,
+      },
+    );
+    if (claimError) throw new Error(claimError.message);
+    if (!claimed)
+      throw new Error("Um ou mais ingressos já estão a ser enviados ou foram distribuídos");
+
+    const failTickets = async (message: string) => {
+      await supabaseAdmin
+        .from("tickets")
+        .update({
+          email_delivery_status: "failed",
+          email_delivery_error: message.slice(0, 500),
+          email_delivery_updated_at: new Date().toISOString(),
+        })
+        .eq("share_id", share.id)
+        .in("id", data.ticketIds);
+    };
+
+    try {
+      const [credentials, eventResult, groupResult] = await Promise.all([
+        getCredentials(),
+        supabaseAdmin
+          .from("events")
+          .select("id,name,event_date,event_time,venue,city")
+          .eq("id", share.event_id)
+          .single(),
+        supabaseAdmin
+          .from("ticket_groups")
+          .select("name,ticket_type")
+          .eq("id", share.group_id)
+          .single(),
+      ]);
+      if (eventResult.error || !eventResult.data) throw new Error("Evento não encontrado");
+      if (groupResult.error || !groupResult.data)
+        throw new Error("Grupo de ingressos não encontrado");
+      const access = await accessToken(credentials);
+      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? "https://mytickets.macroyetu.com").replace(
+        /\/$/,
+        "",
+      );
+      const links = tickets
+        .map(
+          (ticket, index) =>
+            `<p style="margin:10px 0"><a href="${html(`${baseUrl}/i/${encodeURIComponent(ticket.share_token)}`)}" style="display:inline-block;padding:11px 16px;background:#d9b643;color:#111;text-decoration:none;font-weight:bold;border-radius:6px">Abrir ingresso ${index + 1}</a></p>`,
+        )
+        .join("");
+      const ev = eventResult.data;
+      const group = groupResult.data;
+      const eventInfo = [ev.event_date, ev.event_time, ev.venue, ev.city]
+        .filter((value): value is string => !!value)
+        .map(html)
+        .join(" · ");
+      const content = `<!doctype html><html><body style="margin:0;background:#f5f6f7;font-family:Arial,sans-serif;color:#222"><div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden"><div style="padding:24px;background:#111;color:#fff"><p style="margin:0;font-size:12px;color:#d9b643">MY TICKETS</p><h1 style="margin:10px 0 0;font-size:24px">${html(ev.name)}</h1>${eventInfo ? `<p style="margin:8px 0 0;color:#d1d5db">${eventInfo}</p>` : ""}</div><div style="padding:24px"><p>Olá,</p><p>Seguem ${tickets.length} ingresso(s) ${html(group.ticket_type)} — ${html(group.name)}${share.partner_name ? `, enviados por ${html(share.partner_name)}` : ""}. Cada botão abre um ingresso seguro para consulta e download.</p>${links}<p style="font-size:13px;color:#555">Cada ingresso permite uma única entrada. Não partilhe o código com outras pessoas depois da utilização.</p><p style="font-size:12px;color:#888">Mensagem automática da MY Tickets.</p></div></div></body></html>`;
+      const response = await fetch(
+        `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Zoho-oauthtoken ${access}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fromAddress: SENDER,
+            toAddress: data.recipient,
+            subject: `${tickets.length} ingresso(s) para ${ev.name} — MY Tickets`,
+            content,
+            mailFormat: "html",
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`Zoho Mail recusou o envio (${response.status})`);
+      const zohoResult = (await response.json().catch(() => null)) as {
+        status?: { code?: number; description?: string };
+      } | null;
+      if (zohoResult?.status?.code && zohoResult.status.code !== 200) {
+        throw new Error(
+          `Zoho Mail recusou o envio: ${zohoResult.status.description ?? zohoResult.status.code}`,
+        );
+      }
+      const sentAt = new Date().toISOString();
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from("tickets")
+        .update({
+          sent_via: "email",
+          sent_at: sentAt,
+          holder_contact: data.recipient,
+          email_delivery_to: data.recipient,
+          email_delivery_status: "sent",
+          email_delivery_error: null,
+          email_delivery_updated_at: sentAt,
+          email_sent_at: sentAt,
+        })
+        .eq("share_id", share.id)
+        .in("id", data.ticketIds)
+        .select("id");
+      if (updateError || updated?.length !== data.ticketIds.length) {
+        throw new Error(
+          "O e-mail foi enviado, mas o estado dos ingressos não pôde ser atualizado. Contacte o administrador antes de repetir o envio.",
+        );
+      }
+      return { status: "sent" as const, count: tickets.length, recipient: data.recipient };
     } catch (error) {
       const message = (error as Error).message;
       await failTickets(message);

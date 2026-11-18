@@ -1,31 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, Link2, Mail, MessageCircle, Printer, Search, UserRound } from "lucide-react";
+import { Download, Link2, Mail, Printer, Search, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  ensureTickets,
-  fetchAllTickets,
-  type Group,
-  type TicketRow,
-} from "@/lib/generate";
+import { ensureTickets, fetchAllTickets, type Group, type TicketRow } from "@/lib/generate";
 import { exportForPrint } from "@/lib/print";
 import { holderLink } from "@/lib/share-render";
 import { sendTicketEmail } from "@/lib/order-email.functions";
 import { DEFAULT_LAYOUT, renderTicket } from "@/lib/render";
 import { loadArt } from "@/lib/generate";
-import {
-  createTicketFiles,
-  downloadFile,
-  downloadTicketFiles,
-  ticketFilesZip,
-  type TicketFileFormat,
-} from "@/lib/ticket-files";
+import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { WhatsAppShareFlow, type WhatsAppFilePayload } from "@/components/event/WhatsAppShareFlow";
 
 export function TablesPanel({
   eventId,
@@ -48,16 +38,9 @@ export function TablesPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState<"digital" | "print" | null>(null);
-  const [sharing, setSharing] = useState<"whatsapp" | "email" | "link" | "native" | "fallback" | null>(null);
+  const [sharing, setSharing] = useState<"email" | "link" | null>(null);
   const [fileFormat, setFileFormat] = useState<TicketFileFormat>("pdf");
-  const [preparedWhatsApp, setPreparedWhatsApp] = useState<{
-    files: File[];
-    ids: string[];
-    message: string;
-    nativeAvailable: boolean;
-  } | null>(null);
-  const [pendingWhatsAppIds, setPendingWhatsAppIds] = useState<string[] | null>(null);
-  const [pendingWhatsAppContact, setPendingWhatsAppContact] = useState<string | null>(null);
+  const [whatsAppLocked, setWhatsAppLocked] = useState(false);
   const [previewMode, setPreviewMode] = useState<"digital" | "print" | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
@@ -78,7 +61,10 @@ export function TablesPanel({
       const groupsTickets = await Promise.all(
         tableGroups.map(async (item) => ({
           groupId: item.id,
-          tickets: await fetchAllTickets({ group_id: item.id }, "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,share_token,sent_at,email_delivery_status"),
+          tickets: await fetchAllTickets(
+            { group_id: item.id },
+            "id,code,seq,status,group_id,used_at,printed_at,holder_name,share_id,share_token,sent_at,email_delivery_status",
+          ),
         })),
       );
       return groupsTickets.flatMap(({ groupId: id, tickets: rows }) =>
@@ -238,7 +224,7 @@ export function TablesPanel({
   };
 
   const exportDigital = async () => {
-    if (!group || exporting || preparedWhatsApp || pendingWhatsAppIds) return;
+    if (!group || exporting || whatsAppLocked) return;
     setExporting("digital");
     try {
       await persistPendingNames();
@@ -246,24 +232,39 @@ export function TablesPanel({
       const items = selectedTickets.flatMap((ticket) => {
         const ticketGroup = tableGroups.find((item) => item.id === ticket.group_id);
         return ticketGroup
-          ? [{ group: ticketGroup, ticket: { ...ticket, holder_name: names[ticket.id] ?? ticket.holder_name } }]
+          ? [
+              {
+                group: ticketGroup,
+                ticket: { ...ticket, holder_name: names[ticket.id] ?? ticket.holder_name },
+              },
+            ]
           : [];
       });
       const files = await createTicketFiles(items, eventName, fileFormat);
       if (!files.length) throw new Error("Não há ingressos digitais disponíveis para exportar");
-      await downloadTicketFiles(files, `${eventName}_mesas_digitais`);
+      await downloadTicketFiles(files);
       const sentAt = new Date().toISOString();
-      const { data: updated, error } = await supabase.from("tickets")
+      const { data: updated, error } = await supabase
+        .from("tickets")
         .update({ sent_via: "download", sent_at: sentAt })
-        .in("id", ids).eq("event_id", eventId).eq("status", "valid")
-        .is("printed_at", null).is("share_id", null).is("sent_at", null)
-        .neq("email_delivery_status", "sending").neq("email_delivery_status", "sent")
+        .in("id", ids)
+        .eq("event_id", eventId)
+        .eq("status", "valid")
+        .is("printed_at", null)
+        .is("share_id", null)
+        .is("sent_at", null)
+        .neq("email_delivery_status", "sending")
+        .neq("email_delivery_status", "sent")
         .select("id");
       if (error) throw error;
       if ((updated ?? []).length !== ids.length) {
-        throw new Error("Os ficheiros foram gerados, mas nem todas as mesas puderam ser registadas como distribuídas. Atualize a página e confirme o estado.");
+        throw new Error(
+          "Os ficheiros foram gerados, mas nem todas as mesas puderam ser registadas como distribuídas. Atualize a página e confirme o estado.",
+        );
       }
-      toast.success(`${files.length} mesa(s) exportada(s) em ${fileFormat.toUpperCase()}, com ficheiros identificados por referência e titular.`);
+      toast.success(
+        `${files.length} mesa(s) exportada(s) em ${fileFormat.toUpperCase()}, com ficheiros identificados por referência e titular.`,
+      );
       setSelectedIds(new Set());
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
@@ -314,43 +315,70 @@ export function TablesPanel({
   };
 
   const shareSelected = async (via: "email" | "link") => {
-    if (!selectedTickets.length || sharing || preparedWhatsApp || pendingWhatsAppIds) return;
+    if (!selectedTickets.length || sharing || whatsAppLocked) return;
     if (selectedTickets.some((ticket) => !(names[ticket.id] ?? ticket.holder_name ?? "").trim())) {
       return toast.error("Preencha e guarde o nome de cada mesa antes de partilhar.");
     }
     if (via === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim())) {
       return toast.error("Indique um e-mail válido.");
     }
-    if (via === "email" && selectedTickets.length > 100) return toast.error("Selecione até 100 mesas por e-mail.");
-    if (via === "link" && selectedTickets.length > 50) return toast.error("Selecione até 50 mesas por link.");
+    if (via === "email" && selectedTickets.length > 100)
+      return toast.error("Selecione até 100 mesas por e-mail.");
+    if (via === "link" && selectedTickets.length > 50)
+      return toast.error("Selecione até 50 mesas por link.");
     setSharing(via);
     const ids = selectedTickets.map((ticket) => ticket.id);
     try {
       await persistPendingNames();
       if (via === "email") {
-        const result = await sendTicketEmail({ data: { eventId, ticketIds: ids, recipient: contact.trim() } });
+        const result = await sendTicketEmail({
+          data: { eventId, ticketIds: ids, recipient: contact.trim() },
+        });
         if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
-        const { error } = await supabase.from("tickets").update({ holder_contact: contact.trim() }).in("id", ids).eq("event_id", eventId);
-        if (error) throw new Error(`E-mail enviado, mas não foi possível guardar o contacto: ${error.message}`);
+        const { error } = await supabase
+          .from("tickets")
+          .update({ holder_contact: contact.trim() })
+          .in("id", ids)
+          .eq("event_id", eventId);
+        if (error)
+          throw new Error(
+            `E-mail enviado, mas não foi possível guardar o contacto: ${error.message}`,
+          );
         toast.success(`Mesas enviadas por e-mail para ${result.recipient}.`);
       } else {
-        const tokens = selectedTickets.flatMap((ticket) => ticket.share_token ? [ticket.share_token] : []);
-        if (tokens.length !== ids.length) throw new Error("Não foi possível preparar o link de todas as mesas.");
+        const tokens = selectedTickets.flatMap((ticket) =>
+          ticket.share_token ? [ticket.share_token] : [],
+        );
+        if (tokens.length !== ids.length)
+          throw new Error("Não foi possível preparar o link de todas as mesas.");
         const link = holderLink(tokens);
-        const tableNames = selectedTickets.map((ticket) => `${(names[ticket.id] ?? ticket.holder_name ?? "").trim()} — Mesa #${ticket.seq}`).join("\n");
+        const tableNames = selectedTickets
+          .map(
+            (ticket) =>
+              `${(names[ticket.id] ?? ticket.holder_name ?? "").trim()} — Mesa #${ticket.seq}`,
+          )
+          .join("\n");
         const message = `Olá! Aqui estão ${selectedTickets.length} mesa(s) para ${eventName}:\n${tableNames}\n\nAbra os ingressos aqui: ${link}`;
         await navigator.clipboard.writeText(message);
 
         const sentAt = new Date().toISOString();
-        const { data: updated, error } = await supabase.from("tickets")
+        const { data: updated, error } = await supabase
+          .from("tickets")
           .update({ sent_via: "link", sent_at: sentAt })
-          .in("id", ids).eq("event_id", eventId).eq("status", "valid")
-          .is("printed_at", null).is("share_id", null).is("sent_at", null)
-          .neq("email_delivery_status", "sending").neq("email_delivery_status", "sent")
+          .in("id", ids)
+          .eq("event_id", eventId)
+          .eq("status", "valid")
+          .is("printed_at", null)
+          .is("share_id", null)
+          .is("sent_at", null)
+          .neq("email_delivery_status", "sending")
+          .neq("email_delivery_status", "sent")
           .select("id");
         if (error) throw error;
         if ((updated ?? []).length !== ids.length) {
-          throw new Error("Nem todas as mesas puderam ser registadas como distribuídas. Atualize e confirme o estado.");
+          throw new Error(
+            "Nem todas as mesas puderam ser registadas como distribuídas. Atualize e confirme o estado.",
+          );
         }
         toast.success("Mensagem com os links copiada e mesas registadas como distribuídas.");
       }
@@ -368,137 +396,90 @@ export function TablesPanel({
     }
   };
 
-  const prepareWhatsAppFiles = async () => {
-    if (!selectedTickets.length || sharing || preparedWhatsApp || pendingWhatsAppIds) return;
-    if (selectedTickets.length > 100) return toast.error("Selecione até 100 mesas de cada vez para preparar os ficheiros.");
+  const prepareWhatsApp = async (chosenFormat: TicketFileFormat): Promise<WhatsAppFilePayload> => {
+    if (!selectedTickets.length) throw new Error("Selecione pelo menos uma mesa disponível.");
+    if (selectedTickets.length > 100)
+      throw new Error("Selecione até 100 mesas de cada vez para preparar os ficheiros.");
     if (selectedTickets.some((ticket) => !(names[ticket.id] ?? ticket.holder_name ?? "").trim())) {
-      return toast.error("Preencha e guarde o nome de cada mesa antes de preparar os ficheiros.");
+      throw new Error("Preencha o nome de cada mesa antes de preparar os ficheiros.");
     }
-    setSharing("whatsapp");
-    try {
-      await persistPendingNames();
-      const items = selectedTickets.flatMap((ticket) => {
-        const ticketGroup = tableGroups.find((item) => item.id === ticket.group_id);
-        return ticketGroup
-          ? [{ group: ticketGroup, ticket: { ...ticket, holder_name: names[ticket.id] ?? ticket.holder_name } }]
-          : [];
-      });
-      const individualFiles = await createTicketFiles(items, eventName, fileFormat);
-      const shareFiles = individualFiles.length > 10
-        ? [await ticketFilesZip(individualFiles, `${eventName}_mesas`)]
-        : individualFiles;
-      const ids = selectedTickets.map((ticket) => ticket.id);
-      const tokens = selectedTickets.flatMap((ticket) => ticket.share_token ? [ticket.share_token] : []);
-      if (tokens.length !== ids.length) throw new Error("Não foi possível preparar os links seguros de todas as mesas.");
-      const tableNames = selectedTickets
-        .map((ticket) => `${(names[ticket.id] ?? ticket.holder_name ?? "").trim()} — Mesa #${ticket.seq}`)
-        .join("\n");
-      const message = `Olá! Seguem ${selectedTickets.length} mesa(s) para ${eventName}:\n${tableNames}\n\nLinks seguros: ${holderLink(tokens)}`;
-      const shareData = { files: shareFiles };
-      const nativeAvailable = typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" && navigator.canShare(shareData);
-      setPreparedWhatsApp({ files: shareFiles, ids, message, nativeAvailable });
-      toast.success(nativeAvailable
-        ? "Ficheiros prontos. Carregue em Partilhar e escolha WhatsApp no menu do dispositivo."
-        : "Ficheiros prontos. Este navegador não permite anexá-los diretamente; descarregue-os e anexe-os no WhatsApp.");
-    } catch (error) {
-      toast.error("Não foi possível preparar os ficheiros: " + (error as Error).message);
-    } finally {
-      setSharing(null);
-    }
+    const missingArt = selectedTickets.some((ticket) => {
+      const ticketGroup = tableGroups.find((item) => item.id === ticket.group_id);
+      return !ticketGroup?.layout || !ticketGroup.art_path;
+    });
+    if (missingArt)
+      throw new Error("Configure a arte e posicione o QR em todos os grupos selecionados.");
+    await persistPendingNames();
+    const items = selectedTickets.flatMap((ticket) => {
+      const ticketGroup = tableGroups.find((item) => item.id === ticket.group_id);
+      return ticketGroup
+        ? [
+            {
+              group: ticketGroup,
+              ticket: { ...ticket, holder_name: names[ticket.id] ?? ticket.holder_name },
+            },
+          ]
+        : [];
+    });
+    const files = await createTicketFiles(items, eventName, chosenFormat);
+    const tableNames = selectedTickets
+      .map(
+        (ticket) =>
+          `${(names[ticket.id] ?? ticket.holder_name ?? "").trim()} — Mesa #${ticket.seq}`,
+      )
+      .join("\n");
+    return {
+      files,
+      ticketIds: selectedTickets.map((ticket) => ticket.id),
+      message: `Olá! Seguem ${selectedTickets.length} mesa(s) para ${eventName}:\n${tableNames}\nOs ingressos individuais seguem em anexo.`,
+      contact: contact.includes("@") ? null : contact.trim() || null,
+    };
   };
 
-  const sharePreparedWhatsApp = async () => {
-    if (!preparedWhatsApp?.nativeAvailable || sharing) return;
-    setSharing("native");
-    try {
-      await navigator.share({
-        title: `Mesas — ${eventName}`,
-        text: preparedWhatsApp.message,
-        files: preparedWhatsApp.files,
-      });
-      setPendingWhatsAppIds(preparedWhatsApp.ids);
-      setPendingWhatsAppContact(null);
-      setPreparedWhatsApp(null);
-      toast.success("Partilha concluída pelo menu do dispositivo. Confirme abaixo depois de enviar pelo WhatsApp.");
-    } catch (error) {
-      if ((error as DOMException).name !== "AbortError") {
-        toast.error("A partilha foi recusada pelo dispositivo: " + (error as Error).message);
-      }
-    } finally {
-      setSharing(null);
-    }
-  };
-
-  const fallbackWhatsApp = async () => {
-    if (!preparedWhatsApp || sharing) return;
-    const digits = contact.replace(/\D/g, "");
-    if (digits.length < 9) return toast.error("Indique um número de WhatsApp com indicativo do país.");
-    const whatsAppTab = window.open("about:blank", "_blank");
-    if (!whatsAppTab) return toast.error("Permita pop-ups para abrir o WhatsApp.");
-    whatsAppTab.opener = null;
-    setSharing("fallback");
-    try {
-      const file = preparedWhatsApp.files.length === 1
-        ? preparedWhatsApp.files[0]
-        : await ticketFilesZip(preparedWhatsApp.files, `${eventName}_mesas`);
-      downloadFile(file);
-      const phone = digits.length === 9 ? `244${digits}` : digits;
-      whatsAppTab.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(preparedWhatsApp.message)}`;
-      setPendingWhatsAppIds(preparedWhatsApp.ids);
-      setPendingWhatsAppContact(contact.trim() || null);
-      setPreparedWhatsApp(null);
-      toast.info("Anexe no WhatsApp o ficheiro acabado de descarregar. Depois, confirme o envio nesta página.");
-    } catch (error) {
-      whatsAppTab.close();
-      toast.error("Não foi possível preparar o anexo: " + (error as Error).message);
-    } finally {
-      setSharing(null);
-    }
-  };
-
-  const confirmWhatsAppSent = async () => {
-    if (!pendingWhatsAppIds?.length || sharing) return;
-    setSharing("whatsapp");
+  const confirmWhatsAppSent = async (payload: WhatsAppFilePayload) => {
     const sentAt = new Date().toISOString();
-    try {
-      const { data: updated, error } = await supabase.from("tickets")
-        .update({
-          sent_via: "whatsapp",
-          sent_at: sentAt,
-          ...(pendingWhatsAppContact ? { holder_contact: pendingWhatsAppContact } : {}),
-        })
-        .in("id", pendingWhatsAppIds).eq("event_id", eventId).eq("status", "valid")
-        .is("printed_at", null).is("share_id", null).is("sent_at", null)
-        .neq("email_delivery_status", "sending").neq("email_delivery_status", "sent")
-        .select("id");
-      if (error) throw error;
-      if ((updated ?? []).length !== pendingWhatsAppIds.length) {
-        throw new Error("Nem todas as mesas foram registadas. Atualize a página e confirme o estado.");
-      }
-      setPendingWhatsAppIds(null);
-      setPendingWhatsAppContact(null);
-      setSelectedIds(new Set());
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
-        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
-        qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
-        qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
-      ]);
-      toast.success("Mesas registadas como enviadas por WhatsApp.");
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setSharing(null);
+    const { data: updated, error } = await supabase
+      .from("tickets")
+      .update({
+        sent_via: "whatsapp",
+        sent_at: sentAt,
+        ...(payload.contact ? { holder_contact: payload.contact } : {}),
+      })
+      .in("id", payload.ticketIds)
+      .eq("event_id", eventId)
+      .eq("status", "valid")
+      .is("printed_at", null)
+      .is("share_id", null)
+      .is("sent_at", null)
+      .neq("email_delivery_status", "sending")
+      .neq("email_delivery_status", "sent")
+      .select("id");
+    if (error) throw error;
+    if ((updated ?? []).length !== payload.ticketIds.length) {
+      throw new Error(
+        "Nem todas as mesas foram registadas. Atualize a página e confirme o estado.",
+      );
     }
+    setSelectedIds(new Set());
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["table-tickets", eventId] }),
+      qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+      qc.invalidateQueries({ queryKey: ["ticket-distribution", eventId] }),
+      qc.invalidateQueries({ queryKey: ["tickets", eventId] }),
+    ]);
+    toast.success("Mesas registadas como enviadas por WhatsApp.");
   };
 
   const pickContact = async (field: "tel" | "email") => {
     type ContactRecord = { tel?: string[]; email?: string[]; name?: string[] };
-    type ContactPicker = { select: (properties: string[], options: { multiple: boolean }) => Promise<ContactRecord[]> };
+    type ContactPicker = {
+      select: (properties: string[], options: { multiple: boolean }) => Promise<ContactRecord[]>;
+    };
     const contacts = (navigator as Navigator & { contacts?: ContactPicker }).contacts;
     if (!contacts) {
-      toast.info("Este navegador não disponibiliza a agenda. Escreva o número ou e-mail manualmente.");
+      toast.info(
+        "Este navegador não disponibiliza a agenda. Escreva o número ou e-mail manualmente.",
+      );
       return;
     }
     try {
@@ -506,10 +487,13 @@ export function TablesPanel({
       const value = results[0]?.[field]?.[0];
       if (value) {
         setContact(value);
-        toast.success(`Contacto selecionado${results[0]?.name?.[0] ? `: ${results[0].name[0]}` : ""}.`);
+        toast.success(
+          `Contacto selecionado${results[0]?.name?.[0] ? `: ${results[0].name[0]}` : ""}.`,
+        );
       }
     } catch (error) {
-      if ((error as DOMException).name !== "AbortError") toast.error("Não foi possível abrir a agenda deste dispositivo.");
+      if ((error as DOMException).name !== "AbortError")
+        toast.error("Não foi possível abrir a agenda deste dispositivo.");
     }
   };
 
@@ -575,7 +559,9 @@ export function TablesPanel({
               <Button
                 variant="secondary"
                 onClick={() => requestExport("digital")}
-                disabled={!!exporting || generating || !!preparedWhatsApp || !!pendingWhatsAppIds || selectedTickets.length === 0}
+                disabled={
+                  !!exporting || generating || whatsAppLocked || selectedTickets.length === 0
+                }
               >
                 <Download className="h-4 w-4" />
                 {exporting === "digital"
@@ -584,7 +570,9 @@ export function TablesPanel({
               </Button>
               <Button
                 onClick={() => requestExport("print")}
-                disabled={!!exporting || generating || !!preparedWhatsApp || !!pendingWhatsAppIds || selectedTickets.length === 0}
+                disabled={
+                  !!exporting || generating || whatsAppLocked || selectedTickets.length === 0
+                }
               >
                 <Printer className="h-4 w-4" />
                 {exporting === "print" ? "A paginar…" : `Imprimir A4 (${selectedTickets.length})`}
@@ -592,75 +580,70 @@ export function TablesPanel({
             </div>
           </div>
 
-          <label className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-medium">Formato dos ficheiros digitais</span>
-            <select
-              value={fileFormat}
-              disabled={!!preparedWhatsApp || !!pendingWhatsAppIds}
-              onChange={(event) => {
-                setFileFormat(event.target.value as TicketFileFormat);
-                setPreparedWhatsApp(null);
-              }}
-              className="h-9 rounded-md border border-input bg-background px-3"
-              aria-label="Formato dos ficheiros digitais das mesas"
-            >
-              <option value="pdf">PDF</option>
-              <option value="jpeg">JPEG</option>
-              <option value="png">PNG</option>
-              <option value="tiff">TIFF</option>
-            </select>
-            <span className="text-xs text-muted-foreground">Cada ficheiro inclui evento, grupo, número, referência e titular no nome.</span>
-          </label>
-
-          <div className="space-y-3 rounded-lg border p-3">
+          <div className="space-y-3">
             <div>
               <p className="text-sm font-medium">Partilhar mesas selecionadas</p>
-              <p className="text-xs text-muted-foreground">O WhatsApp recebe o ficheiro pelo menu de partilha do dispositivo, quando disponível. Em navegadores sem suporte, descarregue e anexe manualmente.</p>
+              <p className="text-xs text-muted-foreground">
+                Escolha o formato; cada mesa é gerada como ficheiro individual. WhatsApp só é
+                registado como enviado depois da confirmação.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Input disabled={!!pendingWhatsAppIds} value={contact} onChange={(event) => setContact(event.target.value)} placeholder="E-mail ou número de WhatsApp (com indicativo)" aria-label="E-mail ou número de WhatsApp" className="min-w-64 flex-1" />
-              <Button type="button" variant="outline" disabled={!!preparedWhatsApp || !!pendingWhatsAppIds} onClick={() => void pickContact("tel")}>Escolher contacto</Button>
-              <Button type="button" variant="outline" disabled={!!preparedWhatsApp || !!pendingWhatsAppIds} onClick={() => void pickContact("email")}>Escolher e-mail</Button>
+              <Input
+                disabled={whatsAppLocked}
+                value={contact}
+                onChange={(event) => setContact(event.target.value)}
+                placeholder="E-mail ou número de WhatsApp (com indicativo)"
+                aria-label="E-mail ou número de WhatsApp"
+                className="min-w-64 flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={whatsAppLocked}
+                onClick={() => void pickContact("tel")}
+              >
+                Escolher contacto
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={whatsAppLocked}
+                onClick={() => void pickContact("email")}
+              >
+                Escolher e-mail
+              </Button>
             </div>
+            <WhatsAppShareFlow
+              title={`Mesas — ${eventName}`}
+              onPrepare={prepareWhatsApp}
+              onConfirm={confirmWhatsAppSent}
+              disabled={!!exporting || generating || !selectedTickets.length}
+              onLockChange={setWhatsAppLocked}
+              format={fileFormat}
+              onFormatChange={setFileFormat}
+            />
             <div className="flex flex-wrap gap-2">
-              <Button disabled={!!sharing || !!exporting || !!preparedWhatsApp || !!pendingWhatsAppIds || !selectedTickets.length} onClick={() => void prepareWhatsAppFiles()}>
-                <MessageCircle className="h-4 w-4" />{sharing === "whatsapp" ? "A preparar ficheiros…" : "Preparar ficheiros para WhatsApp"}
+              <Button
+                variant="secondary"
+                disabled={!!sharing || !!exporting || whatsAppLocked || !selectedTickets.length}
+                onClick={() => void shareSelected("email")}
+              >
+                <Mail className="h-4 w-4" />
+                {sharing === "email" ? "A enviar…" : "E-mail"}
               </Button>
-              <Button variant="secondary" disabled={!!sharing || !!exporting || !!preparedWhatsApp || !!pendingWhatsAppIds || !selectedTickets.length} onClick={() => void shareSelected("email")}>
-                <Mail className="h-4 w-4" />{sharing === "email" ? "A enviar…" : "E-mail"}
+              <Button
+                variant="secondary"
+                disabled={!!sharing || !!exporting || whatsAppLocked || !selectedTickets.length}
+                onClick={() => void shareSelected("link")}
+              >
+                <Link2 className="h-4 w-4" />
+                {sharing === "link" ? "A copiar…" : "Copiar mensagem/link"}
               </Button>
-              <Button variant="secondary" disabled={!!sharing || !!exporting || !!preparedWhatsApp || !!pendingWhatsAppIds || !selectedTickets.length} onClick={() => void shareSelected("link")}>
-                <Link2 className="h-4 w-4" />{sharing === "link" ? "A copiar…" : "Copiar mensagem/link"}
-              </Button>
-              <span className="self-center text-xs text-muted-foreground">{selectedTickets.length} selecionada(s)</span>
+              <span className="self-center text-xs text-muted-foreground">
+                {selectedTickets.length} selecionada(s)
+              </span>
             </div>
-            {preparedWhatsApp && (
-              <div className="space-y-2 rounded-md bg-secondary/60 p-3">
-                <p className="text-sm">{preparedWhatsApp.files.length === 1 ? preparedWhatsApp.files[0].name : `${preparedWhatsApp.files.length} ficheiros prontos`}</p>
-                <p className="text-xs text-muted-foreground">No menu do dispositivo, escolha WhatsApp e selecione o destinatário. O navegador não pode escolher automaticamente a aplicação nem enviar a mensagem sem a sua confirmação. Se usar a alternativa manual, várias mesas são reunidas num ZIP com ficheiros individuais nomeados.</p>
-                <div className="flex flex-wrap gap-2">
-                  {preparedWhatsApp.nativeAvailable ? (
-                    <Button disabled={!!sharing} onClick={() => void sharePreparedWhatsApp()}>
-                      {sharing === "native" ? "A abrir partilha…" : "Partilhar ficheiro(s)"}
-                    </Button>
-                  ) : (
-                    <Button variant="secondary" disabled={!!sharing} onClick={() => void fallbackWhatsApp()}>
-                      {sharing === "fallback" ? "A preparar…" : "Descarregar e abrir WhatsApp"}
-                    </Button>
-                  )}
-                  <Button variant="ghost" disabled={!!sharing} onClick={() => setPreparedWhatsApp(null)}>Cancelar</Button>
-                </div>
-              </div>
-            )}
-            {pendingWhatsAppIds && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 p-3">
-                <p className="flex-1 text-sm">Quando terminar o envio do anexo no WhatsApp, confirme aqui para atualizar o estado das mesas.</p>
-                <Button disabled={!!sharing} onClick={() => void confirmWhatsAppSent()}>
-                  {sharing === "whatsapp" ? "A guardar…" : "Confirmar que enviei"}
-                </Button>
-                <Button variant="ghost" disabled={!!sharing} onClick={() => { setPendingWhatsAppIds(null); setPendingWhatsAppContact(null); }}>Ainda não enviei</Button>
-              </div>
-            )}
           </div>
 
           <div className="relative max-w-md">
@@ -690,8 +673,7 @@ export function TablesPanel({
                   <Checkbox
                     checked={selectedIds.has(ticket.id)}
                     disabled={
-                      !!preparedWhatsApp ||
-                      !!pendingWhatsAppIds ||
+                      whatsAppLocked ||
                       ticket.status !== "valid" ||
                       !!ticket.printed_at ||
                       !!ticket.share_id ||
@@ -716,7 +698,7 @@ export function TablesPanel({
                   <div className="relative">
                     <UserRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      disabled={!!exporting || !!preparedWhatsApp || !!pendingWhatsAppIds}
+                      disabled={!!exporting || whatsAppLocked}
                       value={names[ticket.id] ?? ticket.holder_name ?? ""}
                       onChange={(event) =>
                         setNames((current) => ({ ...current, [ticket.id]: event.target.value }))
@@ -741,9 +723,12 @@ export function TablesPanel({
                     {ticket.printed_at && (
                       <span className="text-xs text-muted-foreground">Impresso</span>
                     )}
-                    {!ticket.printed_at && (ticket.sent_at || ticket.share_id || ticket.email_delivery_status === "sent") && (
-                      <span className="text-xs text-muted-foreground">Distribuída</span>
-                    )}
+                    {!ticket.printed_at &&
+                      (ticket.sent_at ||
+                        ticket.share_id ||
+                        ticket.email_delivery_status === "sent") && (
+                        <span className="text-xs text-muted-foreground">Distribuída</span>
+                      )}
                     {ticket.email_delivery_status === "sending" && (
                       <span className="text-xs text-muted-foreground">A enviar</span>
                     )}

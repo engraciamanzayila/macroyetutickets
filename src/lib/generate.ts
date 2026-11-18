@@ -7,7 +7,12 @@ import {
   typePrefix,
   type Layout,
 } from "./render";
-import { downloadFile, ticketFileFromCanvas, type TicketFileFormat } from "./ticket-files";
+import {
+  downloadFile,
+  downloadTicketFiles,
+  ticketFileFromCanvas,
+  type TicketFileFormat,
+} from "./ticket-files";
 
 export type Group = {
   id: string;
@@ -24,6 +29,7 @@ export type Group = {
   width_cm: number | null;
   height_cm: number | null;
   layout: Layout | null;
+  art_url?: string;
 };
 
 export type TicketRow = {
@@ -152,10 +158,7 @@ export async function generate(
   const total = jobs.reduce((sum, job) => sum + job.tickets.length, 0);
   if (!total) return 0;
 
-  const { default: JSZip } = fileFormats.length ? await import("jszip") : { default: null };
-  const zip = JSZip ? new JSZip() : null;
-  let singleFile: File | null = null;
-  let digitalFileCount = 0;
+  const digitalFiles: File[] = [];
   let a4: InstanceType<typeof import("jspdf").jsPDF> | null = null;
   let a4Slot = 0;
   let a4Pages = 0;
@@ -188,18 +191,10 @@ export async function generate(
       a4Slot = 0;
 
       for (const ticket of tickets) {
-        const canvas = await renderTicket(
-          art,
-          layout,
-          ticket.code,
-          ticket.holder_name,
-        );
+        const canvas = await renderTicket(art, layout, ticket.code, ticket.holder_name);
         for (const format of fileFormats) {
           const file = await ticketFileFromCanvas(canvas, fileBase, g, ticket, format);
-          if (!zip) throw new Error("Não foi possível preparar o pacote dos ficheiros.");
-          zip.file(`${safe(g.name)}/${file.name}`, file);
-          singleFile = file;
-          digitalFileCount++;
+          digitalFiles.push(file);
         }
 
         if (makeA4) {
@@ -260,16 +255,7 @@ export async function generate(
   }
 
   onProgress(total, total, "A preparar os ficheiros…");
-  if (zip && digitalFileCount) {
-    if (digitalFileCount === 1 && singleFile) {
-      downloadFile(singleFile);
-    } else {
-      const archive = await zip.generateAsync({ type: "blob", compression: "STORE" });
-      downloadFile(
-        new File([archive], `${safe(fileBase)}_bilhetes.zip`, { type: "application/zip" }),
-      );
-    }
-  }
+  if (digitalFiles.length) await downloadTicketFiles(digitalFiles);
   if (a4) {
     const printFile = new File([a4.output("blob")], `${safe(fileBase)}_A4_${a4Pages}_paginas.pdf`, {
       type: "application/pdf",
