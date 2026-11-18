@@ -259,6 +259,169 @@ function PartnerPortal() {
             ] as const
           ).map(([value, label]) => (
             <Button
+              key={value}
+              size="sm"
+              variant={filter === value ? "default" : "secondary"}
+              disabled={whatsAppLocked || busy}
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </Button>
+          ))}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="Código ou nome…"
+              className="pl-9"
+              disabled={whatsAppLocked || busy}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-card divide-y">
+          <label className="flex items-center gap-3 p-3 text-sm">
+            <Checkbox
+              checked={
+                shown.length > 0 &&
+                shown
+                  .filter(
+                    (ticket) => ticket.status === "valid" && !ticket.sent_at && !ticket.printed_at,
+                  )
+                  .every((ticket) => sel.has(ticket.id))
+              }
+              disabled={whatsAppLocked || busy}
+              onCheckedChange={(value) =>
+                setSel(
+                  value
+                    ? new Set(
+                        shown
+                          .filter(
+                            (ticket) =>
+                              ticket.status === "valid" && !ticket.sent_at && !ticket.printed_at,
+                          )
+                          .map((ticket) => ticket.id),
+                      )
+                    : new Set(),
+                )
+              }
+            />
+            Selecionar disponíveis (
+            {
+              shown.filter(
+                (ticket) => ticket.status === "valid" && !ticket.sent_at && !ticket.printed_at,
+              ).length
+            }
+            )<span className="ml-auto text-muted-foreground">Selecionar os primeiros</span>
+            <Input
+              type="number"
+              min={1}
+              max={
+                shown.filter(
+                  (ticket) => ticket.status === "valid" && !ticket.sent_at && !ticket.printed_at,
+                ).length
+              }
+              placeholder="Qtd"
+              className="h-8 w-20"
+              disabled={whatsAppLocked || busy}
+              onChange={(event) => {
+                const n = parseInt(event.target.value) || 0;
+                setSel(
+                  new Set(
+                    shown
+                      .filter(
+                        (ticket) =>
+                          ticket.status === "valid" && !ticket.sent_at && !ticket.printed_at,
+                      )
+                      .slice(0, n)
+                      .map((ticket) => ticket.id),
+                  ),
+                );
+              }}
+            />
+          </label>
+          {shown.map((ticket) => {
+            const selectable =
+              ticket.status === "valid" &&
+              !ticket.sent_at &&
+              !ticket.printed_at &&
+              ticket.email_delivery_status !== "sending" &&
+              ticket.email_delivery_status !== "sent";
+            return (
+              <label
+                key={ticket.id}
+                className="flex flex-wrap items-center gap-3 p-3 text-sm cursor-pointer"
+              >
+                <Checkbox
+                  checked={sel.has(ticket.id)}
+                  disabled={!selectable || whatsAppLocked || busy}
+                  onCheckedChange={(value) => {
+                    const next = new Set(sel);
+                    if (value) next.add(ticket.id);
+                    else next.delete(ticket.id);
+                    setSel(next);
+                  }}
+                />
+                <span className="text-muted-foreground w-10">#{ticket.seq}</span>
+                <span className="font-mono">{ticket.code}</span>
+                <span className="flex-1 truncate">
+                  {ticket.holder_name}
+                  {ticket.holder_contact ? ` · ${ticket.holder_contact}` : ""}
+                </span>
+                {ticket.status === "used" ? (
+                  <Badge>Entrou</Badge>
+                ) : ticket.sent_at ? (
+                  <Badge variant="secondary">{VIA[ticket.sent_via ?? ""] ?? "Enviado"}</Badge>
+                ) : (
+                  <Badge variant="outline">Por enviar</Badge>
+                )}
+              </label>
+            );
+          })}
+          {!shown.length && (
+            <p className="p-6 text-center text-sm text-muted-foreground">Nada aqui.</p>
+          )}
+        </div>
+      </main>
+
+      <div className="fixed bottom-0 inset-x-0 border-t bg-background/95 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-4 py-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Nome do convidado (opcional)"
+              disabled={whatsAppLocked || busy}
+            />
+            <Input
+              value={contact}
+              onChange={(event) => setContact(event.target.value)}
+              placeholder="Telefone WhatsApp ou e-mail"
+              disabled={whatsAppLocked || busy}
+            />
+          </div>
+          <WhatsAppShareFlow
+            title={`Ingressos — ${data.event?.name ?? "MY Tickets"}`}
+            onPrepare={prepareWhatsApp}
+            onConfirm={confirmWhatsApp}
+            disabled={busy || !selectedForSharing.length}
+            onLockChange={setWhatsAppLocked}
+            formats={["pdf"]}
+          />
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-muted-foreground mr-auto">
+              {selectedForSharing.length} disponível(is) selecionado(s)
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || whatsAppLocked || !selectedForSharing.length}
+              onClick={() => void sendEmail()}
+            >
+              <Mail className="h-4 w-4" /> E-mail
+            </Button>
+            <Button
               size="sm"
               variant="secondary"
               disabled={busy || whatsAppLocked || !selectedForSharing.length}
