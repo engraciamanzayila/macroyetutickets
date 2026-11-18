@@ -361,7 +361,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         ),
       ].filter((email) => email !== data.recipient);
 
-      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? new URL(getRequest().url).origin).replace(/\/$/, "");
+      const baseUrl = new URL(getRequest().url).origin;
       const holderLinks: string[] = [];
       for (let offset = 0; offset < tickets.length; offset += 50) {
         const batch = tickets.slice(offset, offset + 50);
