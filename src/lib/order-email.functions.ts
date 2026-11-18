@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
@@ -328,7 +329,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
 
       const { data: tickets, error: ticketsError } = await sb
         .from("tickets")
-        .select("id,code,share_token,group_id,holder_name")
+        .select("id,code,group_id,holder_name")
         .eq("event_id", data.eventId)
         .in("id", data.ticketIds)
         .order("seq");
@@ -360,10 +361,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         ),
       ].filter((email) => email !== data.recipient);
 
-      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? "https://mytickets.macroyetu.com").replace(
-        /\/$/,
-        "",
-      );
+      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? new URL(getRequest().url).origin).replace(/\/$/, "");
       const holderLinks: string[] = [];
       for (let offset = 0; offset < tickets.length; offset += 50) {
         const batch = tickets.slice(offset, offset + 50);
@@ -496,7 +494,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       totalEncodedSize += contentBase64.length;
       return { name, contentBase64 };
     });
-    if (totalEncodedSize > 24 * 1024 * 1024) throw new Error("Os PDFs excedem o limite total de envio. Selecione menos ingressos.");
+    if (totalEncodedSize > 3.5 * 1024 * 1024) throw new Error("Os PDFs excedem o limite total de envio. Selecione menos ingressos.");
     return { token, ticketIds, recipient, attachments: cleanAttachments };
   })
   .handler(async ({ data }) => {
