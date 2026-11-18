@@ -21,6 +21,7 @@ import { SharesPanel } from "@/components/event/SharesPanel";
 import { AdminDispatchPanel } from "@/components/event/AdminDispatchPanel";
 import { TablesPanel } from "@/components/event/TablesPanel";
 import { PrintHistoryPanel } from "@/components/event/PrintHistoryPanel";
+import { CredentialingPanel } from "@/components/event/CredentialingPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,11 +304,16 @@ function EventPage() {
             <TabsTrigger value="mesas">Mesas</TabsTrigger>
           )}
           <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
+          <TabsTrigger value="credenciamento">Credenciamento</TabsTrigger>
           <TabsTrigger value="impressoes">Impressões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
         </TabsList>
+        <TabsContent value="credenciamento" className="mt-6">
+          <CredentialingPanel eventId={eventId} eventName={event?.name ?? "Evento"} />
+        </TabsContent>
+
         <TabsContent value="contrato" className="mt-6">
           {event && <ContractPanel event={event} />}
         </TabsContent>
