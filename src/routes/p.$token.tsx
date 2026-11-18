@@ -463,7 +463,7 @@ function PartnerPortal() {
             />
             <Input
               value={contact}
-              onChange={(event) => setContact(event.target.value)}
+              onChange={(event) => { setContact(event.target.value); setPickedEmail(""); }}
               placeholder="Telefone WhatsApp ou e-mail"
               disabled={whatsAppLocked || busy}
             />
