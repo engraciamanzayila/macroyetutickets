@@ -35,6 +35,7 @@ export function AdminDispatchPanel({
   const [resendMarked, setResendMarked] = useState(false);
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
+  const [email, setEmail] = useState("");
   const [format, setFormat] = useState<TicketFileFormat>("pdf");
   const [busy, setBusy] = useState(false);
   const [whatsAppLocked, setWhatsAppLocked] = useState(false);
@@ -179,7 +180,7 @@ export function AdminDispatchPanel({
 
   const send = async (via: "email" | "link" | "download" | "pdf") => {
     if (busy || whatsAppLocked) return;
-    if (via === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim()))
+    if (via === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return toast.error("Indique um e-mail válido");
     setBusy(true);
     try {
@@ -192,7 +193,7 @@ export function AdminDispatchPanel({
           data: {
             eventId,
             ticketIds: selection.map((ticket) => ticket.id),
-            recipient: contact.trim(),
+            recipient: email.trim(),
           },
         });
         if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
@@ -212,28 +213,7 @@ export function AdminDispatchPanel({
         );
         const message = `Olá${name.trim() ? ` ${name.trim()}` : ""}! Aqui estão ${selection.length} ingresso(s) para ${eventName}:\n\n${links.map((url, index) => `Grupo ${index + 1}: ${url}`).join("\n")}\n\nApresente o QR Code à entrada. Cada link permite descarregar até 50 ingressos.`;
         await navigator.clipboard.writeText(message);
-        await releaseForRedistribution(selection);
-        const { data: updated, error } = await supabase
-          .from("tickets")
-          .update({
-            sent_via: "link",
-            sent_at: new Date().toISOString(),
-            holder_contact: contact.trim() || null,
-          })
-          .in(
-            "id",
-            selection.map((ticket) => ticket.id),
-          )
-          .eq("event_id", eventId)
-          .eq("status", "valid")
-          .is("printed_at", null)
-          .is("share_id", null)
-          .is("sent_at", null)
-          .select("id");
-        if (error) throw error;
-        if ((updated ?? []).length !== selection.length)
-          throw new Error("Nem todos os ingressos puderam ser registados como enviados");
-        toast.success("Mensagem e links seguros copiados");
+        toast.success("Links de download copiados. A cópia não marca os ingressos como entregues.");
       } else if (via === "pdf") {
         const items = await Promise.all(
           selection.map(async (ticket) => {
@@ -375,10 +355,17 @@ export function AdminDispatchPanel({
           onChange={(event) => setName(event.target.value)}
         />
         <Input
-          placeholder="WhatsApp ou e-mail"
+          placeholder="WhatsApp do destinatário"
           value={contact}
           disabled={busy || whatsAppLocked}
           onChange={(event) => setContact(event.target.value)}
+        />
+        <Input
+          type="email"
+          placeholder="E-mail do destinatário"
+          value={email}
+          disabled={busy || whatsAppLocked}
+          onChange={(event) => setEmail(event.target.value)}
         />
       </div>
       <p className="text-sm font-medium">{requested} ingresso(s) selecionado(s)</p>
@@ -391,6 +378,26 @@ export function AdminDispatchPanel({
         format={format}
         onFormatChange={setFormat}
       />
+      <Button
+        disabled={busy || whatsAppLocked || requested === 0}
+        variant="secondary"
+        onClick={() => void (async () => {
+          try {
+            const selection = await resolvePicked();
+            const tokens = selection.map((ticket) => ticket.share_token).filter((token): token is string => !!token);
+            if (tokens.length !== selection.length) throw new Error("Não foi possível preparar todos os links seguros");
+            const links = Array.from({ length: Math.ceil(tokens.length / 50) }, (_, index) =>
+              holderLink(tokens.slice(index * 50, (index + 1) * 50)),
+            );
+            const message = `Olá${name.trim() ? ` ${name.trim()}` : ""}! Aqui estão ${selection.length} ingresso(s) para ${eventName}:\n\n${links.map((url, index) => `Grupo ${index + 1}: ${url}`).join("\n")}\n\nAbra cada link para descarregar os seus ingressos.`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+          } catch (error) {
+            toast.error((error as Error).message);
+          }
+        })()}
+      >
+        Preparar link para WhatsApp
+      </Button>
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={busy || whatsAppLocked || requested === 0}
