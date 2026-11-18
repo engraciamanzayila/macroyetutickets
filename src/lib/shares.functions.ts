@@ -78,7 +78,7 @@ export const markSent = createServerFn({ method: "POST" })
         !d.ids.every((i) => UUID.test(i))
       )
         throw new Error("Seleção inválida");
-      if (!["whatsapp", "email", "link", "download", "edit"].includes(d.via))
+      if (!["whatsapp", "email", "download", "edit"].includes(d.via))
         throw new Error("Canal inválido");
       if (d.via === "whatsapp" && d.confirmed !== true)
         throw new Error("Confirme o envio no WhatsApp antes de atualizar o estado dos ingressos");
