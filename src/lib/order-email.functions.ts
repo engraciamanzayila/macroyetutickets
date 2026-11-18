@@ -469,7 +469,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
 
 /** A share-link holder can email only unassigned-to-a-holder tickets in that active share. */
 export const sendSharedTicketEmail = createServerFn({ method: "POST" })
-  .inputValidator((input: { token: string; ticketIds: string[]; recipient: string }) => {
+  .inputValidator((input: { token: string; ticketIds: string[]; recipient: string; attachments: { name: string; contentBase64: string }[] }) => {
     const token = String(input?.token ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(token)) throw new Error("Link de partilha inválido");
     const ticketIds = [...new Set(input.ticketIds ?? [])];
@@ -484,7 +484,20 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       .trim()
       .toLowerCase();
     if (!EMAIL_RE.test(recipient)) throw new Error("Indique um e-mail de destino válido");
-    return { token, ticketIds, recipient };
+    const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+    if (attachments.length !== ticketIds.length) throw new Error("Cada ingresso deve ter o seu PDF em anexo.");
+    let totalEncodedSize = 0;
+    const cleanAttachments = attachments.map((file) => {
+      const name = String(file?.name ?? "");
+      const contentBase64 = String(file?.contentBase64 ?? "");
+      if (!/^[a-zA-Z0-9._-]+\.pdf$/i.test(name) || !/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64)) {
+        throw new Error("Anexo inválido: envie apenas ficheiros PDF.");
+      }
+      totalEncodedSize += contentBase64.length;
+      return { name, contentBase64 };
+    });
+    if (totalEncodedSize > 24 * 1024 * 1024) throw new Error("Os PDFs excedem o limite total de envio. Selecione menos ingressos.");
+    return { token, ticketIds, recipient, attachments: cleanAttachments };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -553,23 +566,35 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       if (groupResult.error || !groupResult.data)
         throw new Error("Grupo de ingressos não encontrado");
       const access = await accessToken(credentials);
-      const baseUrl = (process.env["APP_PUBLIC_URL"] ?? "https://mytickets.macroyetu.com").replace(
-        /\/$/,
-        "",
+      const form = new FormData();
+      for (const file of data.attachments) {
+        const binary = atob(file.contentBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        form.append("attach", new Blob([bytes], { type: "application/pdf" }), file.name);
+      }
+      const uploadResponse = await fetch(
+        `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?uploadType=multipart&isInline=false`,
+        { method: "POST", headers: { Authorization: `Zoho-oauthtoken ${access}` }, body: form },
       );
-      const links = tickets
-        .map(
-          (ticket, index) =>
-            `<p style="margin:10px 0"><a href="${html(`${baseUrl}/i/${encodeURIComponent(ticket.share_token)}`)}" style="display:inline-block;padding:11px 16px;background:#d9b643;color:#111;text-decoration:none;font-weight:bold;border-radius:6px">Abrir ingresso ${index + 1}</a></p>`,
-        )
-        .join("");
+      const uploadResult = await uploadResponse.json().catch(() => null) as {
+        status?: { code?: number; description?: string };
+        data?: { storeName?: string; attachmentName?: string; attachmentPath?: string }[];
+      } | null;
+      if (!uploadResponse.ok || uploadResult?.status?.code !== 200 || !Array.isArray(uploadResult.data) || uploadResult.data.length !== data.attachments.length) {
+        throw new Error(`Zoho Mail não conseguiu anexar os PDFs (${uploadResponse.status}).`);
+      }
+      const attachments = uploadResult.data.map((item) => {
+        if (!item.storeName || !item.attachmentName || !item.attachmentPath) throw new Error("O Zoho devolveu dados incompletos dos anexos.");
+        return { storeName: item.storeName, attachmentName: item.attachmentName, attachmentPath: item.attachmentPath };
+      });
       const ev = eventResult.data;
       const group = groupResult.data;
       const eventInfo = [ev.event_date, ev.event_time, ev.venue, ev.city]
         .filter((value): value is string => !!value)
         .map(html)
         .join(" · ");
-      const content = `<!doctype html><html><body style="margin:0;background:#f5f6f7;font-family:Arial,sans-serif;color:#222"><div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden"><div style="padding:24px;background:#111;color:#fff"><p style="margin:0;font-size:12px;color:#d9b643">MY TICKETS</p><h1 style="margin:10px 0 0;font-size:24px">${html(ev.name)}</h1>${eventInfo ? `<p style="margin:8px 0 0;color:#d1d5db">${eventInfo}</p>` : ""}</div><div style="padding:24px"><p>Olá,</p><p>Seguem ${tickets.length} ingresso(s) ${html(group.ticket_type)} — ${html(group.name)}${share.partner_name ? `, enviados por ${html(share.partner_name)}` : ""}. Cada botão abre um ingresso seguro para consulta e download.</p>${links}<p style="font-size:13px;color:#555">Cada ingresso permite uma única entrada. Não partilhe o código com outras pessoas depois da utilização.</p><p style="font-size:12px;color:#888">Mensagem automática da MY Tickets.</p></div></div></body></html>`;
+      const content = `<!doctype html><html><body style="margin:0;background:#f5f6f7;font-family:Arial,sans-serif;color:#222"><div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden"><div style="padding:24px;background:#111;color:#fff"><p style="margin:0;font-size:12px;color:#d9b643">MY TICKETS</p><h1 style="margin:10px 0 0;font-size:24px">${html(ev.name)}</h1>${eventInfo ? `<p style="margin:8px 0 0;color:#d1d5db">${eventInfo}</p>` : ""}</div><div style="padding:24px"><p>Olá,</p><p>Seguem em anexo ${tickets.length} ingresso(s) em PDF de ${html(group.ticket_type)} — ${html(group.name)}${share.partner_name ? `, enviados por ${html(share.partner_name)}` : ""}.</p><p style="font-size:13px;color:#555">Cada ingresso permite uma única entrada. Não partilhe o código com outras pessoas depois da utilização.</p><p style="font-size:12px;color:#888">Mensagem automática da MY Tickets.</p></div></div></body></html>`;
       const response = await fetch(
         `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages`,
         {
@@ -584,6 +609,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
             subject: `${tickets.length} ingresso(s) para ${ev.name} — MY Tickets`,
             content,
             mailFormat: "html",
+            attachments,
           }),
         },
       );
