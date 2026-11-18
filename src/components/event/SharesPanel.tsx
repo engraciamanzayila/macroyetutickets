@@ -21,7 +21,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ group_id: "", partner_name: "", partner_kind: "Patrocinador", contact: "", note: "", qty: 0, expires_at: "" });
   const [busy, setBusy] = useState(false);
-  const [whatsAppShare, setWhatsAppShare] = useState<(typeof shares)[number] | null>(null);
+  const [whatsAppShare, setWhatsAppShare] = useState<{ id: string; token: string; group_id: string; partner_name: string; contact: string | null } | null>(null);
   const [whatsAppBusy, setWhatsAppBusy] = useState(false);
 
   const { data: shares = [] } = useQuery({
@@ -126,7 +126,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
           .order("seq")
           .limit(50);
         if (error) throw error;
-        const tokens = (data ?? []).map((ticket) => ticket.share_token).filter(Boolean);
+        const tokens = (data ?? []).map((ticket) => ticket.share_token).filter((token): token is string => !!token);
         if (!tokens.length) throw new Error("Não há ingressos disponíveis para criar o link de download.");
         if (tokens.length > 50) throw new Error("O link de download suporta até 50 ingressos por envio.");
         destination = holderLink(tokens);
