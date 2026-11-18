@@ -528,37 +528,23 @@ export const sendPartnerShareEmail = createServerFn({ method: "POST" })
     return { status: "sent" as const, recipient: data.recipient, count };
   });
 
-/** A share-link holder can email only unassigned-to-a-holder tickets in that active share. */
+/** A partner emails selected ticket holders a branded message with a download-only link. */
 export const sendSharedTicketEmail = createServerFn({ method: "POST" })
-  .inputValidator((input: { token: string; ticketIds: string[]; recipient: string; attachments: { name: string; contentBase64: string }[] }) => {
+  .inputValidator((input: { token: string; ticketIds: string[]; recipient: string; recipientName?: string }) => {
     const token = String(input?.token ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(token)) throw new Error("Link de partilha inválido");
     const ticketIds = [...new Set(input.ticketIds ?? [])];
-    if (
-      !ticketIds.length ||
-      ticketIds.length > 100 ||
-      ticketIds.some((id) => !/^[0-9a-f-]{36}$/i.test(id))
-    ) {
-      throw new Error("Selecione entre 1 e 100 ingressos válidos");
+    if (!ticketIds.length || ticketIds.length > 50 || ticketIds.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) {
+      throw new Error("Selecione entre 1 e 50 ingressos válidos");
     }
-    const recipient = String(input.recipient ?? "")
-      .trim()
-      .toLowerCase();
+    const recipient = String(input.recipient ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(recipient)) throw new Error("Indique um e-mail de destino válido");
-    const attachments = Array.isArray(input.attachments) ? input.attachments : [];
-    if (attachments.length !== ticketIds.length) throw new Error("Cada ingresso deve ter o seu PDF em anexo.");
-    let totalEncodedSize = 0;
-    const cleanAttachments = attachments.map((file) => {
-      const name = String(file?.name ?? "");
-      const contentBase64 = String(file?.contentBase64 ?? "");
-      if (!/^[a-zA-Z0-9._-]+\.pdf$/i.test(name) || !/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64)) {
-        throw new Error("Anexo inválido: envie apenas ficheiros PDF.");
-      }
-      totalEncodedSize += contentBase64.length;
-      return { name, contentBase64 };
-    });
-    if (totalEncodedSize > 3.5 * 1024 * 1024) throw new Error("Os PDFs excedem o limite total de envio. Selecione menos ingressos.");
-    return { token, ticketIds, recipient, attachments: cleanAttachments };
+    return {
+      token,
+      ticketIds,
+      recipient,
+      recipientName: String(input.recipientName ?? "").trim().slice(0, 120),
+    };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -573,7 +559,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
 
     const { data: tickets, error: ticketError } = await supabaseAdmin
       .from("tickets")
-      .select("id,code,group_id,holder_name")
+      .select("id,code,group_id,holder_name,share_token")
       .eq("share_id", share.id)
       .eq("event_id", share.event_id)
       .eq("status", "valid")
@@ -582,106 +568,61 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       .in("id", data.ticketIds)
       .order("seq");
     if (ticketError) throw new Error(ticketError.message);
-    if (!tickets || tickets.length !== data.ticketIds.length) {
+    if (!tickets || tickets.length !== data.ticketIds.length || tickets.some((ticket) => !ticket.share_token)) {
       throw new Error("Um ou mais ingressos já foram distribuídos ou não pertencem a este link");
     }
 
     const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
       "claim_ticket_email_delivery",
-      {
-        p_event: share.event_id,
-        p_ticket_ids: data.ticketIds,
-      },
+      { p_event: share.event_id, p_ticket_ids: data.ticketIds },
     );
     if (claimError) throw new Error(claimError.message);
-    if (!claimed)
-      throw new Error("Um ou mais ingressos já estão a ser enviados ou foram distribuídos");
+    if (!claimed) throw new Error("Um ou mais ingressos já estão a ser enviados ou foram distribuídos");
 
     const failTickets = async (message: string) => {
-      await supabaseAdmin
-        .from("tickets")
-        .update({
-          email_delivery_status: "failed",
-          email_delivery_error: message.slice(0, 500),
-          email_delivery_updated_at: new Date().toISOString(),
-        })
-        .eq("share_id", share.id)
-        .in("id", data.ticketIds);
+      await supabaseAdmin.from("tickets").update({
+        email_delivery_status: "failed",
+        email_delivery_error: message.slice(0, 500),
+        email_delivery_updated_at: new Date().toISOString(),
+      }).eq("share_id", share.id).in("id", data.ticketIds);
     };
 
     try {
       const [credentials, eventResult, groupResult] = await Promise.all([
         getCredentials(),
-        supabaseAdmin
-          .from("events")
-          .select("id,name,event_date,event_time,venue,city")
-          .eq("id", share.event_id)
-          .single(),
-        supabaseAdmin
-          .from("ticket_groups")
-          .select("name,ticket_type")
-          .eq("id", share.group_id)
-          .single(),
+        supabaseAdmin.from("events").select("id,name,event_date,event_time,venue,city").eq("id", share.event_id).single(),
+        supabaseAdmin.from("ticket_groups").select("name,ticket_type").eq("id", share.group_id).single(),
       ]);
       if (eventResult.error || !eventResult.data) throw new Error("Evento não encontrado");
-      if (groupResult.error || !groupResult.data)
-        throw new Error("Grupo de ingressos não encontrado");
-      const access = await accessToken(credentials);
-      const form = new FormData();
-      for (const file of data.attachments) {
-        const binary = atob(file.contentBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        form.append("attach", new Blob([bytes], { type: "application/pdf" }), file.name);
-      }
-      const uploadResponse = await fetch(
-        `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?uploadType=multipart&isInline=false`,
-        { method: "POST", headers: { Authorization: `Zoho-oauthtoken ${access}` }, body: form },
-      );
-      const uploadResult = await uploadResponse.json().catch(() => null) as {
-        status?: { code?: number; description?: string };
-        data?: { storeName?: string; attachmentName?: string; attachmentPath?: string }[];
-      } | null;
-      if (!uploadResponse.ok || uploadResult?.status?.code !== 200 || !Array.isArray(uploadResult.data) || uploadResult.data.length !== data.attachments.length) {
-        throw new Error(`Zoho Mail não conseguiu anexar os PDFs (${uploadResponse.status}).`);
-      }
-      const attachments = uploadResult.data.map((item) => {
-        if (!item.storeName || !item.attachmentName || !item.attachmentPath) throw new Error("O Zoho devolveu dados incompletos dos anexos.");
-        return { storeName: item.storeName, attachmentName: item.attachmentName, attachmentPath: item.attachmentPath };
-      });
+      if (groupResult.error || !groupResult.data) throw new Error("Grupo de ingressos não encontrado");
       const ev = eventResult.data;
       const group = groupResult.data;
+      const baseUrl = new URL(getRequest().url).origin;
+      const downloadUrl = `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token!)).join(",")}`;
       const eventInfo = [ev.event_date, ev.event_time, ev.venue, ev.city]
         .filter((value): value is string => !!value)
         .map(html)
         .join(" · ");
-      const content = `<!doctype html><html><body style="margin:0;background:#f5f6f7;font-family:Arial,sans-serif;color:#222"><div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden"><div style="padding:24px;background:#111;color:#fff"><p style="margin:0;font-size:12px;color:#d9b643">MY TICKETS</p><h1 style="margin:10px 0 0;font-size:24px">${html(ev.name)}</h1>${eventInfo ? `<p style="margin:8px 0 0;color:#d1d5db">${eventInfo}</p>` : ""}</div><div style="padding:24px"><p>Olá,</p><p>Seguem em anexo ${tickets.length} ingresso(s) em PDF de ${html(group.ticket_type)} — ${html(group.name)}${share.partner_name ? `, enviados por ${html(share.partner_name)}` : ""}.</p><p style="font-size:13px;color:#555">Cada ingresso permite uma única entrada. Não partilhe o código com outras pessoas depois da utilização.</p><p style="font-size:12px;color:#888">Mensagem automática da MY Tickets.</p></div></div></body></html>`;
+      const greeting = data.recipientName ? `Olá <strong>${html(data.recipientName)}</strong>,` : "Olá,";
+      const content = `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#202124"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><tr><td style="background:#111827;padding:25px 30px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;background:#d9b643;border-radius:10px;text-align:center;vertical-align:middle;color:#111827;font-size:23px;font-weight:bold">▣</td><td style="padding-left:12px;color:#fff;font-size:22px;font-weight:800">MY <span style="color:#e5c65c">Tickets</span></td></tr></table><p style="margin:20px 0 0;color:#e5c65c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase">Os seus ingressos</p><h1 style="margin:8px 0 0;color:#fff;font-size:25px;line-height:1.25">${html(ev.name)}</h1>${eventInfo ? `<p style="margin:9px 0 0;color:#d1d5db;font-size:13px;line-height:1.5">${eventInfo}</p>` : ""}</td></tr><tr><td style="padding:30px"><p style="margin:0 0 15px;font-size:16px">${greeting}</p><p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.7">Recebeu ${tickets.length} ingresso(s) de ${html(group.ticket_type)} — ${html(group.name)} para este evento. Clique no botão abaixo para abrir a página segura e descarregar os seus ingressos em PDF.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#faf8f0;border:1px solid #eee6c9;border-radius:12px;margin:0 0 22px"><tr><td style="padding:17px 19px"><p style="margin:0;color:#806000;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px">Resumo da entrega</p><p style="margin:7px 0 0;color:#222;font-size:15px;font-weight:bold">${tickets.length} ingresso(s)</p><p style="margin:5px 0 0;color:#666;font-size:13px">${html(group.name)} · ${html(group.ticket_type)}</p></td></tr></table><table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 20px"><tr><td align="center" bgcolor="#d9b643" style="border-radius:9px"><a href="${html(downloadUrl)}" style="display:inline-block;padding:15px 27px;color:#171717;text-decoration:none;font-size:15px;font-weight:bold">Abrir e descarregar ingressos</a></td></tr></table><p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">Na página que abrir, toque em <strong>Descarregar ingressos em PDF</strong>. O link dá acesso apenas aos ingressos desta mensagem; não permite entrar no portal de gestão do parceiro.</p><p style="margin:22px 0 0;color:#6b7280;font-size:12px;line-height:1.6">Cada ingresso permite uma única entrada. Apresente o QR Code ou a referência à entrada do evento.</p><hr style="border:0;border-top:1px solid #ececec;margin:25px 0"><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Enviado através da <strong style="color:#333">MY Tickets</strong>${share.partner_name ? ` em nome de ${html(share.partner_name)}` : ""}. Em caso de dúvidas, contacte a organização.</p></td></tr></table><p style="margin:16px 0 0;color:#9ca3af;font-size:11px">© MY Tickets</p></td></tr></table></body></html>`;
+      const access = await accessToken(credentials);
       const response = await fetch(
         `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Zoho-oauthtoken ${access}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Zoho-oauthtoken ${access}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             fromAddress: SENDER,
             toAddress: data.recipient,
             subject: `${tickets.length} ingresso(s) para ${ev.name} — MY Tickets`,
             content,
             mailFormat: "html",
-            attachments,
           }),
         },
       );
-      if (!response.ok) throw new Error(`Zoho Mail recusou o envio (${response.status})`);
-      const zohoResult = (await response.json().catch(() => null)) as {
-        status?: { code?: number; description?: string };
-      } | null;
-      if (zohoResult?.status?.code && zohoResult.status.code !== 200) {
-        throw new Error(
-          `Zoho Mail recusou o envio: ${zohoResult.status.description ?? zohoResult.status.code}`,
-        );
+      const zohoResult = (await response.json().catch(() => null)) as { status?: { code?: number; description?: string } } | null;
+      if (!response.ok || (zohoResult?.status?.code && zohoResult.status.code !== 200)) {
+        throw new Error(`Zoho Mail recusou o envio${zohoResult?.status?.description ? `: ${zohoResult.status.description}` : ` (${response.status})`}`);
       }
       const sentAt = new Date().toISOString();
       const { data: updated, error: updateError } = await supabaseAdmin
@@ -689,6 +630,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
         .update({
           sent_via: "email",
           sent_at: sentAt,
+          holder_name: data.recipientName || null,
           holder_contact: data.recipient,
           email_delivery_to: data.recipient,
           email_delivery_status: "sent",
@@ -700,9 +642,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
         .in("id", data.ticketIds)
         .select("id");
       if (updateError || updated?.length !== data.ticketIds.length) {
-        throw new Error(
-          "O e-mail foi enviado, mas o estado dos ingressos não pôde ser atualizado. Contacte o administrador antes de repetir o envio.",
-        );
+        throw new Error("O e-mail foi enviado, mas o estado dos ingressos não pôde ser atualizado. Contacte a organização antes de repetir o envio.");
       }
       return { status: "sent" as const, count: tickets.length, recipient: data.recipient };
     } catch (error) {
