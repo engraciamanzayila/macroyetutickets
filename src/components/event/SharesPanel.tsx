@@ -95,7 +95,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground max-w-xl">Atribua ingressos digitais a patrocinadores, media partners e parceiros. Cada entidade recebe um link próprio para gerir os ingressos e enviá-los por WhatsApp ou e-mail como ficheiros PDF — e vê quem já entrou.</p>
+        <p className="text-sm text-muted-foreground max-w-xl">Atribua ingressos digitais a patrocinadores, media partners e parceiros. Cada entidade recebe um portal próprio para gerir os ingressos, distribuir PDFs pelo WhatsApp e enviar convites por e-mail com um botão seguro de acesso — e acompanhar quem já entrou.</p>
         <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Novo link de parceiro</Button>
       </div>
 
