@@ -157,29 +157,16 @@ function PartnerPortal() {
     if (!selectedForSharing.length) return toast.error("Selecione ingressos ainda disponíveis.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim()))
       return toast.error("Indique um e-mail válido.");
-    if (selectedForSharing.length > 100)
-      return toast.error("Selecione até 100 ingressos por e-mail.");
+    if (selectedForSharing.length > 50)
+      return toast.error("Selecione até 50 ingressos por e-mail.");
     setBusy(true);
     try {
-      const items = selectedForSharing.map((ticket) => ({
-        group: fileGroup,
-        ticket: { ...ticket, group_id: fileGroup.id } as TicketRow,
-      }));
-      const pdfFiles = await createTicketFiles(items, data.event?.name ?? "Evento", "pdf");
-      const attachments = await Promise.all(pdfFiles.map(async (file) => {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        let binary = "";
-        for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-          binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-        }
-        return { name: file.name, contentBase64: btoa(binary) };
-      }));
       const result = await sendSharedTicketEmail({
         data: {
           token,
           ticketIds: selectedForSharing.map((ticket) => ticket.id),
           recipient: contact.trim(),
-          attachments,
+          recipientName: name.trim(),
         },
       });
       if (result.status !== "sent") throw new Error("O servidor não confirmou o envio do e-mail.");
