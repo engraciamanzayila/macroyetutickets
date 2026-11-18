@@ -96,7 +96,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
     try {
       for (const d of drafts) {
         const id = crypto.randomUUID();
-        const path = `credentials/${eventId}/${id}.png`;
+        const path = `${eventId}/credentials/${id}.png`;
         const { error: uploadError } = await supabase.storage.from("arts").upload(path, d.blob, { contentType: "image/png", upsert: false });
         if (uploadError) throw uploadError;
         const { data: user } = await supabase.auth.getUser();
@@ -159,8 +159,9 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
     toast.success("Grupo eliminado.");
   };
 
-  const buildOutput = async (mode: "pdf" | "images") => {
-    if (!selectedBatches.length) return toast.error("Selecione pelo menos um grupo.");
+  const buildOutput = async (mode: "pdf" | "images", batchOverride?: Batch[], quantityOverride?: Record<string, number>) => {
+    const exportBatches = batchOverride ?? selectedBatches;
+    if (!exportBatches.length) return toast.error("Selecione pelo menos um grupo.");
     setLoading(true); setProgress(0);
     try {
       const { jsPDF } = await import("jspdf");
@@ -169,8 +170,8 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
       const zip = new JSZip();
       let total = 0, done = 0, pageOpen = false;
       const items: { batch: Batch; credential: Credential }[] = [];
-      for (const batch of selectedBatches) {
-        const amount = Math.max(0, Math.floor(qty[batch.id] ?? batch.quantity));
+      for (const batch of exportBatches) {
+        const amount = Math.max(0, Math.floor(quantityOverride?.[batch.id] ?? qty[batch.id] ?? batch.quantity));
         const { data, error } = await (supabase as any).from("credentials")
           .select("id,code,seq,status").eq("batch_id", batch.id).eq("status", "valid").order("seq", { ascending: true }).limit(amount);
         if (error) throw error;
@@ -263,6 +264,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" disabled={!batches.length} onClick={() => setSelected(new Set(batches.map((b) => b.id)))}>Selecionar tudo</Button>
             <Button variant="ghost" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
+            <Button variant="secondary" disabled={!batches.length || loading} onClick={() => void buildOutput("pdf", batches, Object.fromEntries(batches.map((b) => [b.id, b.quantity])))}><Printer className="h-4 w-4" /> Imprimir tudo</Button>
             <Button disabled={!selected.size || loading} onClick={() => void buildOutput("pdf")}><Printer className="h-4 w-4" /> PDF A4 ({selected.size})</Button>
             <Button variant="secondary" disabled={!selected.size || loading} onClick={() => void buildOutput("images")}><Download className="h-4 w-4" /> Imagens ZIP</Button>
           </div>
