@@ -149,6 +149,14 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
     await refresh();
   };
 
+  const saveQrLayout = async (batch: Batch, patch: { x?: number; y?: number; size?: number }) => {
+    const next = { x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, size: batch.qr_layout?.size ?? 0.18, ...patch };
+    const { error } = await (supabase as any).from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
+    if (error) return toast.error("Não foi possível guardar a posição do QR: " + error.message);
+    setBatches((prev) => prev.map((item) => item.id === batch.id ? { ...item, qr_layout: next } : item));
+    toast.success("Posição do QR guardada.");
+  };
+
   const deleteBatch = async (batch: Batch) => {
     if (!confirm(`Eliminar o grupo "${batch.group_name}" e todos os seus QR Codes?`)) return;
     const { error } = await (supabase as any).from("credential_batches").delete().eq("id", batch.id);
@@ -276,6 +284,13 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
             <div className="min-w-[180px] flex-1"><p className="font-medium">{b.group_name} <span className="text-xs text-muted-foreground">· {b.credential_type}</span></p><p className="text-xs text-muted-foreground">{b.event_name} · {b.size_code} · {b.quantity} credenciais</p><p className="text-[11px] text-muted-foreground truncate">{b.source_filename}</p></div>
             <Input type="number" min={0} max={10000} value={qty[b.id] ?? b.quantity} onChange={(e) => setQty((q) => ({...q,[b.id]:Math.max(0,Math.min(10000,Number(e.target.value)||0))}))} className="w-24" aria-label={`Quantidade de ${b.group_name}`} />
             <Button size="sm" variant="outline" onClick={() => void changeQuantity(b)}><RefreshCw className="h-3 w-3" /> Atualizar</Button>
+            <div className="flex flex-wrap items-end gap-2 w-full pl-8">
+              <div><Label className="text-[10px]">QR X</Label><Input aria-label="Posição horizontal QR" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.x ?? 0.82} className="h-8 w-20" onBlur={(e) => void saveQrLayout(b,{x:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.82))})} /></div>
+              <div><Label className="text-[10px]">QR Y</Label><Input aria-label="Posição vertical QR" type="number" min={0.05} max={0.95} step={0.01} defaultValue={b.qr_layout?.y ?? 0.78} className="h-8 w-20" onBlur={(e) => void saveQrLayout(b,{y:Math.max(0.05,Math.min(0.95,Number(e.target.value)||0.78))})} /></div>
+              <div><Label className="text-[10px]">Tamanho QR</Label><Input aria-label="Tamanho QR" type="number" min={0.08} max={0.35} step={0.01} defaultValue={b.qr_layout?.size ?? 0.18} className="h-8 w-24" onBlur={(e) => void saveQrLayout(b,{size:Math.max(0.08,Math.min(0.35,Number(e.target.value)||0.18))})} /></div>
+              <span className="pb-2 text-[10px] text-muted-foreground">Posição proporcional à arte (0–1)</span>
+            </div>
+            
             <Button size="icon" variant="ghost" onClick={() => void deleteBatch(b)} aria-label="Eliminar grupo"><Trash2 className="h-4 w-4" /></Button>
           </div>)}
         </div>}
