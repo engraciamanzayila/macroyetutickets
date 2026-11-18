@@ -465,6 +465,69 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
     }
   });
 
+/** Sends a branded management invitation to an event partner. */
+export const sendPartnerShareEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { token: string; recipient: string }) => {
+    const token = String(input?.token ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(token)) throw new Error("Link de parceiro inválido");
+    const recipient = String(input?.recipient ?? "").trim().toLowerCase();
+    if (!EMAIL_RE.test(recipient)) throw new Error("Indique um e-mail válido para o parceiro");
+    return { token, recipient };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: share } = await supabaseAdmin
+      .from("group_shares")
+      .select("id,event_id,group_id,token,active,expires_at,partner_name,partner_kind,created_by")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!share || share.created_by !== context.userId) {
+      throw new Error("Não tem autorização para enviar este convite de parceiro");
+    }
+    if (!share.active || (share.expires_at && new Date(share.expires_at) < new Date())) {
+      throw new Error("Este link de parceiro está desativado ou expirou");
+    }
+    const [credentials, eventResult, groupResult, countResult] = await Promise.all([
+      getCredentials(),
+      context.supabase.from("events").select("id,name,event_date,event_time,venue,city").eq("id", share.event_id).single(),
+      context.supabase.from("ticket_groups").select("name,ticket_type").eq("id", share.group_id).single(),
+      supabaseAdmin.from("tickets").select("id", { count: "exact", head: true }).eq("share_id", share.id).neq("status", "void"),
+    ]);
+    if (eventResult.error || !eventResult.data) throw new Error("Evento não encontrado");
+    if (groupResult.error || !groupResult.data) throw new Error("Grupo de ingressos não encontrado");
+    const event = eventResult.data;
+    const group = groupResult.data;
+    const count = countResult.count ?? 0;
+    const baseUrl = new URL(getRequest().url).origin;
+    const portalUrl = `${baseUrl}/p/${share.token}`;
+    const access = await accessToken(credentials);
+    const eventInfo = [event.event_date, event.event_time, event.venue, event.city]
+      .filter((value): value is string => !!value)
+      .map(html)
+      .join(" · ");
+    const content = `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#202124"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb"><tr><td style="background:#111827;padding:25px 30px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;background:#d9b643;border-radius:10px;text-align:center;vertical-align:middle;color:#111827;font-size:23px;font-weight:bold">▣</td><td style="padding-left:12px;color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-.5px">MY <span style="color:#e5c65c">Tickets</span></td></tr></table><p style="margin:20px 0 0;color:#e5c65c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase">Convite de parceiro</p><h1 style="margin:8px 0 0;color:#ffffff;font-size:25px;line-height:1.25">${html(event.name)}</h1>${eventInfo ? `<p style="margin:9px 0 0;color:#d1d5db;font-size:13px;line-height:1.5">${eventInfo}</p>` : ""}</td></tr><tr><td style="padding:30px"><p style="margin:0 0 14px;font-size:16px">Olá <strong>${html(share.partner_name)}</strong>,</p><p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.7">A organização atribuiu à sua entidade ingressos para este evento. Através do seu portal MY Tickets, poderá consultar os ingressos recebidos, escolher os destinatários e fazer a distribuição.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#faf8f0;border:1px solid #eee6c9;border-radius:12px;margin:0 0 22px"><tr><td style="padding:17px 19px"><p style="margin:0 0 6px;color:#806000;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px">A sua atribuição</p><p style="margin:0;color:#222;font-size:15px;font-weight:bold">${count} ingresso(s) · ${html(group.ticket_type)}</p><p style="margin:5px 0 0;color:#666;font-size:13px">${html(group.name)} · ${html(share.partner_kind)}</p></td></tr></table><table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 22px"><tr><td align="center" bgcolor="#d9b643" style="border-radius:9px"><a href="${html(portalUrl)}" style="display:inline-block;padding:15px 27px;color:#171717;text-decoration:none;font-size:15px;font-weight:bold">Abrir o meu portal de gestão</a></td></tr></table><h2 style="margin:25px 0 10px;font-size:16px;color:#202124">O que pode fazer no portal?</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:7px 0;color:#4b5563;font-size:14px;line-height:1.5">• Consultar os ingressos atribuídos e acompanhar o estado de cada um.</td></tr><tr><td style="padding:7px 0;color:#4b5563;font-size:14px;line-height:1.5">• Selecionar ingressos e enviar os ficheiros PDF pelo WhatsApp.</td></tr><tr><td style="padding:7px 0;color:#4b5563;font-size:14px;line-height:1.5">• Enviar convites por e-mail ou criar links de download para os destinatários.</td></tr><tr><td style="padding:7px 0;color:#4b5563;font-size:14px;line-height:1.5">• Verificar quantos ingressos já foram enviados e quantos já deram entrada.</td></tr></table><p style="margin:22px 0 0;color:#6b7280;font-size:12px;line-height:1.6">Este acesso é pessoal para a gestão da sua atribuição. Não encaminhe este link a convidados; para eles, utilize as opções de distribuição disponíveis dentro do portal.</p><hr style="border:0;border-top:1px solid #ececec;margin:25px 0"><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Mensagem automática da <strong style="color:#333">MY Tickets</strong>. Se não estava à espera deste convite, contacte a organização do evento.</p></td></tr></table><p style="margin:16px 0 0;color:#9ca3af;font-size:11px">© MY Tickets</p></td></tr></table></body></html>`;
+    const response = await fetch(
+      `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages`,
+      {
+        method: "POST",
+        headers: { Authorization: `Zoho-oauthtoken ${access}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAddress: SENDER,
+          toAddress: data.recipient,
+          subject: `Convite de parceiro — ${event.name} | MY Tickets`,
+          content,
+          mailFormat: "html",
+        }),
+      },
+    );
+    const result = (await response.json().catch(() => null)) as { status?: { code?: number; description?: string } } | null;
+    if (!response.ok || (result?.status?.code && result.status.code !== 200)) {
+      throw new Error(`Não foi possível enviar o convite por e-mail${result?.status?.description ? `: ${result.status.description}` : ` (Zoho ${response.status})`}`);
+    }
+    return { status: "sent" as const, recipient: data.recipient, count };
+  });
+
 /** A share-link holder can email only unassigned-to-a-holder tickets in that active share. */
 export const sendSharedTicketEmail = createServerFn({ method: "POST" })
   .inputValidator((input: { token: string; ticketIds: string[]; recipient: string; attachments: { name: string; contentBase64: string }[] }) => {
