@@ -38,6 +38,7 @@ const VIA: Record<string, string> = {
   whatsapp: "WhatsApp",
   email: "E-mail",
   download: "Baixado",
+  link: "Link de download",
 };
 
 function PartnerPortal() {
@@ -457,7 +458,7 @@ function PartnerPortal() {
               disabled={busy || whatsAppLocked || !selectedForSharing.length}
               onClick={() => void copyLinks()}
             >
-              <Copy className="h-4 w-4" /> Copiar link (opcional)
+              <Copy className="h-4 w-4" /> Copiar link de download (opcional)
             </Button>
             <Button
               size="sm"
@@ -469,7 +470,7 @@ function PartnerPortal() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            O envio principal é por PDF. Se necessário, o parceiro também pode escolher “Copiar link” e enviar um link individual seguro.
+            O PDF é o método principal. Como alternativa, o parceiro pode copiar um link que permite apenas descarregar os ingressos em PDF — sem acesso ao portal de gestão.
           </p>
         </div>
       </div>
