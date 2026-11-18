@@ -127,6 +127,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
 
   const changeQuantity = async (batch: Batch) => {
     const target = Math.max(0, Math.min(10000, Math.floor(qty[batch.id] ?? batch.quantity)));
+    if (target === 0) return void deleteBatch(batch);
     const { data, error } = await (supabase as any).from("credentials").select("id,seq,status").eq("batch_id", batch.id).order("seq", { ascending: true });
     if (error) return toast.error(error.message);
     const rows = (data ?? []) as { id: string; seq: number; status: string }[];
@@ -272,7 +273,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" disabled={!batches.length} onClick={() => setSelected(new Set(batches.map((b) => b.id)))}>Selecionar tudo</Button>
             <Button variant="ghost" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
-            <Button variant="secondary" disabled={!batches.length || loading} onClick={() => void buildOutput("pdf", batches, Object.fromEntries(batches.map((b) => [b.id, b.quantity])))}><Printer className="h-4 w-4" /> Imprimir tudo</Button>
+            <Button variant="secondary" disabled={!batches.length || loading} onClick={() => void buildOutput("pdf", batches, qty)}><Printer className="h-4 w-4" /> Imprimir tudo</Button>
             <Button disabled={!selected.size || loading} onClick={() => void buildOutput("pdf")}><Printer className="h-4 w-4" /> PDF A4 ({selected.size})</Button>
             <Button variant="secondary" disabled={!selected.size || loading} onClick={() => void buildOutput("images")}><Download className="h-4 w-4" /> Imagens ZIP</Button>
           </div>
