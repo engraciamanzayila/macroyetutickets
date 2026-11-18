@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { canOpen, ROLE_LABEL, type Role } from "@/lib/access";
 import { useEffect } from "react";
-import { CalendarDays, LayoutGrid, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
+import { CalendarDays, Database, LayoutGrid, LogOut, Mail, Palette, Receipt, ScanLine, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,7 +70,7 @@ function AppLayout() {
       { to: "/portaria", label: "Portaria", icon: ScanLine },
       { to: "/equipa", label: "Equipa", icon: Users },
       { to: "/identidade", label: "Identidade", icon: Palette },
-      ...(isPrimaryAdmin ? [{ to: "/zoho", label: "E-mail Zoho", icon: Mail }] : []),
+      ...(isPrimaryAdmin ? [{ to: "/zoho", label: "E-mail Zoho", icon: Mail }, { to: "/bases-dados", label: "Bases de dados", icon: Database }] : []),
     ] as const
   ).filter((item) => canOpen(item.to, roles));
   const allowed = canOpen(pathname, roles);
