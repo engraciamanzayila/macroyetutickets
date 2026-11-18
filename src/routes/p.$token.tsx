@@ -208,7 +208,7 @@ function PartnerPortal() {
       await qc.invalidateQueries({ queryKey: ["share", token] });
       setSel(new Set());
       toast.success(
-        `${files.length} ficheiro(s) ${format.toUpperCase()} descarregado(s) individualmente.`,
+        `${files.length} PDF(s) descarregado(s) individualmente.`,
       );
     } catch (downloadError) {
       toast.error((downloadError as Error).message);
