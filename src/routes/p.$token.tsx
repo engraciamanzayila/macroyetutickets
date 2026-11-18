@@ -55,7 +55,7 @@ function PartnerPortal() {
   const [q, setQ] = useState("");
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
-  const [pickedEmail, setPickedEmail] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [whatsAppLocked, setWhatsAppLocked] = useState(false);
 
@@ -64,8 +64,8 @@ function PartnerPortal() {
       const picked = await pickDeviceContact();
       if (!picked) return;
       setName(picked.name || name);
-      setContact(picked.phone || picked.email || contact);
-      setPickedEmail(picked.email || "");
+      setContact(picked.phone || contact);
+      setRecipientEmail(picked.email || recipientEmail);
       toast.success("Contacto preenchido a partir do dispositivo.");
     } catch (error) {
       toast.error((error as Error).message);
@@ -170,7 +170,7 @@ function PartnerPortal() {
 
   const sendEmail = async () => {
     if (!selectedForSharing.length) return toast.error("Selecione ingressos ainda disponíveis.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim()))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim()))
       return toast.error("Indique um e-mail válido.");
     if (selectedForSharing.length > 50)
       return toast.error("Selecione até 50 ingressos por e-mail.");
@@ -180,7 +180,7 @@ function PartnerPortal() {
         data: {
           token,
           ticketIds: selectedForSharing.map((ticket) => ticket.id),
-          recipient: emailRecipient,
+          recipient: recipientEmail.trim(),
           recipientName: name.trim(),
         },
       });
@@ -463,11 +463,18 @@ function PartnerPortal() {
             />
             <Input
               value={contact}
-              onChange={(event) => { setContact(event.target.value); setPickedEmail(""); }}
-              placeholder="Telefone WhatsApp ou e-mail"
+              onChange={(event) => setContact(event.target.value)}
+              placeholder="Telefone WhatsApp"
               disabled={whatsAppLocked || busy}
             />
           </div>
+          <Input
+            type="email"
+            value={recipientEmail}
+            onChange={(event) => setRecipientEmail(event.target.value)}
+            placeholder="E-mail do destinatário"
+            disabled={whatsAppLocked || busy}
+          />
           <Button
             type="button"
             size="sm"
