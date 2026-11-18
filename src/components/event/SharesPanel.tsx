@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { ContactRound, Copy, ExternalLink, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureTickets, type Group } from "@/lib/generate";
 import { createTicketFiles, downloadTicketFiles } from "@/lib/ticket-files";
 import { canShareFiles, shareFilesThroughDevice } from "@/lib/whatsapp-share";
 import { holderLink } from "@/lib/share-render";
 import { sendPartnerShareEmail } from "@/lib/order-email.functions";
+import { pickDeviceContact } from "@/lib/contact-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,21 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   };
   const link = (token: string) => `${window.location.origin}/p/${token}`;
   const refresh = () => { qc.invalidateQueries({ queryKey: ["shares", eventId] }); qc.invalidateQueries({ queryKey: ["share-tix", eventId] }); };
+
+  const pickPartnerContact = async () => {
+    try {
+      const picked = await pickDeviceContact();
+      if (!picked) return;
+      setF((current) => ({
+        ...current,
+        partner_name: picked.name || current.partner_name,
+        contact: picked.phone || picked.email || current.contact,
+      }));
+      toast.success("Contacto preenchido a partir do dispositivo.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
 
   const create = async () => {
     const g = groups.find((x) => x.id === f.group_id);
@@ -211,7 +227,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
               </label>
               <Button size="icon" variant="ghost" title="Copiar link" onClick={() => navigator.clipboard.writeText(link(s.token)).then(() => toast.success("Link copiado"))}><Copy className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Abrir portal" asChild><a href={link(s.token)} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-              {wa && <Button size="icon" variant="ghost" title="Escolher envio por WhatsApp" onClick={() => setWhatsAppShare(s)}><MessageCircle className="h-4 w-4" /></Button>}
+              <Button size="icon" variant="ghost" title="Escolher envio por WhatsApp" onClick={() => setWhatsAppShare(s)}><MessageCircle className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Enviar convite MY Tickets por e-mail" onClick={() => void sendPartnerEmail(s)}><Mail className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Apagar" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
@@ -235,7 +251,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input type="number" min={1} max={f.group_id ? freeIn(f.group_id) : undefined} placeholder="Quantidade" value={f.qty || ""} onChange={(e) => setF({ ...f, qty: parseInt(e.target.value) || 0 })} />
-              <Input placeholder="WhatsApp / e-mail da entidade" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} />
+              <div className="flex gap-2"><Input className="min-w-0" placeholder="WhatsApp / e-mail da entidade" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} /><Button type="button" size="icon" variant="outline" title="Escolher contacto do dispositivo" onClick={() => void pickPartnerContact()}><ContactRound className="h-4 w-4" /></Button></div>
             </div>
             <label className="block text-xs text-muted-foreground">Expira em (opcional)<Input type="date" value={f.expires_at} onChange={(e) => setF({ ...f, expires_at: e.target.value })} /></label>
             <Input placeholder="Nota para a entidade (opcional)" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
