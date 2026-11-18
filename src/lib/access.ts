@@ -18,6 +18,7 @@ export const AREA_ROLES: Record<string, Role[]> = {
   equipa: ["admin"],
   identidade: ["admin"],
   zoho: ["admin"],
+  "bases-dados": ["admin"],
 };
 
 export function canOpen(pathname: string, roles: Role[]): boolean {
