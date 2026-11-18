@@ -510,7 +510,7 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
 
     const { data: tickets, error: ticketError } = await supabaseAdmin
       .from("tickets")
-      .select("id,code,share_token,group_id,holder_name")
+      .select("id,code,group_id,holder_name")
       .eq("share_id", share.id)
       .eq("event_id", share.event_id)
       .eq("status", "valid")
