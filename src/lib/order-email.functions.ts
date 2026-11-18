@@ -329,7 +329,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
 
       const { data: tickets, error: ticketsError } = await sb
         .from("tickets")
-        .select("id,code,group_id,holder_name")
+        .select("id,code,share_token,group_id,holder_name")
         .eq("event_id", data.eventId)
         .in("id", data.ticketIds)
         .order("seq");
