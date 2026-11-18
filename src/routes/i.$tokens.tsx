@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Download } from "lucide-react";
 import { getHolderTickets } from "@/lib/shares.functions";
-import { downloadPdf, ticketImage, type RenderGroup } from "@/lib/share-render";
+import { downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 
@@ -11,53 +11,80 @@ export const Route = createFileRoute("/i/$tokens")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "O seu ingresso — MY Tickets" },
-      { name: "description", content: "Ingresso digital com QR code. Apresente-o à entrada do evento." },
-      { property: "og:title", content: "O seu ingresso — MY Tickets" },
-      { property: "og:description", content: "Ingresso digital com QR code. Apresente-o à entrada do evento." },
+      { title: "Descarregar ingressos — MY Tickets" },
+      { name: "description", content: "Descarregue os seus ingressos em PDF." },
+      { property: "og:title", content: "Descarregar ingressos — MY Tickets" },
+      { property: "og:description", content: "Descarregue os seus ingressos em PDF." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
   component: HolderPage,
 });
 
-function TicketImg({ g, code, holderName }: { g: RenderGroup; code: string; holderName?: string | null }) {
-  const [src, setSrc] = useState("");
-  useEffect(() => { ticketImage(g, code, holderName).then((c) => setSrc(c.toDataURL("image/jpeg", 0.9))); }, [g, code, holderName]);
-  return src ? <img src={src} alt={`Ingresso ${code}`} className="w-full rounded-xl border" /> : <div className="aspect-[3/1] rounded-xl border animate-pulse bg-muted" />;
-}
-
 function HolderPage() {
   const { tokens } = Route.useParams();
   const list = tokens.split(",");
-  const { data, error, isLoading } = useQuery({ queryKey: ["holder", tokens], queryFn: () => getHolderTickets({ data: { tokens: list } }), retry: false });
+  const { data, error, isLoading } = useQuery({
+    queryKey: ["holder", tokens],
+    queryFn: () => getHolderTickets({ data: { tokens: list } }),
+    retry: false,
+  });
   const [busy, setBusy] = useState(false);
-  if (isLoading) return <div className="min-h-screen grid place-items-center text-muted-foreground">A carregar…</div>;
-  if (error || !data) return <div className="min-h-screen grid place-items-center px-4 text-center"><div className="space-y-3"><Logo /><p>{(error as Error)?.message ?? "Link inválido"}</p></div></div>;
-  const gOf = (id: string) => data.groups.find((g) => g.id === id) as unknown as RenderGroup;
+
+  if (isLoading) {
+    return <div className="min-h-screen grid place-items-center text-muted-foreground">A preparar os seus PDFs…</div>;
+  }
+  if (error || !data) {
+    return (
+      <div className="min-h-screen grid place-items-center px-4 text-center">
+        <div className="space-y-3"><Logo /><p>{(error as Error)?.message ?? "Link de download inválido ou expirado."}</p></div>
+      </div>
+    );
+  }
+
+  const gOf = (id: string) => data.groups.find((group) => group.id === id) as unknown as RenderGroup;
+  const download = async () => {
+    setBusy(true);
+    try {
+      await downloadPdf(
+        data.tickets.map((ticket) => ({
+          g: gOf(ticket.group_id),
+          code: ticket.code,
+          holderName: ticket.holder_name,
+        })),
+        `${data.event?.name ?? "MY_Tickets"}_ingressos`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
-      <header className="border-b"><div className="mx-auto max-w-3xl px-4 h-16 flex items-center"><Logo /></div></header>
-      <main className="mx-auto max-w-3xl px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{data.event?.name}</h1>
-          <p className="text-sm text-muted-foreground">{[data.event?.event_date, data.event?.event_time, data.event?.venue, data.event?.city].filter(Boolean).join(" · ")}</p>
+      <header className="border-b">
+        <div className="mx-auto max-w-xl px-4 h-16 flex items-center"><Logo /></div>
+      </header>
+      <main className="mx-auto max-w-xl px-4 py-12">
+        <div className="rounded-2xl border bg-card p-6 sm:p-8 space-y-5 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-muted">
+            <Download className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold">Os seus ingressos estão prontos</h1>
+            <p className="text-muted-foreground">{data.event?.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {data.tickets.length} PDF(s) disponível(is) para descarregar.
+            </p>
+          </div>
+          <Button className="w-full" size="lg" disabled={busy} onClick={() => void download()}>
+            <Download className="h-4 w-4" />
+            {busy ? "A preparar os PDFs…" : "Descarregar ingressos em PDF"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Este é apenas um link de download. Não dá acesso ao portal de gestão do parceiro.
+          </p>
         </div>
-        <Button disabled={busy} onClick={async () => { setBusy(true); try { await downloadPdf(data.tickets.map((t) => ({ g: gOf(t.group_id), code: t.code, holderName: t.holder_name })), `${data.event?.name}_ingressos`); } finally { setBusy(false); } }}>
-          <Download className="h-4 w-4" /> {busy ? "A preparar…" : `Baixar ${data.tickets.length > 1 ? `os ${data.tickets.length} ingressos` : "ingresso"} (PDF)`}
-        </Button>
-        <div className="space-y-4">
-          {data.tickets.map((t) => (
-            <div key={t.code} className="space-y-1">
-              <TicketImg g={gOf(t.group_id)} code={t.code} holderName={t.holder_name} />
-              <p className="text-xs text-muted-foreground">{t.status === "used" ? "Já utilizado" : "Válido"} · {t.code}{t.holder_name ? ` · ${t.holder_name}` : ""}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">Ingresso pessoal e intransmissível. Cada QR code só permite uma entrada.</p>
       </main>
     </div>
   );
