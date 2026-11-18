@@ -20,7 +20,8 @@ const KINDS = ["Patrocinador", "Media partner", "Parceiro", "Oferta", "Artista",
 export function SharesPanel({ eventId, groups }: { eventId: string; groups: Group[] }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ group_id: "", partner_name: "", partner_kind: "Patrocinador", contact: "", note: "", qty: 0, expires_at: "" });
+  const [f, setF] = useState({ group_id: "", partner_name: "", partner_kind: "Patrocinador", contact: "", email: "", note: "", qty: 0, expires_at: "" });
+  const [shareEmails, setShareEmails] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [whatsAppShare, setWhatsAppShare] = useState<{ id: string; token: string; group_id: string; partner_name: string; contact: string | null } | null>(null);
   const [whatsAppBusy, setWhatsAppBusy] = useState(false);
@@ -57,7 +58,8 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
       setF((current) => ({
         ...current,
         partner_name: picked.name || current.partner_name,
-        contact: picked.phone || picked.email || current.contact,
+        contact: picked.phone || current.contact,
+        email: picked.email || current.email,
       }));
       toast.success("Contacto preenchido a partir do dispositivo.");
     } catch (error) {
@@ -84,8 +86,9 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
         const { error: e2 } = await supabase.from("tickets").update({ share_id: s.id }).in("id", pick.slice(i, i + 300).map((t) => t.id));
         if (e2) throw e2;
       }
+      if (f.email.trim()) setShareEmails((current) => ({ ...current, [s.id]: f.email.trim() }));
       toast.success(`Portal criado com ${pick.length} ingressos. Escolha como enviar o convite.`);
-      setOpen(false); setF({ ...f, partner_name: "", contact: "", note: "", qty: 0 });
+      setOpen(false); setF({ ...f, partner_name: "", contact: "", email: "", note: "", qty: 0 });
       refresh();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
@@ -251,7 +254,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input type="number" min={1} max={f.group_id ? freeIn(f.group_id) : undefined} placeholder="Quantidade" value={f.qty || ""} onChange={(e) => setF({ ...f, qty: parseInt(e.target.value) || 0 })} />
-              <div className="flex gap-2"><Input className="min-w-0" placeholder="WhatsApp / e-mail da entidade" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} /><Button type="button" size="icon" variant="outline" title="Escolher contacto do dispositivo" onClick={() => void pickPartnerContact()}><ContactRound className="h-4 w-4" /></Button></div>
+              <div className="space-y-2"><div className="flex gap-2"><Input className="min-w-0" placeholder="Telefone / WhatsApp" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} /><Button type="button" size="icon" variant="outline" title="Escolher contacto do dispositivo" onClick={() => void pickPartnerContact()}><ContactRound className="h-4 w-4" /></Button></div><Input type="email" placeholder="E-mail do parceiro (opcional)" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
             </div>
             <label className="block text-xs text-muted-foreground">Expira em (opcional)<Input type="date" value={f.expires_at} onChange={(e) => setF({ ...f, expires_at: e.target.value })} /></label>
             <Input placeholder="Nota para a entidade (opcional)" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
