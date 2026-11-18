@@ -454,12 +454,10 @@ function EventPage() {
                         <span className="text-xs text-muted-foreground">Qtd</span>
                         <Input
                           type="number"
-                          disabled={made > 0 && !isAdmin}
+                          disabled={made > 0}
                           title={
                             made > 0
-                              ? isAdmin
-                                ? "Admin: aumente para gerar ingressos extra"
-                                : "Só a administração pode gerar extra"
+                              ? "Quantidade bloqueada depois da geração. Use “Gerar novos ingressos” para acrescentar."
                               : undefined
                           }
                           min={made || 1}
@@ -467,7 +465,7 @@ function EventPage() {
                           className="h-8 w-24"
                           onBlur={(e) => {
                             const q = parseInt(e.target.value);
-                            if (q && q !== g.quantity)
+                            if (made === 0 && q && q !== g.quantity)
                               updateGroup(g.id, { quantity: Math.max(q, made) });
                           }}
                         />
