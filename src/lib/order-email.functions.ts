@@ -572,12 +572,37 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       throw new Error("Um ou mais ingressos já foram distribuídos ou não pertencem a este link");
     }
 
-    const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
-      "claim_ticket_email_delivery",
-      { p_event: share.event_id, p_ticket_ids: data.ticketIds },
-    );
+    // Claim only tickets belonging to this partner share. The general event-email RPC
+    // intentionally accepts share_id IS NULL, so it must not be used for partner tickets.
+    const staleSendingBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: claimedTickets, error: claimError } = await supabaseAdmin
+      .from("tickets")
+      .update({
+        email_delivery_status: "sending",
+        email_delivery_error: null,
+        email_delivery_updated_at: new Date().toISOString(),
+      })
+      .eq("share_id", share.id)
+      .eq("event_id", share.event_id)
+      .in("id", data.ticketIds)
+      .eq("status", "valid")
+      .is("printed_at", null)
+      .is("sent_at", null)
+      .or(`email_delivery_status.in.(pending,failed),and(email_delivery_status.eq.sending,email_delivery_updated_at.lt.${staleSendingBefore})`)
+      .select("id");
     if (claimError) throw new Error(claimError.message);
-    if (!claimed) throw new Error("Um ou mais ingressos já estão a ser enviados ou foram distribuídos");
+    if (!claimedTickets || claimedTickets.length !== data.ticketIds.length) {
+      const claimedIds = (claimedTickets ?? []).map((ticket) => ticket.id);
+      if (claimedIds.length) {
+        await supabaseAdmin
+          .from("tickets")
+          .update({ email_delivery_status: "pending", email_delivery_error: null })
+          .eq("share_id", share.id)
+          .in("id", claimedIds)
+          .eq("email_delivery_status", "sending");
+      }
+      throw new Error("Um ou mais ingressos já estão a ser enviados ou foram distribuídos");
+    }
 
     const failTickets = async (message: string) => {
       await supabaseAdmin.from("tickets").update({
