@@ -61,9 +61,10 @@ BEGIN
     RAISE EXCEPTION 'forbidden';
   END IF;
 
+  -- Credential scans are read-only: unlike tickets, a credential can be
+  -- checked repeatedly because its holder may enter and leave many times.
   SELECT * INTO item FROM public.credentials
-  WHERE event_id = p_event AND upper(code) = upper(trim(p_code))
-  FOR UPDATE;
+  WHERE event_id = p_event AND upper(code) = upper(trim(p_code));
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('result','not_found','code',upper(trim(p_code)));
@@ -74,12 +75,8 @@ BEGIN
   IF item.status = 'void' THEN
     RETURN jsonb_build_object('result','void','code',item.code,'group',batch.group_name,'type',batch.credential_type);
   END IF;
-  IF item.status = 'used' THEN
-    RETURN jsonb_build_object('result','used','code',item.code,'group',batch.group_name,'type',batch.credential_type,'used_at',item.used_at);
-  END IF;
 
-  UPDATE public.credentials SET status='used', used_at=now(), used_by=auth.uid() WHERE id=item.id;
-  RETURN jsonb_build_object('result','ok','code',item.code,'group',batch.group_name,'type',batch.credential_type,'used_at',now());
+  RETURN jsonb_build_object('result','ok','code',item.code,'group',batch.group_name,'type',batch.credential_type);
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.check_in_credential(uuid,text) TO authenticated;
