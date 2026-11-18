@@ -37,7 +37,7 @@ export const getShare = createServerFn({ method: "POST" })
       sb
         .from("tickets")
         .select(
-          "id,code,seq,status,used_at,group_id,share_token,holder_name,holder_contact,sent_via,sent_at,printed_at,email_delivery_status",
+          "id,code,seq,status,used_at,group_id,holder_name,holder_contact,sent_via,sent_at,printed_at,email_delivery_status",
         )
         .eq("share_id", s.id)
         .is("printed_at", null)
