@@ -206,18 +206,8 @@ function PartnerPortal() {
       await navigator.clipboard.writeText(
         `Olá! Seguem ${selectedForSharing.length} ingresso(s) de ${data.event?.name ?? "este evento"}:\n${link}`,
       );
-      await markSent({
-        data: {
-          token,
-          ids: selectedForSharing.map((ticket) => ticket.id),
-          via: "link",
-          name,
-          contact,
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["share", token] });
       setSel(new Set());
-      toast.success("Link copiado. Pode enviá-lo ao destinatário.");
+      toast.success("Link copiado. Envie-o ao destinatário; a cópia, por si só, não regista a entrega.");
     } catch (copyError) {
       toast.error((copyError as Error).message);
     } finally {
@@ -271,11 +261,9 @@ function PartnerPortal() {
       }));
       const files = await createTicketFiles(items, data.event?.name ?? "Evento", "pdf");
       await downloadTicketFiles(files);
-      await markSent({ data: { token, ids: selectedForSharing.map((ticket) => ticket.id), via: "download", name, contact } });
-      await qc.invalidateQueries({ queryKey: ["share", token] });
       setSel(new Set());
       toast.success(
-        `${files.length} PDF(s) descarregado(s) individualmente.`,
+        `${files.length} PDF(s) descarregado(s). Envie-os ao destinatário pelo canal pretendido; a descarga não regista a entrega.`,
       );
     } catch (downloadError) {
       toast.error((downloadError as Error).message);
