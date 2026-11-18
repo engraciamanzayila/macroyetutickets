@@ -207,7 +207,7 @@ function Gate() {
   const tone = result
     ? result.result === "ok" ? "bg-success text-success-foreground" : result.result === "used" ? "bg-warning text-warning-foreground" : "bg-destructive text-destructive-foreground"
     : "bg-card";
-  const title = result ? (scanMode === "credential" ? { ok: "CREDENCIAL VALIDADA", used: "CREDENCIAL JÁ UTILIZADA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO ENCONTRADA" } : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" })[result.result] : "Pronto para ler";
+  const title = result ? (scanMode === "credential" ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA" } : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" })[result.result] : "Pronto para ler";
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
@@ -231,7 +231,7 @@ function Gate() {
         </Button>
       </div>
       {cache && scanMode === "ticket" && <p className="text-xs text-muted-foreground -mt-3">Lista offline: {Object.keys(cache.tickets).length} ingressos · {new Date(cache.savedAt).toLocaleString("pt-PT")}</p>}
-      {scanMode === "credential" && <p className="text-xs text-muted-foreground -mt-3">Modo de credenciamento: valida e regista a entrada de funcionários, músicos, feirantes, produção e restantes grupos.</p>}
+      {scanMode === "credential" && <p className="text-xs text-muted-foreground -mt-3">Modo de credenciamento: confirma apenas se a credencial foi emitida pela organização. A mesma credencial pode ser validada várias vezes, sem registar entradas ou saídas.</p>}
 
       {showResult && result && (
         <div role="dialog" aria-modal="true" aria-live="assertive" aria-label={title} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-5 backdrop-blur-sm">
@@ -240,7 +240,7 @@ function Gate() {
             <h2 className="text-3xl font-extrabold">{title}</h2>
             <p className="mt-4 font-mono text-xl font-bold">{result.code}</p>
             {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}
-            {result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
+            {scanMode === "ticket" && result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
             {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
             <Button className="mt-8 h-14 w-full text-lg" variant="secondary" onClick={() => { resultOpen.current = false; setShowResult(false); }}>Continuar leitura</Button>
           </div>
@@ -255,7 +255,7 @@ function Gate() {
               <div className="mt-2 space-y-0.5">
                 <p className="font-mono text-lg font-bold">{result.code}</p>
                 {result.group && <p>{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}
-                {result.used_at && <p className="text-sm opacity-80">Entrou às {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
+                {scanMode === "ticket" && result.used_at && <p className="text-sm opacity-80">Entrou às {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
                 {result.offline && <p className="text-xs opacity-75">(validado sem internet)</p>}
               </div>
             )}
@@ -274,7 +274,7 @@ function Gate() {
             <Input value={manual} onChange={(e) => setManual(formatReference(e.target.value))} placeholder="Inserir código manualmente (ex: VIP-AB12-CD34)" className="h-12 font-mono uppercase" />
             <Button type="submit" className="h-12">Validar</Button>
           </form>
-          <p className="text-sm text-muted-foreground text-center">Entradas neste aparelho: <b className="text-foreground">{count}</b></p>
+          <p className="text-sm text-muted-foreground text-center">{scanMode === "credential" ? "Validações neste aparelho: " : "Entradas neste aparelho: "}<b className="text-foreground">{count}</b></p>
         </>
       )}
     </div>
