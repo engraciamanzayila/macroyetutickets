@@ -26,6 +26,7 @@ type Props = {
   format?: TicketFileFormat;
   onFormatChange?: (format: TicketFileFormat) => void;
   prepareLabel?: string;
+  formats?: TicketFileFormat[];
 };
 
 type Working = "prepare" | "native" | "fallback" | "confirm" | null;
@@ -39,6 +40,7 @@ export function WhatsAppShareFlow({
   format,
   onFormatChange,
   prepareLabel = "Preparar ficheiros para WhatsApp",
+  formats,
 }: Props) {
   const [localFormat, setLocalFormat] = useState<TicketFileFormat>("pdf");
   const currentFormat = format ?? localFormat;
@@ -139,7 +141,7 @@ export function WhatsAppShareFlow({
             className="h-9 rounded-md border border-input bg-background px-3"
             aria-label="Formato do ficheiro para WhatsApp"
           >
-            {FORMATS.map((item) => (
+            {FORMATS.filter((item) => !formats || formats.includes(item.value)).map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
