@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Download, Mail, Search } from "lucide-react";
+import { Copy, Download, Mail, MessageCircle, Search } from "lucide-react";
 import { getShare, markSent } from "@/lib/shares.functions";
 import { sendSharedTicketEmail } from "@/lib/order-email.functions";
 import { holderLink } from "@/lib/share-render";
@@ -205,6 +205,40 @@ function PartnerPortal() {
       toast.success("Link copiado. Pode enviá-lo ao destinatário.");
     } catch (copyError) {
       toast.error((copyError as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendDownloadLinkWhatsApp = async () => {
+    if (!selectedForSharing.length) return toast.error("Selecione ingressos ainda disponíveis.");
+    if (selectedForSharing.length > 50) return toast.error("Selecione até 50 ingressos por mensagem.");
+    const digits = contact.includes("@") ? "" : contact.replace(/\D/g, "");
+    if (digits && digits.length < 9) return toast.error("Indique um número de WhatsApp válido.");
+    const phone = digits ? (digits.length === 9 ? `244${digits}` : digits) : "";
+    const link = holderLink(selectedForSharing.map((ticket) => ticket.share_token));
+    const message = `Olá${name.trim() ? ` ${name.trim()}` : ""}! Aqui estão ${selectedForSharing.length} ingresso(s) para ${data.event?.name ?? "este evento"}. Abre o link para descarregar os teus PDFs. Este acesso permite apenas descarregar os ingressos: ${link}`;
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) return toast.error("Permita pop-ups para abrir o WhatsApp.");
+    tab.opener = null;
+    tab.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    if (!window.confirm("Confirma que enviou a mensagem pelo WhatsApp?")) return;
+    setBusy(true);
+    try {
+      await markSent({
+        data: {
+          token,
+          ids: selectedForSharing.map((ticket) => ticket.id),
+          via: "link",
+          name,
+          contact,
+        },
+      });
+      await qc.invalidateQueries({ queryKey: ["share", token] });
+      setSel(new Set());
+      toast.success("Envio do link registado.");
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setBusy(false);
     }
@@ -438,6 +472,14 @@ function PartnerPortal() {
               onClick={() => void sendEmail()}
             >
               <Mail className="h-4 w-4" /> E-mail
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || whatsAppLocked || !selectedForSharing.length}
+              onClick={() => void sendDownloadLinkWhatsApp()}
+            >
+              <MessageCircle className="h-4 w-4" /> WhatsApp: link de download
             </Button>
             <Button
               size="sm"
