@@ -57,7 +57,7 @@ AS $$
 DECLARE item public.credentials%ROWTYPE;
 DECLARE batch public.credential_batches%ROWTYPE;
 BEGIN
-  IF NOT (public.can_view_event(auth.uid(), p_event) OR public.has_role(auth.uid(), 'staff')) THEN
+  IF NOT public.can_view_event(auth.uid(), p_event) THEN
     RAISE EXCEPTION 'forbidden';
   END IF;
 
