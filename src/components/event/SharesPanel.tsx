@@ -4,6 +4,9 @@ import { toast } from "sonner";
 import { Copy, ExternalLink, Mail, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureTickets, type Group } from "@/lib/generate";
+import { createTicketFiles, downloadTicketFiles } from "@/lib/ticket-files";
+import { canShareFiles, shareFilesThroughDevice } from "@/lib/whatsapp-share";
+import { holderLink } from "@/lib/share-render";
 import { sendPartnerShareEmail } from "@/lib/order-email.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +21,8 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ group_id: "", partner_name: "", partner_kind: "Patrocinador", contact: "", note: "", qty: 0, expires_at: "" });
   const [busy, setBusy] = useState(false);
+  const [whatsAppShare, setWhatsAppShare] = useState<(typeof shares)[number] | null>(null);
+  const [whatsAppBusy, setWhatsAppBusy] = useState(false);
 
   const { data: shares = [] } = useQuery({
     queryKey: ["shares", eventId],
@@ -84,6 +89,95 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
     }
   };
 
+  const whatsappNumber = (share: (typeof shares)[number]) => {
+    const suggested = share.contact && !share.contact.includes("@") ? share.contact : "";
+    const raw = window.prompt(`Número de WhatsApp de ${share.partner_name}:`, suggested)?.trim();
+    if (!raw) return null;
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 9) {
+      toast.error("Indique um número de WhatsApp válido.");
+      return null;
+    }
+    return digits.length === 9 ? `244${digits}` : digits;
+  };
+
+  const openWhatsAppText = (phone: string, message: string) => {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) throw new Error("Permita pop-ups para abrir o WhatsApp.");
+    tab.opener = null;
+    tab.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const sendPartnerWhatsAppLink = async (share: (typeof shares)[number], kind: "download" | "management") => {
+    const phone = whatsappNumber(share);
+    if (!phone) return;
+    const group = groups.find((item) => item.id === share.group_id);
+    if (!group) return toast.error("Grupo de ingressos não encontrado.");
+    try {
+      let destination = link(share.token);
+      let message = `Olá ${share.partner_name}! A organização do evento ${group.name} partilhou contigo o portal MY Tickets para gerir os ingressos: ${destination}`;
+      if (kind === "download") {
+        const { data, error } = await supabase
+          .from("tickets")
+          .select("share_token")
+          .eq("share_id", share.id)
+          .neq("status", "void")
+          .is("printed_at", null)
+          .order("seq")
+          .limit(50);
+        if (error) throw error;
+        const tokens = (data ?? []).map((ticket) => ticket.share_token).filter(Boolean);
+        if (!tokens.length) throw new Error("Não há ingressos disponíveis para criar o link de download.");
+        if (tokens.length > 50) throw new Error("O link de download suporta até 50 ingressos por envio.");
+        destination = holderLink(tokens);
+        message = `Olá ${share.partner_name}! Aqui está o link para descarregar os ${tokens.length} ingresso(s) atribuídos para ${group.name}. Este link permite apenas descarregar os PDFs: ${destination}`;
+      }
+      openWhatsAppText(phone, message);
+      setWhatsAppShare(null);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  const sendPartnerWhatsAppFiles = async (share: (typeof shares)[number]) => {
+    const group = groups.find((item) => item.id === share.group_id);
+    if (!group) return toast.error("Grupo de ingressos não encontrado.");
+    setWhatsAppBusy(true);
+    const fallbackTab = window.open("about:blank", "_blank");
+    try {
+      const all = await ensureTickets(group);
+      const assigned = all.filter(
+        (ticket) => ticket.share_id === share.id && ticket.status === "valid" && !ticket.printed_at && !ticket.sent_at,
+      );
+      if (!assigned.length) throw new Error("Não há ingressos ainda não distribuídos para enviar em PDF.");
+      const items = assigned.map((ticket) => ({ group, ticket }));
+      const files = await createTicketFiles(items, group.name, "pdf");
+      const message = `Olá ${share.partner_name}! Seguem os ${files.length} ingresso(s) em PDF atribuídos para ${group.name} através da MY Tickets.`;
+      if (canShareFiles(files)) {
+        if (fallbackTab) fallbackTab.close();
+        await shareFilesThroughDevice({ files, ticketIds: assigned.map((ticket) => ticket.id), message, contact: null }, `Ingressos — ${group.name}`);
+        toast.success("Ficheiros preparados. Escolha WhatsApp no menu de partilha.");
+      } else {
+        if (!fallbackTab) throw new Error("Permita pop-ups para descarregar os PDFs e abrir o WhatsApp.");
+        await downloadTicketFiles(files);
+        const suggested = share.contact && !share.contact.includes("@") ? share.contact : "";
+        const raw = window.prompt(`Número de WhatsApp de ${share.partner_name} (ou deixe vazio para escolher no WhatsApp):`, suggested)?.trim() ?? "";
+        const digits = raw.replace(/\D/g, "");
+        if (digits && digits.length < 9) throw new Error("Indique um número de WhatsApp válido.");
+        const phone = digits ? (digits.length === 9 ? `244${digits}` : digits) : "";
+        fallbackTab.opener = null;
+        fallbackTab.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+        toast.info("Os PDFs foram descarregados. Anexe-os à conversa do WhatsApp antes de enviar.");
+      }
+      setWhatsAppShare(null);
+    } catch (error) {
+      fallbackTab?.close();
+      toast.error((error as Error).message);
+    } finally {
+      setWhatsAppBusy(false);
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Apagar este link? Os ingressos voltam a ficar livres (os já enviados continuam válidos).")) return;
     await supabase.from("tickets").update({ share_id: null }).eq("share_id", id).is("sent_at", null);
@@ -105,7 +199,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
           const mine = tix.filter((t) => t.share_id === s.id && !t.printed_at);
           const sent = mine.filter((t) => t.sent_at).length, used = mine.filter((t) => t.status === "used").length;
           const g = groups.find((x) => x.id === s.group_id);
-          const wa = s.contact ? `https://wa.me/${s.contact.replace(/\D/g, "").replace(/^(\d{9})$/, "244$1")}?text=${encodeURIComponent(`Olá ${s.partner_name}! Aqui está o seu portal para gerir e enviar os ${mine.length} ingressos de ${g?.name}: ${link(s.token)}`)}` : "";
+
           return (
             <div key={s.id} className="p-4 flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[220px]">
@@ -117,7 +211,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
               </label>
               <Button size="icon" variant="ghost" title="Copiar link" onClick={() => navigator.clipboard.writeText(link(s.token)).then(() => toast.success("Link copiado"))}><Copy className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Abrir portal" asChild><a href={link(s.token)} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-              {wa && <Button size="icon" variant="ghost" title="Enviar link por WhatsApp" asChild><a href={wa} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a></Button>}
+              {wa && <Button size="icon" variant="ghost" title="Escolher envio por WhatsApp" onClick={() => setWhatsAppShare(s)}><MessageCircle className="h-4 w-4" /></Button>}
               <Button size="icon" variant="ghost" title="Enviar convite MY Tickets por e-mail" onClick={() => void sendPartnerEmail(s)}><Mail className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" title="Apagar" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
@@ -147,6 +241,26 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
             <Input placeholder="Nota para a entidade (opcional)" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
             <p className="text-xs text-muted-foreground">Só entram ingressos digitais livres (não impressos, não anulados e não atribuídos a outro parceiro).</p>
             <Button className="w-full" disabled={busy} onClick={create}>{busy ? "A criar…" : "Criar link"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!whatsAppShare} onOpenChange={(value) => !whatsAppBusy && !value && setWhatsAppShare(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Enviar convite por WhatsApp</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {whatsAppShare ? `Escolha como pretende entregar os ingressos de ${whatsAppShare.partner_name}.` : ""}
+          </p>
+          <div className="grid gap-2">
+            <Button disabled={whatsAppBusy} onClick={() => whatsAppShare && void sendPartnerWhatsAppFiles(whatsAppShare)}>
+              {whatsAppBusy ? "A preparar PDFs…" : "Enviar ficheiros PDF"}
+            </Button>
+            <Button variant="secondary" disabled={whatsAppBusy || !whatsAppShare} onClick={() => whatsAppShare && void sendPartnerWhatsAppLink(whatsAppShare, "download")}>
+              Enviar link de download
+            </Button>
+            <Button variant="secondary" disabled={whatsAppBusy || !whatsAppShare} onClick={() => whatsAppShare && void sendPartnerWhatsAppLink(whatsAppShare, "management")}>
+              Enviar link de gestão
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
