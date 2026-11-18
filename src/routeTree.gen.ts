@@ -21,6 +21,7 @@ import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
 import { Route as AppVisaoGeralRouteImport } from './routes/_app.visao-geral'
 import { Route as AppZohoRouteImport } from './routes/_app.zoho'
+import { Route as AppBasesDadosRouteImport } from './routes/_app.bases-dados'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
 import { Route as ITokensRouteImport } from './routes/i.$tokens'
@@ -89,6 +90,11 @@ const AppZohoRoute = AppZohoRouteImport.update({
   path: '/zoho',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBasesDadosRoute = AppBasesDadosRouteImport.update({
+  id: '/bases-dados',
+  path: '/bases-dados',
+  getParentRoute: () => AppRoute,
+} as any)
 const ESlugRoute = ESlugRouteImport.update({
   id: '/e/$slug',
   path: '/e/$slug',
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/portaria': typeof AppPortariaRoute
   '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
+  '/bases-dados': typeof AppBasesDadosRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
@@ -187,6 +194,7 @@ export interface FileRoutesById {
   '/_app/portaria': typeof AppPortariaRoute
   '/_app/visao-geral': typeof AppVisaoGeralRoute
   '/_app/zoho': typeof AppZohoRoute
+  '/_app/bases-dados': typeof AppBasesDadosRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
@@ -210,6 +218,7 @@ export interface FileRouteTypes {
     | '/portaria'
     | '/visao-geral'
     | '/zoho'
+    | '/bases-dados'
     | '/e/$slug'
     | '/encomenda/$token'
     | '/i/$tokens'
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/_app/portaria'
     | '/_app/visao-geral'
     | '/_app/zoho'
+    | '/_app/bases-dados'
     | '/e/$slug'
     | '/encomenda/$token'
     | '/i/$tokens'
@@ -363,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppZohoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/bases-dados': {
+      id: '/_app/bases-dados'
+      path: '/bases-dados'
+      fullPath: '/bases-dados'
+      preLoaderRoute: typeof AppBasesDadosRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/e/$slug': {
       id: '/e/$slug'
       path: '/e/$slug'
@@ -429,6 +446,7 @@ interface AppRouteChildren {
   AppPortariaRoute: typeof AppPortariaRoute
   AppVisaoGeralRoute: typeof AppVisaoGeralRoute
   AppZohoRoute: typeof AppZohoRoute
+  AppBasesDadosRoute: typeof AppBasesDadosRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
   AppEventosIndexRoute: typeof AppEventosIndexRoute
@@ -441,6 +459,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPortariaRoute: AppPortariaRoute,
   AppVisaoGeralRoute: AppVisaoGeralRoute,
   AppZohoRoute: AppZohoRoute,
+  AppBasesDadosRoute: AppBasesDadosRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,
   AppEventosIndexRoute: AppEventosIndexRoute,
