@@ -210,7 +210,7 @@ export function AdminDispatchPanel({
         const links = Array.from({ length: Math.ceil(tokens.length / 50) }, (_, index) =>
           holderLink(tokens.slice(index * 50, (index + 1) * 50)),
         );
-        const message = `Olá${name.trim() ? ` ${name.trim()}` : ""}! Aqui estão ${selection.length} ingresso(s) para ${eventName}:\\n\\n${links.map((url, index) => `Grupo ${index + 1}: ${url}`).join("\\n")}\\n\\nApresente o QR Code à entrada. Cada link permite descarregar até 50 ingressos.`;
+        const message = `Olá${name.trim() ? ` ${name.trim()}` : ""}! Aqui estão ${selection.length} ingresso(s) para ${eventName}:\n\n${links.map((url, index) => `Grupo ${index + 1}: ${url}`).join("\n")}\n\nApresente o QR Code à entrada. Cada link permite descarregar até 50 ingressos.`;
         await navigator.clipboard.writeText(message);
         await releaseForRedistribution(selection);
         const { data: updated, error } = await supabase
