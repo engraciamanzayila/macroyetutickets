@@ -28,7 +28,8 @@ const clamp = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
 
 export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSaved }: Props) {
   const [artUrl, setArtUrl] = useState("");
-  const [qrImg, setQrImg] = useState("");
+  const [qrReady, setQrReady] = useState(false);
+  const [qrError, setQrError] = useState("");
   const [artRatio, setArtRatio] = useState(1);
   const [stageSize, setStageSize] = useState({ width: 600, height: 600 });
   const [layout, setLayout] = useState<Layout>(defaults);
@@ -37,6 +38,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
   const [artError, setArtError] = useState("");
   const frame = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const qrCanvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ kind: "qr" | "code" | "resize"; x: number; y: number; start: Layout } | null>(null);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
         bold: saved.code_bold ?? defaults.code.bold,
       },
     });
-    setArtUrl(""); setQrImg(""); setArtError(""); setCopyToIds([]);
+    setArtUrl(""); setQrReady(false); setQrError(""); setArtError(""); setCopyToIds([]);
     void (async () => {
       const { data, error } = await supabase.storage.from("arts").download(batch.art_path);
       if (error || !data) throw error ?? new Error("Ficheiro da arte vazio.");
@@ -80,16 +82,26 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
   }, [batch]);
 
   useEffect(() => {
+    const canvas = qrCanvas.current;
+    if (!canvas) return;
     let alive = true;
-    QRCode.toDataURL(SAMPLE, {
-      margin: 1, width: 512, errorCorrectionLevel: "H",
-      color: { dark: layout.qr.dark, light: layout.qr.light },
-    }).then((url) => { if (alive) setQrImg(url); })
-      .catch((error) => {
-        if (alive) { setQrImg(""); toast.error("Falha ao gerar QR de pré-visualização: " + (error as Error).message); }
+    setQrReady(false);
+    setQrError("");
+    try {
+      QRCode.toCanvas(canvas, SAMPLE, {
+        margin: 1, width: 512, errorCorrectionLevel: "M",
+        color: { dark: layout.qr.dark, light: layout.qr.light },
+      }, (error) => {
+        if (!alive) return;
+        if (error) { setQrReady(false); setQrError(error.message || "Não foi possível gerar o QR Code."); return; }
+        setQrReady(true);
       });
+    } catch (error) {
+      setQrReady(false);
+      setQrError((error as Error).message || "Não foi possível gerar o QR Code.");
+    }
     return () => { alive = false; };
-  }, [layout.qr.dark, layout.qr.light]);
+  }, [layout.qr.dark, layout.qr.light, batch?.id]);
 
   useEffect(() => {
     const el = frame.current;
@@ -135,7 +147,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
   const stopDrag = () => { drag.current = null; };
 
   const save = async () => {
-    if (!batch || saving || !artUrl || !qrImg) return;
+    if (!batch || saving || !artUrl || !qrReady) return;
     setSaving(true);
     const next = {
       ...(batch.qr_layout ?? {}),
@@ -180,7 +192,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
                     className="absolute inset-0 z-0 block h-full w-full pointer-events-none"
                     style={{ objectFit: "fill" }}
                   />}
-                  {qrImg && <div
+                  {artUrl && <div
                     data-drag="qr"
                     className="absolute z-20 cursor-move border-2 border-dashed border-primary bg-white p-1 shadow-md"
                     style={{
@@ -189,7 +201,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
                       transform: "translate(-50%, -50%)", touchAction: "none",
                     }}
                   >
-                    <img src={qrImg} alt="QR Code de exemplo" draggable={false} className="block h-full w-full pointer-events-none" />
+                    <canvas ref={qrCanvas} aria-label="QR Code de exemplo" className="block h-full w-full pointer-events-none" />
                     <span data-drag="resize" className="absolute -right-2 -bottom-2 h-5 w-5 rounded-sm border-2 border-white bg-primary shadow cursor-nwse-resize" />
                   </div>}
                   {layout.code.show && <div
@@ -206,7 +218,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
                 </div>
               </div>
               {!artUrl && <p className="py-8 text-center text-sm text-muted-foreground">{artError ? "Erro ao carregar a arte: " + artError : "A carregar arte da credencial…"}</p>}
-              {!qrImg && artUrl && <p className="py-2 text-center text-xs text-destructive">A gerar a pré-visualização do QR Code…</p>}
+              {!qrReady && artUrl && <p className="py-2 text-center text-xs text-destructive">{qrError ? "Erro no QR Code: " + qrError : "A preparar o QR Code…"}</p>}
               <p className="mt-3 text-center text-xs text-muted-foreground">Arraste o QR ou a referência. Puxe o quadrado no canto inferior direito do QR para redimensionar.</p>
             </div>
             <aside className="rounded-xl border bg-card p-4 space-y-5 h-fit">
@@ -255,7 +267,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
               )}
               <div className="flex flex-col gap-2">
                 <Button variant="outline" onClick={onClose}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
-                <Button onClick={() => void save()} disabled={saving || !artUrl || !qrImg}><Save className="h-4 w-4" /> {saving ? "A guardar…" : "Guardar modelo"}</Button>
+                <Button onClick={() => void save()} disabled={saving || !artUrl || !qrReady}><Save className="h-4 w-4" /> {saving ? "A guardar…" : "Guardar modelo"}</Button>
               </div>
             </aside>
           </div>
