@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
+import { CredentialLayoutEditor } from "@/components/event/CredentialLayoutEditor";
 
 type Batch = {
   id: string; event_id: string; source_filename: string; event_name: string;
@@ -46,6 +47,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
   const [batchEdit, setBatchEdit] = useState<BatchEditForm | null>(null);
   const [savingBatchEdit, setSavingBatchEdit] = useState(false);
+  const [layoutBatch, setLayoutBatch] = useState<Batch | null>(null);
 
   const refresh = useCallback(async () => {
     const { data, error } = await supabase.from("credential_batches")
@@ -328,7 +330,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           {batches.map((b) => <div key={b.id} className="flex flex-wrap items-center gap-3 p-3">
             <Checkbox checked={selected.has(b.id)} onCheckedChange={(v) => setSelected((s) => { const n=new Set(s); if (v) n.add(b.id); else n.delete(b.id); return n; })} />
             <div className="min-w-[180px] flex-1"><p className="font-medium">{b.group_name} <span className="text-xs text-muted-foreground">· {b.credential_type}</span></p><p className="text-xs text-muted-foreground">{b.event_name} · {b.size_code} · {b.quantity} credenciais</p><p className="text-[11px] text-muted-foreground truncate">{b.source_filename}</p></div>
-            {isAdmin && <Button size="sm" variant="outline" onClick={() => startBatchEdit(b)}><Pencil className="h-3 w-3" /> Editar grupo</Button>}
+            {isAdmin && <><Button size="sm" variant="outline" onClick={() => setLayoutBatch(b)}><QrCode className="h-3 w-3" /> Editor visual</Button><Button size="sm" variant="outline" onClick={() => startBatchEdit(b)}><Pencil className="h-3 w-3" /> Editar grupo</Button></>}
             <Input type="number" min={0} max={10000} value={qty[b.id] ?? b.quantity} onChange={(e) => setQty((q) => ({...q,[b.id]:Math.max(0,Math.min(10000,Number(e.target.value)||0))}))} className="w-24" aria-label={`Quantidade de ${b.group_name}`} />
             <Button size="sm" variant="outline" onClick={() => void changeQuantity(b)}><RefreshCw className="h-3 w-3" /> Atualizar</Button>
             <div className="flex flex-wrap items-end gap-2 w-full pl-8">
@@ -344,6 +346,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           </div>)}
         </div>}
       </div>
+      <CredentialLayoutEditor batch={layoutBatch} onClose={() => setLayoutBatch(null)} onSaved={() => { void refresh(); }} />
       <Dialog open={Boolean(editingBatch)} onOpenChange={(open) => {
         if (!open && !savingBatchEdit) { setEditingBatch(null); setBatchEdit(null); }
       }}>
