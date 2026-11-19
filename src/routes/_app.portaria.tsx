@@ -22,12 +22,42 @@ export const Route = createFileRoute("/_app/portaria")({
 });
 
 type CacheTicket = { s: string; g: string; at?: string | null };
-type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null }>; tickets: Record<string, CacheTicket> };
+type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null; price: number }>; tickets: Record<string, CacheTicket> };
 type QueueItem = { event: string; code: string; at: string };
-type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; used_at?: string | null; offline?: boolean };
+type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean };
 
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
 const cacheKey = (e: string) => `myt-cache-${e}`;
+const accessInstruction = (result: Result) => {
+  const label = `${result.group ?? ""} ${result.type ?? ""}`.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  const isTable = label.includes("mesa");
+  const price = Number(result.price ?? 0);
+  const tapes = !isTable ? 1 : price === 300000 ? 4 : price === 500000 ? 6 : price === 1000000 ? 8 : 0;
+  const zone = result.recipient?.trim() || result.group || (label.includes("vip") ? "VIP em pé" : "Acesso geral");
+  return { tapes, zone, isTable, needsConfirmation: isTable && tapes === 0 };
+};
+
+function AccessGuidance({ result }: { result: Result }) {
+  const access = accessInstruction(result);
+  return (
+    <div className="mt-5 grid gap-3 sm:grid-cols-2 text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="rounded-2xl border-2 border-current/20 bg-background/15 p-4">
+        <p className="text-xs font-bold tracking-widest opacity-80">FITAS A ENTREGAR</p>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="text-5xl font-black tabular-nums">{access.needsConfirmation ? "?" : access.tapes}</span>
+          <span className="font-semibold">{access.tapes === 1 ? "fita individual" : "fitas"}</span>
+        </div>
+        <p className="mt-1 text-sm opacity-80">{access.needsConfirmation ? "Confirmar capacidade desta mesa antes de entregar." : access.isTable ? "Uma fita por pessoa incluída na mesa." : "Acesso individual: uma pessoa, uma fita."}</p>
+      </div>
+      <div className="rounded-2xl border-2 border-current/20 bg-background/15 p-4">
+        <p className="text-xs font-bold tracking-widest opacity-80">ZONA DE ACESSO</p>
+        <p className="mt-2 text-xl font-extrabold">{access.zone}</p>
+        <p className="mt-1 text-sm opacity-80">Encaminhar a pessoa para esta zona.</p>
+      </div>
+    </div>
+  );
+}
+
 const QUEUE = "myt-queue";
 const readQueue = (): QueueItem[] => JSON.parse(localStorage.getItem(QUEUE) || "[]");
 const writeQueue = (q: QueueItem[]) => localStorage.setItem(QUEUE, JSON.stringify(q));
@@ -48,6 +78,17 @@ function Gate() {
   const [count, setCount] = useState(0);
   const scanner = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const last = useRef<{ code: string; t: number }>({ code: "", t: 0 });
+
+  const { data: eventGroups = [] } = useQuery({
+    queryKey: ["gate-groups", eventId],
+    enabled: !!eventId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ticket_groups").select("id,name,ticket_type,recipient,price").eq("event_id", eventId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30000,
+  });
 
   const { data: events = [] } = useQuery({
     queryKey: ["events-min"],
@@ -72,11 +113,11 @@ function Gate() {
     if (!eventId) return;
     try {
       const [{ data: groups }, tickets] = await Promise.all([
-        supabase.from("ticket_groups").select("id,name,ticket_type,recipient").eq("event_id", eventId),
+        supabase.from("ticket_groups").select("id,name,ticket_type,recipient,price").eq("event_id", eventId),
         fetchAllTickets({ event_id: eventId }, "code,status,group_id,used_at"),
       ]);
       const c: Cache = { savedAt: new Date().toISOString(), groups: {}, tickets: {} };
-      for (const g of groups ?? []) c.groups[g.id] = { name: g.name, type: g.ticket_type, recipient: g.recipient };
+      for (const g of groups ?? []) c.groups[g.id] = { name: g.name, type: g.ticket_type, recipient: g.recipient, price: Number(g.price ?? 0) };
       for (const t of tickets) c.tickets[t.code] = { s: t.status, g: t.group_id, at: t.used_at };
       // keep local offline entries that weren't synced yet
       for (const q of readQueue().filter((q) => q.event === eventId)) if (c.tickets[q.code]?.s === "valid") c.tickets[q.code] = { ...c.tickets[q.code], s: "used", at: q.at };
@@ -156,7 +197,7 @@ function Gate() {
       const g = t ? cache?.groups[t.g] : undefined;
       if (!cache) { validating.current = false; toast.error("Sem internet e sem lista guardada. Baixe a lista antes do evento."); return; }
       if (!t) r = { result: "not_found", code, offline: true };
-      else if (t.s === "void") r = { result: "void", code, group: g?.name, type: g?.type, recipient: g?.recipient, offline: true };
+      else if (t.s === "void") r = { result: "void", code, group: g?.name, type: g?.type, recipient: g?.recipient, price: g?.price, offline: true };
       else if (t.s === "used") r = { result: "used", code, group: g?.name, type: g?.type, recipient: g?.recipient, used_at: t.at, offline: true };
       else {
         const at = new Date().toISOString();
@@ -239,7 +280,7 @@ function Gate() {
             {result.result === "ok" ? <CheckCircle2 className="mx-auto mb-5 h-24 w-24" /> : result.result === "used" ? <AlertTriangle className="mx-auto mb-5 h-24 w-24" /> : <XCircle className="mx-auto mb-5 h-24 w-24" />}
             <h2 className="text-3xl font-extrabold">{title}</h2>
             <p className="mt-4 font-mono text-xl font-bold">{result.code}</p>
-            {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}
+            {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n            {scanMode === "ticket" && result.result === "ok" && <AccessGuidance result={result} />}
             {scanMode === "ticket" && result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
             {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
             <Button className="mt-8 h-14 w-full text-lg" variant="secondary" onClick={() => { resultOpen.current = false; setShowResult(false); }}>Continuar leitura</Button>
@@ -254,7 +295,7 @@ function Gate() {
             {result && (
               <div className="mt-2 space-y-0.5">
                 <p className="font-mono text-lg font-bold">{result.code}</p>
-                {result.group && <p>{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}
+                {result.group && <p>{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n                {scanMode === "ticket" && result.result === "ok" && <AccessGuidance result={result} />}
                 {scanMode === "ticket" && result.used_at && <p className="text-sm opacity-80">Entrou às {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
                 {result.offline && <p className="text-xs opacity-75">(validado sem internet)</p>}
               </div>
