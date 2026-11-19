@@ -33,7 +33,7 @@ const accessInstruction = (result: Result) => {
   const isTable = label.includes("mesa");
   const price = Number(result.price ?? 0);
   const tapes = !isTable ? 1 : price === 300000 ? 4 : price === 500000 ? 6 : price === 1000000 ? 8 : 0;
-  const zone = result.recipient?.trim() || result.group || (label.includes("vip") ? "VIP em pé" : "Acesso geral");
+  const zone = result.group || result.type || result.recipient?.trim() || (label.includes("vip") ? "VIP em pé" : "Acesso geral");
   return { tapes, zone, isTable, needsConfirmation: isTable && tapes === 0 };
 };
 
