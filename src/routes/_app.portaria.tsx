@@ -29,7 +29,7 @@ type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; grou
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
 const cacheKey = (e: string) => `myt-cache-${e}`;
 const accessInstruction = (result: Result) => {
-  const label = `${result.group ?? ""} ${result.type ?? ""}`.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  const label = `${result.group ?? ""} ${result.type ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const isTable = label.includes("mesa");
   const price = Number(result.price ?? 0);
   const tapes = !isTable ? 1 : price === 300000 ? 4 : price === 500000 ? 6 : price === 1000000 ? 8 : 0;
