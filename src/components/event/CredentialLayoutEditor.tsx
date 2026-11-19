@@ -111,11 +111,8 @@ export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
     if (!kind || !stage.current) return;
     e.preventDefault();
     e.stopPropagation();
-    const rect = stage.current.getBoundingClientRect();
     stage.current.setPointerCapture(e.pointerId);
     drag.current = { kind, x: e.clientX, y: e.clientY, start: layout };
-    // Keep the pointer origin relative to the rendered stage, not the source artwork pixels.
-    void rect;
   };
 
   const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -196,7 +193,7 @@ export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
                     style={{
                       left: `${layout.code.x * 100}%`, top: `${layout.code.y * 100}%`,
                       transform: "translate(-50%, -50%)",
-                      fontSize: `clamp(9px, ${layout.code.size * 100}% , 48px)`,
+                      fontSize: Math.max(9, Math.min(48, layout.code.size * stageSize.height)),
                       color: layout.code.color, fontWeight: layout.code.bold ? 700 : 500,
                       lineHeight: 1.15, touchAction: "none",
                     }}
