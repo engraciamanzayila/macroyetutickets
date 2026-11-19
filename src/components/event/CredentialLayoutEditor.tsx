@@ -101,7 +101,7 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
       setQrError((error as Error).message || "Não foi possível gerar o QR Code.");
     }
     return () => { alive = false; };
-  }, [layout.qr.dark, layout.qr.light, batch?.id]);
+  }, [layout.qr.dark, layout.qr.light, batch?.id, artUrl]);
 
   useEffect(() => {
     const el = frame.current;
