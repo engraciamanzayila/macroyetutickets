@@ -15,9 +15,10 @@ type Layout = {
 };
 type Batch = {
   id: string; art_path: string; art_width: number; art_height: number; group_name: string;
+  width_mm: number; height_mm: number; size_code: string;
   qr_layout: { x?: number; y?: number; size?: number; code_x?: number; code_y?: number; qr_dark?: string; qr_light?: string; code_size?: number; code_color?: string; code_show?: boolean; code_bold?: boolean } | null;
 };
-type Props = { batch: Batch | null; onClose: () => void; onSaved: () => void };
+type Props = { batch: Batch | null; compatibleBatches: Batch[]; onClose: () => void; onSaved: () => void };
 const SAMPLE = "CRD-AB12-CD34";
 const defaults: Layout = {
   qr: { x: .78, y: .76, w: .18, dark: "#000000", light: "#ffffff" },
@@ -25,13 +26,14 @@ const defaults: Layout = {
 };
 const clamp = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
 
-export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
+export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSaved }: Props) {
   const [artUrl, setArtUrl] = useState("");
   const [qrImg, setQrImg] = useState("");
   const [artRatio, setArtRatio] = useState(1);
   const [stageSize, setStageSize] = useState({ width: 600, height: 600 });
   const [layout, setLayout] = useState<Layout>(defaults);
   const [saving, setSaving] = useState(false);
+  const [copyToIds, setCopyToIds] = useState<string[]>([]);
   const [artError, setArtError] = useState("");
   const frame = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
         bold: saved.code_bold ?? defaults.code.bold,
       },
     });
-    setArtUrl(""); setQrImg(""); setArtError("");
+    setArtUrl(""); setQrImg(""); setArtError(""); setCopyToIds([]);
     void (async () => {
       const { data, error } = await supabase.storage.from("arts").download(batch.art_path);
       if (error || !data) throw error ?? new Error("Ficheiro da arte vazio.");
@@ -143,10 +145,13 @@ export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
       code_size: layout.code.size, code_color: layout.code.color,
       code_show: layout.code.show, code_bold: layout.code.bold,
     };
-    const { error } = await supabase.from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
+    const targetIds = [batch.id, ...copyToIds];
+    const { error } = await supabase.from("credential_batches").update({ qr_layout: next }).in("id", targetIds);
     setSaving(false);
-    if (error) return toast.error("Não foi possível guardar: " + error.message);
-    toast.success("Modelo visual guardado. Será usado na impressão e exportação.");
+    if (error) return toast.error("Não foi possível guardar o modelo: " + error.message);
+    toast.success(copyToIds.length
+      ? `Modelo guardado e copiado para mais ${copyToIds.length} grupo(s) compatível(is).`
+      : "Modelo visual guardado. Será usado na impressão e exportação.");
     onSaved(); onClose();
   };
 
@@ -225,6 +230,29 @@ export function CredentialLayoutEditor({ batch, onClose, onSaved }: Props) {
                   </div>
                 </>}
               </section>
+              {compatibleBatches.filter((item) => item.id !== batch.id && item.width_mm === batch.width_mm && item.height_mm === batch.height_mm).length > 0 && (
+                <section className="space-y-2 rounded-lg border p-3">
+                  <div>
+                    <h3 className="font-bold text-sm">Reutilizar este modelo</h3>
+                    <p className="text-xs text-muted-foreground">Opcionalmente, copia a posição, tamanho e aparência do QR e da referência para outros grupos com as mesmas dimensões ({batch.width_mm} × {batch.height_mm} mm). Cada grupo mantém a sua própria arte e os seus códigos.</p>
+                  </div>
+                  <div className="max-h-36 space-y-2 overflow-y-auto">
+                    {compatibleBatches.filter((item) => item.id !== batch.id && item.width_mm === batch.width_mm && item.height_mm === batch.height_mm).map((item) => (
+                      <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={copyToIds.includes(item.id)}
+                          onChange={(e) => setCopyToIds((ids) => e.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id))}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{item.group_name}</span>
+                        <span className="text-xs text-muted-foreground">{item.size_code}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {copyToIds.length > 0 && <p className="text-xs font-medium text-primary">{copyToIds.length} grupo(s) selecionado(s) para receber o modelo.</p>}
+                </section>
+              )}
               <div className="flex flex-col gap-2">
                 <Button variant="outline" onClick={onClose}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
                 <Button onClick={() => void save()} disabled={saving || !artUrl || !qrImg}><Save className="h-4 w-4" /> {saving ? "A guardar…" : "Guardar modelo"}</Button>
