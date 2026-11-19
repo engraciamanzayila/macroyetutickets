@@ -246,8 +246,8 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           }
           const layout = {
             ...DEFAULT_LAYOUT,
-            qr: { ...DEFAULT_LAYOUT.qr, x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, w: batch.qr_layout?.size ?? 0.18 },
-            code: { ...DEFAULT_LAYOUT.code, x: batch.qr_layout?.code_x ?? 0.87, y: batch.qr_layout?.code_y ?? 0.85 },
+            qr: { ...DEFAULT_LAYOUT.qr, x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, w: batch.qr_layout?.size ?? 0.18, dark: batch.qr_layout?.qr_dark ?? DEFAULT_LAYOUT.qr.dark, light: batch.qr_layout?.qr_light ?? DEFAULT_LAYOUT.qr.light },
+            code: { ...DEFAULT_LAYOUT.code, x: batch.qr_layout?.code_x ?? 0.87, y: batch.qr_layout?.code_y ?? 0.85, size: batch.qr_layout?.code_size ?? DEFAULT_LAYOUT.code.size, color: batch.qr_layout?.code_color ?? DEFAULT_LAYOUT.code.color, show: batch.qr_layout?.code_show ?? true, bold: batch.qr_layout?.code_bold ?? true },
           };
           const canvas = await renderTicket(art, layout, credential.code);
           const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Falha ao gerar imagem.")), "image/png"));
