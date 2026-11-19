@@ -346,7 +346,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           </div>)}
         </div>}
       </div>
-      <CredentialLayoutEditor batch={layoutBatch} onClose={() => setLayoutBatch(null)} onSaved={() => { void refresh(); }} />
+      <CredentialLayoutEditor batch={layoutBatch} compatibleBatches={batches} onClose={() => setLayoutBatch(null)} onSaved={() => { void refresh(); }} />
       <Dialog open={Boolean(editingBatch)} onOpenChange={(open) => {
         if (!open && !savingBatchEdit) { setEditingBatch(null); setBatchEdit(null); }
       }}>
