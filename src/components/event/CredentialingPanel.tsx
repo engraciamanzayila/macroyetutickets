@@ -18,7 +18,7 @@ type Batch = {
   id: string; event_id: string; source_filename: string; event_name: string;
   group_name: string; credential_type: string; size_code: CredentialSize;
   width_mm: number; height_mm: number; quantity: number; art_path: string;
-  art_width: number; art_height: number; qr_layout: { x?: number; y?: number; size?: number; code_x?: number; code_y?: number };
+  art_width: number; art_height: number; qr_layout: { x?: number; y?: number; size?: number; code_x?: number; code_y?: number; qr_dark?: string; qr_light?: string; code_size?: number; code_color?: string; code_show?: boolean; code_bold?: boolean };
   created_at: string;
 };
 type Draft = {
