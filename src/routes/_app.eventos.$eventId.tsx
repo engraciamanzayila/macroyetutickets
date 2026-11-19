@@ -369,15 +369,21 @@ function EventPage() {
                       <div className="flex-1 min-w-[200px] space-y-1">
                         <Input
                           defaultValue={g.name}
-                          disabled={made > 0}
-                          onBlur={(e) =>
-                            e.target.value !== g.name && updateGroup(g.id, { name: e.target.value })
-                          }
+                          disabled={made > 0 && !isAdmin}
+                          aria-label={`Nome do grupo ${g.name}`}
+                          onBlur={(e) => {
+                            const name = e.target.value.trim();
+                            if (name && name !== g.name) updateGroup(g.id, { name });
+                            else if (!name) e.target.value = g.name;
+                          }}
                           className="h-8 font-semibold"
                         />
                         <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
-                          {made > 0 ? (
-                            <Badge variant="secondary" title="Grupo já gerado — bloqueado">
+                          {made > 0 && !isAdmin ? (
+                            <Badge
+                              variant="secondary"
+                              title="O tipo fica bloqueado para utilizadores sem administração após a geração."
+                            >
                               🔒 {g.ticket_type}
                             </Badge>
                           ) : (
@@ -411,7 +417,21 @@ function EventPage() {
                               <option value="__outro">Outro…</option>
                             </select>
                           )}
-                          {g.recipient && <span>→ {g.recipient}</span>}
+                          {isAdmin ? (
+                            <Input
+                              defaultValue={g.recipient ?? ""}
+                              aria-label={`Destinatário de ${g.name}`}
+                              placeholder="Destinatário"
+                              onBlur={(e) => {
+                                const recipient = e.target.value.trim();
+                                if (recipient !== (g.recipient ?? ""))
+                                  updateGroup(g.id, { recipient: recipient || null });
+                              }}
+                              className="h-7 w-40 text-xs"
+                            />
+                          ) : g.recipient ? (
+                            <span>→ {g.recipient}</span>
+                          ) : null}
                           {g.price != null && g.price > 0 && <span>{kz(g.price)}</span>}
                           {g.width_cm && (
                             <span>

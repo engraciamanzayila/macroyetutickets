@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileUp, Printer, Download, Trash2, RefreshCw, QrCode } from "lucide-react";
+import { FileUp, Printer, Download, Trash2, RefreshCw, QrCode, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { processArt } from "@/lib/art";
 import { parseCredentialFilename, type CredentialSize } from "@/lib/credential-filename";
@@ -10,12 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/lib/auth";
 
 type Batch = {
   id: string; event_id: string; source_filename: string; event_name: string;
   group_name: string; credential_type: string; size_code: CredentialSize;
   width_mm: number; height_mm: number; quantity: number; art_path: string;
-  art_width: number; art_height: number; qr_layout: { x?: number; y?: number; size?: number };
+  art_width: number; art_height: number; qr_layout: { x?: number; y?: number; size?: number; code_x?: number; code_y?: number };
   created_at: string;
 };
 type Draft = {
@@ -24,6 +26,7 @@ type Draft = {
   widthMm: number; heightMm: number; quantity: number;
 };
 type Credential = { id: string; code: string; seq: number; status: string };
+type BatchEditForm = { event_name: string; group_name: string; credential_type: string; size_code: CredentialSize; width_mm: string; height_mm: string };
 
 const sizeMm: Record<CredentialSize, [number, number]> = {
   A6: [105, 148], A5: [148, 210], A4: [210, 297], CUSTOM: [105, 148],
@@ -31,6 +34,7 @@ const sizeMm: Record<CredentialSize, [number, number]> = {
 const safe = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 70) || "credenciais";
 
 export function CredentialingPanel({ eventId, eventName }: { eventId: string; eventName: string }) {
+  const { isAdmin } = useAuth();
   const input = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -39,17 +43,49 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
+  const [batchEdit, setBatchEdit] = useState<BatchEditForm | null>(null);
+  const [savingBatchEdit, setSavingBatchEdit] = useState(false);
 
-  const refresh = async () => {
-    const { data, error } = await (supabase as any).from("credential_batches")
+  const refresh = useCallback(async () => {
+    const { data, error } = await supabase.from("credential_batches")
       .select("*").eq("event_id", eventId).order("created_at", { ascending: true });
     if (error) throw error;
     const rows = (data ?? []) as Batch[];
     setBatches(rows);
-    setQty(Object.fromEntries(rows.map((b) => [b.id, qty[b.id] ?? b.quantity])));
+    setQty((currentQty) => Object.fromEntries(rows.map((b) => [b.id, currentQty[b.id] ?? b.quantity])));
+  }, [eventId]);
+
+  const startBatchEdit = (batch: Batch) => {
+    setEditingBatch(batch);
+    setBatchEdit({ event_name: batch.event_name, group_name: batch.group_name, credential_type: batch.credential_type,
+      size_code: batch.size_code, width_mm: String(batch.width_mm), height_mm: String(batch.height_mm) });
   };
 
-  useEffect(() => { void refresh().catch((e) => toast.error("Não foi possível carregar credenciais: " + e.message)); }, [eventId]);
+  const saveBatchEdit = async () => {
+    if (!isAdmin || !editingBatch || !batchEdit || savingBatchEdit) return;
+    const event_name = batchEdit.event_name.trim();
+    const group_name = batchEdit.group_name.trim();
+    const credential_type = batchEdit.credential_type.trim();
+    const [standardWidth, standardHeight] = sizeMm[batchEdit.size_code];
+    const width_mm = batchEdit.size_code === "CUSTOM" ? Number(batchEdit.width_mm) : standardWidth;
+    const height_mm = batchEdit.size_code === "CUSTOM" ? Number(batchEdit.height_mm) : standardHeight;
+    if (!event_name || !group_name || !credential_type) return toast.error("Evento, grupo e tipo são obrigatórios.");
+    if (!Number.isFinite(width_mm) || !Number.isFinite(height_mm) || width_mm <= 0 || height_mm <= 0)
+      return toast.error("Indique largura e altura válidas em milímetros.");
+    setSavingBatchEdit(true);
+    try {
+      const { error } = await supabase.from("credential_batches").update({ event_name, group_name, credential_type,
+        size_code: batchEdit.size_code, width_mm, height_mm }).eq("id", editingBatch.id).eq("event_id", eventId);
+      if (error) throw error;
+      toast.success("Grupo atualizado. Os códigos e QR Codes existentes foram preservados.");
+      setEditingBatch(null); setBatchEdit(null); await refresh();
+    } catch (error) {
+      toast.error("Não foi possível atualizar o grupo: " + (error as Error).message);
+    } finally { setSavingBatchEdit(false); }
+  };
+
+  useEffect(() => { void refresh().catch((e) => toast.error("Não foi possível carregar credenciais: " + e.message)); }, [refresh]);
 
   const addFiles = async (files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => /\.(png|jpe?g|webp|tiff?|pdf)$/i.test(f.name));
@@ -84,7 +120,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
       event_id: eventId, batch_id: batch.id, code: randomCode("CRD"), seq: startSeq + i,
     }));
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await (supabase as any).from("credentials").insert(rows.slice(i, i + 500));
+      const { error } = await supabase.from("credentials").insert(rows.slice(i, i + 500));
       if (error) throw error;
     }
   };
@@ -107,7 +143,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           art_path: path, art_width: d.width, art_height: d.height,
           qr_layout: { x: 0.82, y: 0.78, size: 0.18 }, created_by: user.user?.id ?? null,
         };
-        const { data: batch, error } = await (supabase as any).from("credential_batches").insert(payload).select("*").single();
+        const { data: batch, error } = await supabase.from("credential_batches").insert(payload).select("*").single();
         if (error || !batch) {
           await supabase.storage.from("arts").remove([path]);
           throw error ?? new Error("Não foi possível criar o grupo de credenciais.");
@@ -128,7 +164,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
   const changeQuantity = async (batch: Batch) => {
     const target = Math.max(0, Math.min(10000, Math.floor(qty[batch.id] ?? batch.quantity)));
     if (target === 0) return void deleteBatch(batch);
-    const { data, error } = await (supabase as any).from("credentials").select("id,seq,status").eq("batch_id", batch.id).order("seq", { ascending: true });
+    const { data, error } = await supabase.from("credentials").select("id,seq,status").eq("batch_id", batch.id).order("seq", { ascending: true });
     if (error) return toast.error(error.message);
     const rows = (data ?? []) as { id: string; seq: number; status: string }[];
     const used = rows.filter((r) => r.status === "used").length;
@@ -136,15 +172,15 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
     if (target < rows.length) {
       const remove = rows.filter((r) => r.status === "valid").sort((a,b) => b.seq-a.seq).slice(0, rows.length-target).map((r) => r.id);
       if (remove.length) {
-        const { error: deleteError } = await (supabase as any).from("credentials").delete().in("id", remove);
+        const { error: deleteError } = await supabase.from("credentials").delete().in("id", remove);
         if (deleteError) return toast.error(deleteError.message);
       }
     } else if (target > rows.length) {
-      const { data: full, error: readError } = await (supabase as any).from("credential_batches").select("*").eq("id", batch.id).single();
+      const { data: full, error: readError } = await supabase.from("credential_batches").select("*").eq("id", batch.id).single();
       if (readError) return toast.error(readError.message);
       await createCodes(full as Batch, target - rows.length, rows.reduce((m,r) => Math.max(m,r.seq),0) + 1);
     }
-    const { error: updateError } = await (supabase as any).from("credential_batches").update({ quantity: target }).eq("id", batch.id);
+    const { error: updateError } = await supabase.from("credential_batches").update({ quantity: target }).eq("id", batch.id);
     if (updateError) return toast.error(updateError.message);
     toast.success("Quantidade atualizada.");
     await refresh();
@@ -152,7 +188,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
 
   const saveQrLayout = async (batch: Batch, patch: { x?: number; y?: number; size?: number }) => {
     const next = { ...batch.qr_layout, x: batch.qr_layout?.x ?? 0.82, y: batch.qr_layout?.y ?? 0.78, size: batch.qr_layout?.size ?? 0.18, ...patch };
-    const { error } = await (supabase as any).from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
+    const { error } = await supabase.from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
     if (error) return toast.error("Não foi possível guardar a posição do QR: " + error.message);
     setBatches((prev) => prev.map((item) => item.id === batch.id ? { ...item, qr_layout: next } : item));
     toast.success("Posição do QR guardada.");
@@ -160,7 +196,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
 
   const saveCodeLayout = async (batch: Batch, patch: { code_x?: number; code_y?: number }) => {
     const next = { ...batch.qr_layout, code_x: batch.qr_layout?.code_x ?? 0.87, code_y: batch.qr_layout?.code_y ?? 0.85, ...patch };
-    const { error } = await (supabase as any).from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
+    const { error } = await supabase.from("credential_batches").update({ qr_layout: next }).eq("id", batch.id);
     if (error) return toast.error("Não foi possível guardar a posição do código: " + error.message);
     setBatches((prev) => prev.map((item) => item.id === batch.id ? { ...item, qr_layout: next } : item));
     toast.success("Posição do código guardada.");
@@ -168,7 +204,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
 
   const deleteBatch = async (batch: Batch) => {
     if (!confirm(`Eliminar o grupo "${batch.group_name}" e todos os seus QR Codes?`)) return;
-    const { error } = await (supabase as any).from("credential_batches").delete().eq("id", batch.id);
+    const { error } = await supabase.from("credential_batches").delete().eq("id", batch.id);
     if (error) return toast.error(error.message);
     await supabase.storage.from("arts").remove([batch.art_path]);
     setSelected((s) => { const next = new Set(s); next.delete(batch.id); return next; });
@@ -189,7 +225,7 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
       const items: { batch: Batch; credential: Credential }[] = [];
       for (const batch of exportBatches) {
         const amount = Math.max(0, Math.floor(quantityOverride?.[batch.id] ?? qty[batch.id] ?? batch.quantity));
-        const { data, error } = await (supabase as any).from("credentials")
+        const { data, error } = await supabase.from("credentials")
           .select("id,code,seq,status").eq("batch_id", batch.id).eq("status", "valid").order("seq", { ascending: true }).limit(amount);
         if (error) throw error;
         for (const credential of (data ?? []) as Credential[]) items.push({ batch, credential });
@@ -290,8 +326,9 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
         {progress > 0 && <Progress value={progress} />}
         {batches.length === 0 ? <p className="p-6 text-sm text-muted-foreground">Ainda não existem credenciais para este evento.</p> : <div className="divide-y">
           {batches.map((b) => <div key={b.id} className="flex flex-wrap items-center gap-3 p-3">
-            <Checkbox checked={selected.has(b.id)} onCheckedChange={(v) => setSelected((s) => { const n=new Set(s); v?n.add(b.id):n.delete(b.id); return n; })} />
+            <Checkbox checked={selected.has(b.id)} onCheckedChange={(v) => setSelected((s) => { const n=new Set(s); if (v) n.add(b.id); else n.delete(b.id); return n; })} />
             <div className="min-w-[180px] flex-1"><p className="font-medium">{b.group_name} <span className="text-xs text-muted-foreground">· {b.credential_type}</span></p><p className="text-xs text-muted-foreground">{b.event_name} · {b.size_code} · {b.quantity} credenciais</p><p className="text-[11px] text-muted-foreground truncate">{b.source_filename}</p></div>
+            {isAdmin && <Button size="sm" variant="outline" onClick={() => startBatchEdit(b)}><Pencil className="h-3 w-3" /> Editar grupo</Button>}
             <Input type="number" min={0} max={10000} value={qty[b.id] ?? b.quantity} onChange={(e) => setQty((q) => ({...q,[b.id]:Math.max(0,Math.min(10000,Number(e.target.value)||0))}))} className="w-24" aria-label={`Quantidade de ${b.group_name}`} />
             <Button size="sm" variant="outline" onClick={() => void changeQuantity(b)}><RefreshCw className="h-3 w-3" /> Atualizar</Button>
             <div className="flex flex-wrap items-end gap-2 w-full pl-8">
@@ -307,6 +344,35 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           </div>)}
         </div>}
       </div>
+      <Dialog open={Boolean(editingBatch)} onOpenChange={(open) => {
+        if (!open && !savingBatchEdit) { setEditingBatch(null); setBatchEdit(null); }
+      }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar grupo de credenciais</DialogTitle></DialogHeader>
+          {batchEdit && <div className="space-y-4">
+            <div><Label>Evento</Label><Input value={batchEdit.event_name} onChange={(e) => setBatchEdit({ ...batchEdit, event_name: e.target.value })} /></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label>Grupo</Label><Input value={batchEdit.group_name} onChange={(e) => setBatchEdit({ ...batchEdit, group_name: e.target.value })} /></div>
+              <div><Label>Tipo de credencial</Label><Input value={batchEdit.credential_type} onChange={(e) => setBatchEdit({ ...batchEdit, credential_type: e.target.value })} /></div>
+            </div>
+            <div><Label>Formato</Label><select value={batchEdit.size_code} onChange={(e) => {
+              const size = e.target.value as CredentialSize; const [width, height] = sizeMm[size];
+              setBatchEdit({ ...batchEdit, size_code: size, width_mm: String(width), height_mm: String(height) });
+            }} className="h-10 w-full rounded-md border border-input bg-background px-3">
+              <option value="A6">A6</option><option value="A5">A5</option><option value="A4">A4</option><option value="CUSTOM">Personalizado</option>
+            </select></div>
+            {batchEdit.size_code === "CUSTOM" && <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label>Largura (mm)</Label><Input type="number" min="1" step="0.1" value={batchEdit.width_mm} onChange={(e) => setBatchEdit({ ...batchEdit, width_mm: e.target.value })} /></div>
+              <div><Label>Altura (mm)</Label><Input type="number" min="1" step="0.1" value={batchEdit.height_mm} onChange={(e) => setBatchEdit({ ...batchEdit, height_mm: e.target.value })} /></div>
+            </div>}
+            <p className="text-xs text-muted-foreground">Os códigos, QR Codes e a arte guardada não serão alterados; os novos nomes/formato passam a aparecer nas próximas exportações e relatórios.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => { setEditingBatch(null); setBatchEdit(null); }} disabled={savingBatchEdit}>Cancelar</Button>
+              <Button onClick={() => void saveBatchEdit()} disabled={savingBatchEdit}>{savingBatchEdit ? "A guardar…" : "Guardar alterações"}</Button>
+            </div>
+          </div>}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

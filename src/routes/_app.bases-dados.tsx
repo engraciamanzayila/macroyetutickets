@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const Route = createFileRoute("/_app.bases-dados")({
+export const Route = createFileRoute("/_app/bases-dados")({
   head: () => ({ meta: [{ title: "Diagnóstico de bases de dados — MY Tickets" }] }),
   component: DatabaseDiagnostics,
 });
@@ -39,7 +39,7 @@ function DatabaseDiagnostics() {
     setRunning(true);
     const host = typeof window === "undefined" ? "indisponível" : window.location.hostname;
     const hosting = detectHosting(host);
-    const databaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+    const databaseUrl = import.meta.env["VITE_SUPABASE_URL"] || "";
     const checks: Check[] = [];
 
     checks.push({

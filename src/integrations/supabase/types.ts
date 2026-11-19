@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      credential_batches: {
+        Row: {
+          art_height: number
+          art_path: string
+          art_width: number
+          created_at: string
+          created_by: string | null
+          credential_type: string
+          event_id: string
+          event_name: string
+          group_name: string
+          height_mm: number
+          id: string
+          qr_layout: Json
+          quantity: number
+          size_code: string
+          source_filename: string
+          width_mm: number
+        }
+        Insert: {
+          art_height: number
+          art_path: string
+          art_width: number
+          created_at?: string
+          created_by?: string | null
+          credential_type: string
+          event_id: string
+          event_name: string
+          group_name: string
+          height_mm?: number
+          id?: string
+          qr_layout?: Json
+          quantity: number
+          size_code?: string
+          source_filename: string
+          width_mm?: number
+        }
+        Update: {
+          art_height?: number
+          art_path?: string
+          art_width?: number
+          created_at?: string
+          created_by?: string | null
+          credential_type?: string
+          event_id?: string
+          event_name?: string
+          group_name?: string
+          height_mm?: number
+          id?: string
+          qr_layout?: Json
+          quantity?: number
+          size_code?: string
+          source_filename?: string
+          width_mm?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_batches_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credentials: {
+        Row: {
+          batch_id: string
+          code: string
+          created_at: string
+          event_id: string
+          id: string
+          seq: number
+          status: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          batch_id: string
+          code: string
+          created_at?: string
+          event_id: string
+          id?: string
+          seq: number
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          batch_id?: string
+          code?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          seq?: number
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credentials_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "credential_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credentials_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_contracts: {
         Row: {
           admin_signed_at: string | null
@@ -611,6 +727,10 @@ export type Database = {
       }
       check_in: {
         Args: { p_at?: string; p_code: string; p_event: string }
+        Returns: Json
+      }
+      check_in_credential: {
+        Args: { p_code: string; p_event: string }
         Returns: Json
       }
       claim_ticket_email_delivery: {

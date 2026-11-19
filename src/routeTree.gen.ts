@@ -15,13 +15,13 @@ import { Route as CarrinhoRouteImport } from './routes/carrinho'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MeusIngressosRouteImport } from './routes/meus-ingressos'
 import { Route as PromotoresRouteImport } from './routes/promotores'
+import { Route as AppBasesDadosRouteImport } from './routes/_app.bases-dados'
 import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
 import { Route as AppVisaoGeralRouteImport } from './routes/_app.visao-geral'
 import { Route as AppZohoRouteImport } from './routes/_app.zoho'
-import { Route as AppBasesDadosRouteImport } from './routes/_app.bases-dados'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as EncomendaTokenRouteImport } from './routes/encomenda.$token'
 import { Route as ITokensRouteImport } from './routes/i.$tokens'
@@ -60,6 +60,11 @@ const PromotoresRoute = PromotoresRouteImport.update({
   path: '/promotores',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppBasesDadosRoute = AppBasesDadosRouteImport.update({
+  id: '/bases-dados',
+  path: '/bases-dados',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEncomendasRoute = AppEncomendasRouteImport.update({
   id: '/encomendas',
   path: '/encomendas',
@@ -88,11 +93,6 @@ const AppVisaoGeralRoute = AppVisaoGeralRouteImport.update({
 const AppZohoRoute = AppZohoRouteImport.update({
   id: '/zoho',
   path: '/zoho',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppBasesDadosRoute = AppBasesDadosRouteImport.update({
-  id: '/bases-dados',
-  path: '/bases-dados',
   getParentRoute: () => AppRoute,
 } as any)
 const ESlugRoute = ESlugRouteImport.update({
@@ -143,13 +143,13 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
+  '/bases-dados': typeof AppBasesDadosRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
   '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
-  '/bases-dados': typeof AppBasesDadosRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
@@ -165,6 +165,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
+  '/bases-dados': typeof AppBasesDadosRoute
   '/encomendas': typeof AppEncomendasRoute
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
@@ -188,13 +189,13 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/meus-ingressos': typeof MeusIngressosRoute
   '/promotores': typeof PromotoresRoute
+  '/_app/bases-dados': typeof AppBasesDadosRoute
   '/_app/encomendas': typeof AppEncomendasRoute
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/identidade': typeof AppIdentidadeRoute
   '/_app/portaria': typeof AppPortariaRoute
   '/_app/visao-geral': typeof AppVisaoGeralRoute
   '/_app/zoho': typeof AppZohoRoute
-  '/_app/bases-dados': typeof AppBasesDadosRoute
   '/e/$slug': typeof ESlugRoute
   '/encomenda/$token': typeof EncomendaTokenRoute
   '/i/$tokens': typeof ITokensRoute
@@ -212,13 +213,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
+    | '/bases-dados'
     | '/encomendas'
     | '/equipa'
     | '/identidade'
     | '/portaria'
     | '/visao-geral'
     | '/zoho'
-    | '/bases-dados'
     | '/e/$slug'
     | '/encomenda/$token'
     | '/i/$tokens'
@@ -234,6 +235,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
+    | '/bases-dados'
     | '/encomendas'
     | '/equipa'
     | '/identidade'
@@ -256,13 +258,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-ingressos'
     | '/promotores'
+    | '/_app/bases-dados'
     | '/_app/encomendas'
     | '/_app/equipa'
     | '/_app/identidade'
     | '/_app/portaria'
     | '/_app/visao-geral'
     | '/_app/zoho'
-    | '/_app/bases-dados'
     | '/e/$slug'
     | '/encomenda/$token'
     | '/i/$tokens'
@@ -331,6 +333,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromotoresRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/bases-dados': {
+      id: '/_app/bases-dados'
+      path: '/bases-dados'
+      fullPath: '/bases-dados'
+      preLoaderRoute: typeof AppBasesDadosRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/encomendas': {
       id: '/_app/encomendas'
       path: '/encomendas'
@@ -371,13 +380,6 @@ declare module '@tanstack/react-router' {
       path: '/zoho'
       fullPath: '/zoho'
       preLoaderRoute: typeof AppZohoRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/bases-dados': {
-      id: '/_app/bases-dados'
-      path: '/bases-dados'
-      fullPath: '/bases-dados'
-      preLoaderRoute: typeof AppBasesDadosRouteImport
       parentRoute: typeof AppRoute
     }
     '/e/$slug': {
@@ -440,26 +442,26 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppBasesDadosRoute: typeof AppBasesDadosRoute
   AppEncomendasRoute: typeof AppEncomendasRoute
   AppEquipaRoute: typeof AppEquipaRoute
   AppIdentidadeRoute: typeof AppIdentidadeRoute
   AppPortariaRoute: typeof AppPortariaRoute
   AppVisaoGeralRoute: typeof AppVisaoGeralRoute
   AppZohoRoute: typeof AppZohoRoute
-  AppBasesDadosRoute: typeof AppBasesDadosRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
   AppEventosEventIdRoute: typeof AppEventosEventIdRoute
   AppEventosIndexRoute: typeof AppEventosIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppBasesDadosRoute: AppBasesDadosRoute,
   AppEncomendasRoute: AppEncomendasRoute,
   AppEquipaRoute: AppEquipaRoute,
   AppIdentidadeRoute: AppIdentidadeRoute,
   AppPortariaRoute: AppPortariaRoute,
   AppVisaoGeralRoute: AppVisaoGeralRoute,
   AppZohoRoute: AppZohoRoute,
-  AppBasesDadosRoute: AppBasesDadosRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
   AppEventosEventIdRoute: AppEventosEventIdRoute,
   AppEventosIndexRoute: AppEventosIndexRoute,

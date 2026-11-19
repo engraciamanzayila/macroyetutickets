@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const KINDS = ["Patrocinador", "Media partner", "Parceiro", "Oferta", "Artista", "Staff", "Outro"];
+type WhatsAppShare = { id: string; token: string; group_id: string; partner_name: string; contact: string | null };
 
 export function SharesPanel({ eventId, groups }: { eventId: string; groups: Group[] }) {
   const qc = useQueryClient();
@@ -23,7 +24,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
   const [f, setF] = useState({ group_id: "", partner_name: "", partner_kind: "Patrocinador", contact: "", email: "", note: "", qty: 0, expires_at: "" });
   const [shareEmails, setShareEmails] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [whatsAppShare, setWhatsAppShare] = useState<{ id: string; token: string; group_id: string; partner_name: string; contact: string | null } | null>(null);
+  const [whatsAppShare, setWhatsAppShare] = useState<WhatsAppShare | null>(null);
   const [whatsAppBusy, setWhatsAppBusy] = useState(false);
 
   const { data: shares = [] } = useQuery({
@@ -108,7 +109,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
     }
   };
 
-  const whatsappNumber = (share: (typeof shares)[number]) => {
+  const whatsappNumber = (share: WhatsAppShare) => {
     const suggested = share.contact && !share.contact.includes("@") ? share.contact : "";
     const raw = window.prompt(`Número de WhatsApp de ${share.partner_name}:`, suggested)?.trim();
     if (!raw) return null;
@@ -127,7 +128,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
     tab.location.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
   };
 
-  const sendPartnerWhatsAppLink = async (share: (typeof shares)[number], kind: "download" | "management") => {
+  const sendPartnerWhatsAppLink = async (share: WhatsAppShare, kind: "download" | "management") => {
     const phone = whatsappNumber(share);
     if (!phone) return;
     const group = groups.find((item) => item.id === share.group_id);
@@ -158,7 +159,7 @@ export function SharesPanel({ eventId, groups }: { eventId: string; groups: Grou
     }
   };
 
-  const sendPartnerWhatsAppFiles = async (share: (typeof shares)[number]) => {
+  const sendPartnerWhatsAppFiles = async (share: WhatsAppShare) => {
     const group = groups.find((item) => item.id === share.group_id);
     if (!group) return toast.error("Grupo de ingressos não encontrado.");
     setWhatsAppBusy(true);
