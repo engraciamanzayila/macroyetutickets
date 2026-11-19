@@ -194,14 +194,14 @@ export function CredentialLayoutEditor({ batch, compatibleBatches, onClose, onSa
                   />}
                   {artUrl && <div
                     data-drag="qr"
-                    className="absolute z-20 cursor-move border-2 border-dashed border-primary bg-white p-1 shadow-md"
+                    className="absolute z-20 box-border cursor-move overflow-hidden border-2 border-dashed border-primary bg-white p-1 shadow-md"
                     style={{
                       width: `${layout.qr.w * 100}%`, aspectRatio: "1 / 1",
                       left: `${layout.qr.x * 100}%`, top: `${layout.qr.y * 100}%`,
                       transform: "translate(-50%, -50%)", touchAction: "none",
                     }}
                   >
-                    <canvas ref={qrCanvas} aria-label="QR Code de exemplo" className="block h-full w-full pointer-events-none" />
+                    <canvas ref={qrCanvas} aria-label="QR Code de exemplo" className="pointer-events-none block" style={{ width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" }} />
                     <span data-drag="resize" className="absolute -right-2 -bottom-2 h-5 w-5 rounded-sm border-2 border-white bg-primary shadow cursor-nwse-resize" />
                   </div>}
                   {layout.code.show && <div
