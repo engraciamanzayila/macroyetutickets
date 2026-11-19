@@ -268,6 +268,13 @@ export function CredentialingPanel({ eventId, eventName }: { eventId: string; ev
           const x = (210 - usedW) / 2 + col * (cw + grid.gap);
           const y = (297 - usedH) / 2 + row * (ch + grid.gap);
           pdf.addImage(await new Promise<string>((resolve) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.readAsDataURL(png); }), "PNG", x, y, cw, ch, undefined, "FAST");
+          // Subtle but visible cutting guide around every credential on the A4 sheet.
+          // The artwork remains untouched; this border is only part of the print PDF.
+          pdf.setDrawColor(105, 105, 105);
+          pdf.setLineWidth(0.22);
+          pdf.setLineDashPattern([1.4, 1.1], 0);
+          pdf.rect(x, y, cw, ch);
+          pdf.setLineDashPattern([], 0);
           pageSlot = (pageSlot + 1) % perPage;
           done++; setProgress(Math.round(done / total * 100));
           if (done % 15 === 0) await new Promise((r) => setTimeout(r, 0));
