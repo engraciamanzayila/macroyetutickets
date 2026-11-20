@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,12 +29,11 @@ function Login() {
   const [otpSent,setOtpSent] = useState(false);
   const [busy,setBusy] = useState(false);
   const {session} = useAuth();
-  const navigate = useNavigate();
   const next = (() => { const value = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("next"); return value?.startsWith("/") && !value.startsWith("//") ? value : "/"; })();
 
   useEffect(() => {
-    if (session) navigate({to: next as "/"});
-  },[session,navigate,next]);
+    if (session) window.location.assign(next);
+  },[session,next]);
 
   const emailSubmit = async (e:React.FormEvent) => {
     e.preventDefault(); setBusy(true);
