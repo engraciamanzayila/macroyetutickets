@@ -19,7 +19,7 @@ export const Route = createFileRoute("/promotores")({
     { property: "og:description", content: "Os seus eventos, mais perto do público." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
-  ]), component: Promoters,
+  ] }), component: Promoters,
 });
 
 type AppRow = { id: string; status: string; application_data: Record<string,string>; document_paths: string[]; promoter_signed_at: string | null; admin_note: string | null };
