@@ -34,6 +34,10 @@ function Promoters() {
   const [signature,setSignature] = useState("");
   const [busy,setBusy] = useState(false);
   const [accept,setAccept] = useState(false);
+  const [wallet,setWallet] = useState<any[]>([]);
+  const [messages,setMessages] = useState<any[]>([]);
+  const [messageDraft,setMessageDraft] = useState("");
+  const [messageBusy,setMessageBusy] = useState(false);
   const db = supabase as any;
 
   useEffect(() => {
@@ -45,6 +49,33 @@ function Promoters() {
     });
     return () => { alive=false; };
   },[session,db]);
+
+  useEffect(() => {
+    if (!session || !application?.id) return;
+    let alive = true;
+    void db.from("promoter_messages").select("id,sender_id,body,created_at").eq("application_id",application.id).order("created_at",{ascending:true}).then(({data}: {data:any[]|null}) => {
+      if (alive) setMessages(data ?? []);
+    });
+    if (application.status === "approved") {
+      void db.from("promoter_wallet_summary").select("*").eq("promoter_id",session.user.id).order("event_name").then(({data}: {data:any[]|null}) => {
+        if (alive) setWallet(data ?? []);
+      });
+    }
+    return () => { alive=false; };
+  },[session,application?.id,application?.status,db]);
+
+  const sendMessage = async () => {
+    if (!session || !application?.id || !messageDraft.trim()) return;
+    setMessageBusy(true);
+    const {error} = await db.from("promoter_messages").insert({application_id:application.id,sender_id:session.user.id,body:messageDraft.trim()});
+    if (error) toast.error(error.message);
+    else {
+      setMessageDraft("");
+      const {data} = await db.from("promoter_messages").select("id,sender_id,body,created_at").eq("application_id",application.id).order("created_at",{ascending:true});
+      setMessages(data ?? []);
+    }
+    setMessageBusy(false);
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -131,6 +162,27 @@ function Promoters() {
           </article>
           <div className="flex items-start gap-2"><Checkbox checked={accept} onCheckedChange={v=>setAccept(!!v)}/><span className="text-sm">Declaro que os dados e documentos fornecidos são verdadeiros e autorizo a sua análise pela MY Tickets para efeitos de candidatura.</span></div><div className="space-y-1"><Label>Assinatura do promotor (nome completo)</Label><Input required value={signature} onChange={e=>setSignature(e.target.value)} placeholder="Nome igual ao documento de identificação"/></div><p className="text-xs text-muted-foreground">A assinatura e a aprovação ficam registadas com data e hora. A validade jurídica da assinatura electrónica deve respeitar os requisitos legais aplicáveis em Angola.</p><Button type="submit" disabled={busy}>{busy?"A enviar candidatura…":"Enviar candidatura e assinar"}</Button>{application&&<Button type="button" variant="outline" onClick={signAgain}>Actualizar assinatura</Button>}</div>
       </form>
+    </section>}
+    {session && application && <section className="rounded-2xl border bg-card p-6 space-y-5">
+      {application.status === "approved" && <div className="space-y-3">
+        <div><h2 className="text-xl font-bold">Carteira do promotor</h2><p className="text-sm text-muted-foreground">Resumo das vendas pagas e da comissão calculada por evento.</p></div>
+        {wallet.length === 0 ? <p className="text-sm text-muted-foreground">Ainda não existem vendas pagas associadas à sua conta.</p> : <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Vendas pagas</p><p className="text-xl font-bold">{wallet.reduce((n,r)=>n+Number(r.paid_tickets||0),0)}</p></div>
+            <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Comissão MY Tickets</p><p className="text-xl font-bold">{wallet.reduce((n,r)=>n+Number(r.platform_commission_amount||0),0).toLocaleString("pt-AO")} Kz</p></div>
+            <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Quota estimada do promotor</p><p className="text-xl font-bold">{wallet.reduce((n,r)=>n+Number(r.estimated_promoter_share||0),0).toLocaleString("pt-AO")} Kz</p></div>
+          </div>
+          <div className="divide-y rounded-lg border">{wallet.map(row=><div key={row.event_id} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><div><b>{row.event_name}</b><p className="text-xs text-muted-foreground">{row.paid_tickets} bilhetes · {row.paid_orders} encomendas · comissão {row.platform_commission_pct}%</p></div><div className="text-right"><b>{Number(row.estimated_promoter_share||0).toLocaleString("pt-AO")} Kz</b><p className="text-xs text-muted-foreground">quota estimada</p></div></div>)}</div>
+        </>}
+        <p className="text-xs text-muted-foreground">Estes valores são uma estimativa sobre encomendas marcadas como pagas. Não representam ainda saldo levantável; o fluxo de recebimento centralizado, impostos, taxas e regras de levantamento tem de estar configurado e aprovado antes de qualquer pagamento.</p>
+      </div>}
+      <div className="space-y-3">
+        <div><h2 className="text-xl font-bold">Mensagens com a MY Tickets</h2><p className="text-sm text-muted-foreground">Envie dúvidas ou documentos adicionais relacionados com esta candidatura. A conversa fica guardada no seu processo.</p></div>
+        <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border p-3">
+          {messages.length===0 ? <p className="text-sm text-muted-foreground">Ainda não há mensagens nesta conversa.</p> : messages.map(m=><div key={m.id} className={m.sender_id===session.user.id?"ml-8 rounded-lg bg-primary/10 p-3":"mr-8 rounded-lg bg-muted p-3"}><p className="mb-1 text-xs font-semibold">{m.sender_id===session.user.id?"Você":"MY Tickets"} · {new Date(m.created_at).toLocaleString("pt-AO")}</p><p className="whitespace-pre-wrap text-sm">{m.body}</p></div>)}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row"><Textarea value={messageDraft} onChange={e=>setMessageDraft(e.target.value)} placeholder="Escreva a sua mensagem…" rows={2}/><Button type="button" disabled={messageBusy||!messageDraft.trim()} onClick={()=>void sendMessage()}>{messageBusy?"A enviar…":"Enviar mensagem"}</Button></div>
+      </div>
     </section>}
   </main></>;
 }

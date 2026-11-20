@@ -47,6 +47,11 @@ function Team() {
     },
   });
   const [applicationNotes, setApplicationNotes] = useState<Record<string,string>>({});
+  const [applicationReplies, setApplicationReplies] = useState<Record<string,string>>({});
+  const { data: promoterMessages = [], refetch: refetchPromoterMessages } = useQuery({
+    queryKey: ["promoter-messages-admin"], enabled: isAdmin,
+    queryFn: async () => { const {data,error}=await (supabase as any).from("promoter_messages").select("id,application_id,sender_id,body,created_at").order("created_at",{ascending:true}); if(error) throw error; return data ?? []; },
+  });
   const reviewApplication = async (id: string, decision: string) => {
     const { error } = await (supabase as any).rpc("review_promoter_application", {
       p_application: id, p_decision: decision, p_note: applicationNotes[id] ?? "",
@@ -56,6 +61,15 @@ function Team() {
     toast.success(decision === "approved" ? "Promotor aprovado e acesso activado." : "Estado da candidatura actualizado.");
     await refetchApplications();
     qc.invalidateQueries({ queryKey: ["team"] });
+  };
+  const sendPromoterReply = async (applicationId: string) => {
+    const body=(applicationReplies[applicationId] ?? "").trim();
+    if (!body || !session) return;
+    const {error}=await (supabase as any).from("promoter_messages").insert({application_id:applicationId,sender_id:session.user.id,body});
+    if(error) return toast.error(error.message);
+    setApplicationReplies(v=>({...v,[applicationId]:""}));
+    await refetchPromoterMessages();
+    toast.success("Mensagem enviada ao promotor.");
   };
   const openDocument = async (path: string) => {
     const { data, error } = await supabase.storage.from("promoter-documents").createSignedUrl(path, 60);
@@ -106,6 +120,13 @@ function Team() {
             </div>
             {d.portfolio && <p className="text-sm"><span className="text-muted-foreground">Experiência: </span>{d.portfolio}</p>}
             <div className="flex flex-wrap gap-2">{(app.document_paths ?? []).map((path: string,index:number)=><Button key={path} size="sm" variant="outline" onClick={()=>void openDocument(path)}>Documento {index+1} · abrir</Button>)}</div>
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-semibold">Conversa com o candidato</p>
+              <div className="max-h-52 space-y-2 overflow-y-auto">
+                {promoterMessages.filter((m:any)=>m.application_id===app.id).length===0 ? <p className="text-xs text-muted-foreground">Sem mensagens ainda.</p> : promoterMessages.filter((m:any)=>m.application_id===app.id).map((m:any)=><div key={m.id} className={m.sender_id===app.user_id?"rounded-md bg-muted p-2":"rounded-md bg-primary/10 p-2"}><p className="text-xs font-semibold">{m.sender_id===app.user_id?"Promotor":"MY Tickets"} · {new Date(m.created_at).toLocaleString("pt-AO")}</p><p className="whitespace-pre-wrap text-sm">{m.body}</p></div>)}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row"><textarea className="min-h-16 flex-1 rounded-md border bg-background p-2 text-sm" value={applicationReplies[app.id] ?? ""} onChange={e=>setApplicationReplies(v=>({...v,[app.id]:e.target.value}))} placeholder="Responder ao promotor…"/><Button size="sm" onClick={()=>void sendPromoterReply(app.id)} disabled={!(applicationReplies[app.id] ?? "").trim()}>Enviar resposta</Button></div>
+            </div>
             <p className="text-xs text-muted-foreground">Assinatura do promotor: {app.promoter_signed_name || "Em falta"}{app.promoter_signed_at ? " · " + new Date(app.promoter_signed_at).toLocaleString("pt-AO") : ""}</p>
             {app.admin_signed_at && <p className="text-xs text-muted-foreground">Aprovado e assinado por {app.admin_signed_name} · {new Date(app.admin_signed_at).toLocaleString("pt-AO")}</p>}
             {app.admin_note && <p className="rounded-md bg-secondary p-2 text-sm">Nota anterior: {app.admin_note}</p>}
