@@ -102,16 +102,32 @@ function Promoters() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!session) return toast.error("Entre ou crie primeiro a sua conta de cliente para associar a candidatura.");
     if (!accept) return toast.error("Confirme que os dados são verdadeiros.");
+    if (!session && (accountPassword.length < 8 || accountPassword !== confirmPassword)) return toast.error("Confirme uma palavra-passe com pelo menos 8 caracteres.");
     setBusy(true);
     try {
+      let userId = session?.user.id;
+      if (!userId) {
+        const {data:authData,error:authError} = await supabase.auth.signUp({
+          email:form.email,
+          password:accountPassword,
+          options:{emailRedirectTo:window.location.origin+"/login?next=%2Fpromotores",data:{full_name:form.full_name,phone:form.phone,account_type:"promoter"}},
+        });
+        if (authError) throw authError;
+        if (!authData.session || !authData.user) {
+          toast.success("Conta criada. Confirme o e-mail e depois entre para concluir o envio dos documentos e a assinatura.");
+          setAccountPassword("");
+          setConfirmPassword("");
+          return;
+        }
+        userId=authData.user.id;
+      }
       const paths:string[] = [];
       for (const file of files) {
         if (!["application/pdf","image/jpeg","image/png"].includes(file.type)) throw new Error("Os documentos devem ser PDF, JPG ou PNG.");
         if (file.size > 10*1024*1024) throw new Error("Cada documento deve ter no máximo 10 MB.");
         const safeName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9._-]/g,"-");
-        const path = `${session.user.id}/${crypto.randomUUID()}-${safeName}`;
+        const path = `${userId}/${crypto.randomUUID()}-${safeName}`;
         const {error} = await supabase.storage.from("promoter-documents").upload(path,file,{upsert:false,contentType:file.type});
         if (error) throw error;
         paths.push(path);
@@ -186,7 +202,7 @@ function Promoters() {
             <p><b>6. Pagamentos e conformidade.</b> As liquidações, prazos, taxas externas, impostos, cancelamentos e reembolsos serão regulados pelas condições operacionais e pelo contrato específico do evento, sem promessa de transferência automática nesta candidatura.</p>
             <p className="text-xs text-muted-foreground">Versão 2026-11. O documento e o mecanismo de assinatura devem ser validados juridicamente para cumprimento da legislação angolana antes da utilização comercial definitiva.</p>
           </article>
-          <div className="flex items-start gap-2"><Checkbox checked={accept} onCheckedChange={v=>setAccept(!!v)}/><span className="text-sm">Declaro que os dados e documentos fornecidos são verdadeiros e autorizo a sua análise pela MY Tickets para efeitos de candidatura.</span></div><div className="space-y-1"><Label>Assinatura do promotor (nome completo)</Label><Input required value={signature} onChange={e=>setSignature(e.target.value)} placeholder="Nome igual ao documento de identificação"/></div><p className="text-xs text-muted-foreground">A assinatura e a aprovação ficam registadas com data e hora. A validade jurídica da assinatura electrónica deve respeitar os requisitos legais aplicáveis em Angola.</p><Button type="submit" disabled={busy}>{busy?"A enviar candidatura…":"Enviar candidatura e assinar"}</Button>{application&&<Button type="button" variant="outline" onClick={signAgain}>Actualizar assinatura</Button>}</div>
+          <div className="flex items-start gap-2"><Checkbox checked={accept} onCheckedChange={v=>setAccept(!!v)}/><span className="text-sm">Declaro que os dados e documentos fornecidos são verdadeiros e autorizo a sua análise pela MY Tickets para efeitos de candidatura.</span></div><div className="space-y-1"><Label>Assinatura do promotor (nome completo)</Label><Input required value={signature} onChange={e=>setSignature(e.target.value)} placeholder="Nome igual ao documento de identificação"/></div><p className="text-xs text-muted-foreground">A assinatura e a aprovação ficam registadas com data e hora. A validade jurídica da assinatura electrónica deve respeitar os requisitos legais aplicáveis em Angola.</p><Button type="submit" disabled={busy}>{busy?"A enviar candidatura…":session?"Enviar candidatura e assinar":"Criar conta de promotor e enviar candidatura"}</Button>{application&&<Button type="button" variant="outline" onClick={signAgain}>Actualizar assinatura</Button>}</div>
       </form>
     </section>}
     {session && application && <section className="rounded-2xl border bg-card p-6 space-y-5">
