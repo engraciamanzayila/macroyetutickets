@@ -32,6 +32,8 @@ function Promoters() {
   const [files,setFiles] = useState<File[]>([]);
   const [application,setApplication] = useState<AppRow|null>(null);
   const [signature,setSignature] = useState("");
+  const [accountPassword,setAccountPassword] = useState("");
+  const [confirmPassword,setConfirmPassword] = useState("");
   const [busy,setBusy] = useState(false);
   const [accept,setAccept] = useState(false);
   const [wallet,setWallet] = useState<any[]>([]);
@@ -149,11 +151,7 @@ function Promoters() {
       </div>
       <p className="mt-5 text-sm text-muted-foreground">A candidatura exige identificação, informação fiscal, contactos, dados de pagamento e documentação. A equipa analisa os dados e documentos. O acesso de promotor só é activado depois da aprovação e assinatura de ambas as partes.</p>
     </section>
-    {!session ? <section className="rounded-2xl border bg-card p-6 space-y-3">
-      <h2 className="text-xl font-bold">Primeiro, aceda à sua conta</h2>
-      <p className="text-sm text-muted-foreground">A conta de cliente é independente da candidatura. Depois de entrar, volte a esta página para preencher e enviar o formulário legal de promotor.</p>
-      <Button asChild><a href="/login?next=%2Fpromotores">Entrar ou criar conta</a></Button>
-    </section> : application && !["changes_requested","rejected"].includes(application.status) ? <section className="rounded-2xl border bg-card p-6 space-y-3">
+    {session && application && !["changes_requested","rejected"].includes(application.status) ? <section className="rounded-2xl border bg-card p-6 space-y-3">
       <h2 className="text-xl font-bold">A sua candidatura</h2>
       <p className="font-semibold">{statusLabel[application.status] ?? application.status}</p>
       {application.admin_note && <p className="rounded-lg bg-secondary p-3 text-sm">Nota da administração: {application.admin_note}</p>}
@@ -162,10 +160,13 @@ function Promoters() {
     </section> : <section className="rounded-2xl border bg-card p-6 md:p-8">
       <div className="mb-6"><h2 className="text-2xl font-bold">{application ? "Corrigir candidatura" : "Formulário de candidatura"}</h2><p className="text-sm text-muted-foreground">Preencha os dados com atenção. Os documentos ficam guardados num espaço privado e só podem ser consultados por si e pela administração.</p></div>
       <form className="space-y-6" onSubmit={submit}>
+        {!session && <div className="rounded-lg bg-primary/5 p-3 text-sm">Este formulário cria a sua conta de promotor e envia a candidatura no mesmo processo. Se já tem uma conta MY Tickets, <a className="font-semibold text-primary underline" href="/login?next=%2Fpromotores">entre aqui</a> antes de preencher.</div>}
         <div className="space-y-3"><h3 className="font-semibold">1. Identificação e contacto</h3><div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1"><Label>Tipo de promotor</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={form.promoter_type} onChange={e=>setForm({...form,promoter_type:e.target.value})}><option value="individual">Pessoa singular</option><option value="company">Empresa / pessoa colectiva</option></select></div>
           {([["full_name","Nome completo"],["birth_date","Data de nascimento"],["nationality","Nacionalidade"],["bi_number","Nº do BI / Passaporte"],["nif","NIF"],["phone","Telefone / WhatsApp"],["email","E-mail"],["address","Morada completa"]] as const).map(([key,label])=><div className="space-y-1" key={key}><Label>{label}</Label><Input type={key==="birth_date"?"date":key==="email"?"email":"text"} required={!["birth_date","nationality"].includes(key)} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}/></div>)}
-        </div></div>
+        </div>
+        {!session && <><div className="space-y-1"><Label>Palavra-passe da conta</Label><Input type="password" minLength={8} autoComplete="new-password" required value={accountPassword} onChange={e=>setAccountPassword(e.target.value)}/></div><div className="space-y-1"><Label>Confirmar palavra-passe</Label><Input type="password" minLength={8} autoComplete="new-password" required value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/></div>}
+        </div>
         <div className="space-y-3 border-t pt-5"><h3 className="font-semibold">2. Dados da empresa (quando aplicável)</h3><div className="grid gap-3 sm:grid-cols-2">
           {([["company_name","Nome legal da empresa"],["company_nif","NIF da empresa"],["legal_representative","Representante legal"],["business_activity","Actividade / ramo"]] as const).map(([key,label])=><div className="space-y-1" key={key}><Label>{label}</Label><Input required={form.promoter_type==="company"} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}/></div>)}
           <div className="space-y-1 sm:col-span-2"><Label>Portfólio / experiência na organização de eventos</Label><Textarea value={form.portfolio} onChange={e=>setForm({...form,portfolio:e.target.value})} rows={3}/></div>
