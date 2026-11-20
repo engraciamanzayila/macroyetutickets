@@ -1,245 +1,96 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { useState } from "react";
-import { FileDown, FileSpreadsheet, ExternalLink } from "lucide-react";
+import { useEffect,useMemo,useState } from "react";
+import { useQuery,useQueryClient } from "@tanstack/react-query";
+import JSZip from "jszip";
+import { FileDown,FileSpreadsheet,ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllTickets, type Group } from "@/lib/generate";
+import { fetchAllTickets,type Group } from "@/lib/generate";
 import { syncEventSheet } from "@/lib/sheets.functions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
-export function ReportPanel({
-  eventId,
-  eventName,
-  groups,
-}: {
-  eventId: string;
-  eventName: string;
-  groups: Group[];
-}) {
-  const qc = useQueryClient();
-  const [openingSheet, setOpeningSheet] = useState(false);
-  const { data: tickets = [] } = useQuery({
-    queryKey: ["report", eventId],
-    queryFn: () => fetchAllTickets({ event_id: eventId }),
-  });
+type Ticket= {id:string;code:string;seq:number;status:string;group_id:string;created_at?:string|null;used_at?:string|null;printed_at?:string|null;holder_name?:string|null;holder_contact?:string|null;share_id?:string|null;sent_at?:string|null;sent_via?:string|null;email_sent_at?:string|null;email_delivery_to?:string|null;order_id?:string|null};
+type Order={id:string;buyer_name:string|null;buyer_phone:string|null;buyer_email:string|null;payment_method:string|null;status:string;total:number|string;paid_at:string|null;created_at:string};
+type Share={id:string;partner_name:string|null;partner_kind:string|null;contact:string|null;created_at:string};
+type Move={at:string;op:string;t:Ticket;g?:Group;holder:string;recipient:string;partner:string;buyer:string;channel:string;value:string};
+const sections=[["summary","Resumo executivo"],["groups","Resumo por grupo"],["types","Resumo por tipo / secção"],["movements","Movimentos por data e hora"],["sales","Vendas e compradores"],["distribution","Impressões e distribuições"],["tickets","Relação individual de ingressos"]] as const;
+type Section=typeof sections[number][0];
+const fmt=(v?:string|null)=>v?new Date(v).toLocaleString("pt-AO",{dateStyle:"short",timeStyle:"medium"}):"";
+const status=(v:string)=>({valid:"Válido / por usar",used:"Entrada validada",void:"Anulado"}[v]??v);
+const safe=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim().replace(/\s+/g,"_").slice(0,27)||"Folha";
+const esc=(v:unknown)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+const col=(n:number)=>{let s="";for(let x=n+1;x;x=Math.floor((x-1)/26))s=String.fromCharCode(65+(x-1)%26)+s;return s;};
+function sheetXml(rows:unknown[][]){
+ const width=Math.max(1,...rows.map(r=>r.length));
+ const data=rows.map((row,ri)=>"<row r=\""+(ri+1)+"\">"+row.map((v,ci)=>{const ref=col(ci)+(ri+1);return typeof v==="number"&&Number.isFinite(v)?`<c r="${ref}" s="${ri===0?1:0}"><v>${v}</v></c>`:`<c r="${ref}" t="inlineStr" s="${ri===0?1:0}"><is><t xml:space="preserve">${esc(v)}</t></is></c>`;}).join("")+"</row>").join("");
+ const last=col(width-1)+Math.max(1,rows.length);
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${Array.from({length:width},(_,i)=>`<col min="${i+1}" max="${i+1}" width="${i===0?23:19}" customWidth="1"/>`).join("")}</cols><sheetData>${data}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`;
+}
+async function saveXlsx(sheets:{name:string;rows:unknown[][]}[],filename:string){
+ const z=new JSZip();z.file("[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`);
+ z.file("_rels/.rels",`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+ z.file("xl/workbook.xml",`<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${esc(s.name.slice(0,31))}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets></workbook>`);
+ z.file("xl/_rels/workbook.xml.rels",`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
+ z.file("xl/styles.xml",`<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF15243A"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf xfId="0"/><xf xfId="0" fontId="1" fillId="2" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`);
+ sheets.forEach((s,i)=>z.file(`xl/worksheets/sheet${i+1}.xml`,sheetXml(s.rows)));
+ const blob=await z.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
 
-  useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    const ch = supabase
-      .channel(`report-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tickets", filter: `event_id=eq.${eventId}` },
-        () => {
-          clearTimeout(t);
-          t = setTimeout(() => qc.invalidateQueries({ queryKey: ["report", eventId] }), 800);
-        },
-      )
-      .subscribe();
-    return () => {
-      clearTimeout(t);
-      supabase.removeChannel(ch);
-    };
-  }, [eventId, qc]);
-
-  const count = (list: typeof tickets) => ({
-    total: list.length,
-    used: list.filter((t) => t.status === "used").length,
-    void: list.filter((t) => t.status === "void").length,
-  });
-  const all = count(tickets);
-  const byGroup = groups.map((g) => ({ g, ...count(tickets.filter((t) => t.group_id === g.id)) }));
-  const types = [...new Set(groups.map((g) => g.ticket_type))];
-  const byType = types.map((type) => ({
-    type,
-    ...count(tickets.filter((t) => groups.find((g) => g.id === t.group_id)?.ticket_type === type)),
-  }));
-
-  const exportCsv = () => {
-    const rows = [["Código", "Nº", "Grupo", "Tipo", "Destinatário", "Estado", "Entrada"]];
-    for (const t of tickets) {
-      const g = groups.find((x) => x.id === t.group_id);
-      rows.push([
-        t.code,
-        String(t.seq),
-        g?.name ?? "",
-        g?.ticket_type ?? "",
-        g?.recipient ?? "",
-        { valid: "Por usar", used: "Entrou", void: "Anulado" }[t.status] ?? t.status,
-        t.used_at ? new Date(t.used_at).toLocaleString("pt-PT") : "",
-      ]);
-    }
-    const csv =
-      "\uFEFF" + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    a.download = `${eventName || "evento"}_relatorio.csv`;
-    a.click();
-  };
-
-  const exportPdf = async () => {
-    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
-    const pdf = new jsPDF({ orientation: "landscape", format: "a4" });
-    const rows = byGroup.map(({ g, total, used, void: voidCount }) => {
-      const groupTickets = tickets.filter((ticket) => ticket.group_id === g.id);
-      const printed = groupTickets.filter((ticket) => ticket.printed_at).length;
-      return [
-        g.name,
-        g.ticket_type,
-        g.recipient ?? "",
-        String(total),
-        String(printed),
-        String(total - printed),
-        String(total - used - voidCount),
-        String(used),
-        String(voidCount),
-      ];
-    });
-    pdf.setFontSize(18);
-    pdf.text(`Relatório de ingressos — ${eventName}`, 14, 18);
-    pdf.setFontSize(10);
-    pdf.text(`Gerado em ${new Date().toLocaleString("pt-AO")}`, 14, 25);
-    pdf.text(
-      `Emitidos: ${all.total - all.void}   Entraram: ${all.used}   Por entrar: ${all.total - all.used - all.void}   Anulados: ${all.void}`,
-      14,
-      32,
-    );
-    autoTable(pdf, {
-      startY: 38,
-      head: [
-        [
-          "Grupo",
-          "Tipo",
-          "Destinatário",
-          "Total",
-          "Impressos",
-          "Digitais",
-          "Por entrar",
-          "Entraram",
-          "Anulados",
-        ],
-      ],
-      body: rows,
-      styles: { fontSize: 8 },
-    });
-    const lastY =
-      (pdf as typeof pdf & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 38;
-    autoTable(pdf, {
-      startY: lastY + 8,
-      head: [["Código", "Nº", "Grupo", "Tipo", "Destinatário", "Canal", "Estado", "Entrada"]],
-      body: tickets.map((t) => {
-        const g = groups.find((item) => item.id === t.group_id);
-        return [
-          t.code,
-          String(t.seq),
-          g?.name ?? "",
-          g?.ticket_type ?? "",
-          g?.recipient ?? "",
-          t.printed_at ? "Impresso" : "Digital",
-          { valid: "Por usar", used: "Entrou", void: "Anulado" }[t.status] ?? t.status,
-          t.used_at ? new Date(t.used_at).toLocaleString("pt-AO") : "",
-        ];
-      }),
-      styles: { fontSize: 7 },
-      didDrawPage: () => {
-        pdf.setFontSize(8);
-        pdf.text(`MY Tickets · ${eventName}`, 14, pdf.internal.pageSize.getHeight() - 7);
-      },
-    });
-    pdf.save(`${eventName || "evento"}_relatorio.pdf`);
-  };
-
-  const openSheet = async () => {
-    const tab = window.open("about:blank", "_blank");
-    if (tab) tab.opener = null;
-    setOpeningSheet(true);
-    try {
-      const { url } = await syncEventSheet({ data: { eventId } });
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
-    } catch (e) {
-      tab?.close();
-      toast.error("Não foi possível abrir a folha: " + (e as Error).message);
-    } finally {
-      setOpeningSheet(false);
-    }
-  };
-
-  const Bar = ({ used, total }: { used: number; total: number }) => (
-    <div className="h-2 rounded-full bg-secondary overflow-hidden">
-      <div className="h-full bg-brand" style={{ width: `${total ? (used / total) * 100 : 0}%` }} />
-    </div>
-  );
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-success animate-pulse" /> Atualiza ao vivo
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={openSheet} disabled={openingSheet}>
-            <ExternalLink className="h-4 w-4" />{" "}
-            {openingSheet ? "A atualizar…" : "Abrir Google Sheets"}
-          </Button>
-          <Button variant="secondary" onClick={() => void exportPdf()}>
-            <FileDown className="h-4 w-4" /> Relatório PDF
-          </Button>
-          <Button variant="ghost" onClick={exportCsv}>
-            <FileSpreadsheet className="h-4 w-4" /> Exportar CSV
-          </Button>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          ["Emitidos", all.total - all.void],
-          ["Entraram", all.used],
-          ["Por entrar", all.total - all.used - all.void],
-          ["Anulados", all.void],
-        ].map(([l, v]) => (
-          <div key={l} className="rounded-2xl border bg-card p-5">
-            <p className="text-sm text-muted-foreground">{l}</p>
-            <p className="text-4xl font-display font-extrabold mt-1">{v}</p>
-          </div>
-        ))}
-      </div>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-2xl border bg-card p-5 space-y-4">
-          <h3 className="font-bold">Por tipo / área</h3>
-          {byType.map((r) => (
-            <div key={r.type} className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span>{r.type}</span>
-                <span className="text-muted-foreground">
-                  {r.used} / {r.total - r.void}
-                </span>
-              </div>
-              <Bar used={r.used} total={r.total - r.void} />
-            </div>
-          ))}
-        </div>
-        <div className="rounded-2xl border bg-card p-5 space-y-4">
-          <h3 className="font-bold">Por grupo</h3>
-          {byGroup.map((r) => (
-            <div key={r.g.id} className="space-y-1">
-              <div className="flex justify-between text-sm gap-2">
-                <span className="truncate">
-                  {r.g.name}
-                  {r.g.recipient ? ` → ${r.g.recipient}` : ""}
-                </span>
-                <span className="text-muted-foreground shrink-0">
-                  {r.used} / {r.total - r.void}
-                </span>
-              </div>
-              <Bar used={r.used} total={r.total - r.void} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+export function ReportPanel({eventId,eventName,groups}:{eventId:string;eventName:string;groups:Group[]}){
+ const qc=useQueryClient();const [opening,setOpening]=useState(false);const [busy,setBusy]=useState<"pdf"|"xlsx"|null>(null);
+ const [groupIds,setGroupIds]=useState<string[]>(groups.map(g=>g.id));const [types,setTypes]=useState<string[]>([...new Set(groups.map(g=>g.ticket_type))]);const [chosen,setChosen]=useState<Section[]>(["summary","groups","types","movements","sales","distribution","tickets"]);const [from,setFrom]=useState("");const [to,setTo]=useState("");const [mode,setMode]=useState<"general"|"daily">("general");const [search,setSearch]=useState("");
+ useEffect(()=>setGroupIds(groups.map(g=>g.id)),[groups]);useEffect(()=>setTypes([...new Set(groups.map(g=>g.ticket_type))]),[groups]);
+ const tq=useQuery({queryKey:["report",eventId],queryFn:()=>fetchAllTickets({event_id:eventId},"id,code,seq,status,group_id,created_at,used_at,printed_at,holder_name,holder_contact,share_id,sent_at,sent_via,email_sent_at,email_delivery_to,order_id")});
+ const oq=useQuery({queryKey:["report-orders",eventId],queryFn:async()=>{const {data,error}=await supabase.from("orders").select("id,buyer_name,buyer_phone,buyer_email,payment_method,status,total,paid_at,created_at").eq("event_id",eventId);if(error)throw error;return(data??[]) as Order[];}});
+ const sq=useQuery({queryKey:["report-shares",eventId],queryFn:async()=>{const {data,error}=await supabase.from("group_shares").select("id,partner_name,partner_kind,contact,created_at").eq("event_id",eventId);if(error)throw error;return(data??[]) as Share[];}});
+ const tickets=tq.data??[],orders=oq.data??[],shares=sq.data??[];
+ useEffect(()=>{let timer:ReturnType<typeof setTimeout>;const ch=supabase.channel(`report-${eventId}`).on("postgres_changes",{event:"*",schema:"public",table:"tickets",filter:`event_id=eq.${eventId}`},()=>{clearTimeout(timer);timer=setTimeout(()=>{qc.invalidateQueries({queryKey:["report",eventId]});qc.invalidateQueries({queryKey:["report-orders",eventId]});qc.invalidateQueries({queryKey:["report-shares",eventId]});},700);}).subscribe();return()=>{clearTimeout(timer);supabase.removeChannel(ch);};},[eventId,qc]);
+ const gs=groups.filter(g=>groupIds.includes(g.id)&&types.includes(g.ticket_type));const ts=tickets.filter(t=>gs.some(g=>g.id===t.group_id));const gm=new Map(groups.map(g=>[g.id,g]));const om=new Map(orders.map(o=>[o.id,o]));const sm=new Map(shares.map(s=>[s.id,s]));
+ const count=(list:Ticket[])=>({total:list.length,active:list.filter(t=>t.status!=="void").length,sold:list.filter(t=>t.order_id&&om.get(t.order_id)?.status==="paid").length,printed:list.filter(t=>!!t.printed_at).length,distributed:list.filter(t=>!!t.sent_at||!!t.email_sent_at||!!t.share_id).length,used:list.filter(t=>t.status==="used").length,voided:list.filter(t=>t.status==="void").length,available:list.filter(t=>t.status==="valid"&&!t.printed_at&&!t.sent_at&&!t.email_sent_at&&!t.share_id).length});
+ const total=count(ts);const groupRows=gs.map(g=>({g,...count(ts.filter(t=>t.group_id===g.id))}));const typeRows=[...new Set(gs.map(g=>g.ticket_type))].map(type=>({type,rows:groupRows.filter(r=>r.g.ticket_type===type)}));
+ const inRange=(v:string)=>{const d=new Date(v);return(!from||d>=new Date(from+"T00:00:00"))&&(!to||d<=new Date(to+"T23:59:59.999"));};
+ const moves:Move[]=ts.flatMap(t=>{const g=gm.get(t.group_id),o=t.order_id?om.get(t.order_id):undefined,sh=t.share_id?sm.get(t.share_id):undefined;const common={t,g,holder:t.holder_name??"",recipient:t.holder_contact??g?.recipient??"",partner:sh?.partner_name??"",buyer:o?.buyer_name??"",value:g?.price!=null?String(g.price):""};const out:Move[]=[];if(t.created_at&&inRange(t.created_at))out.push({...common,at:t.created_at,op:"Geração do ingresso",channel:"Sistema"});if(o?.status==="paid"&&o.paid_at&&inRange(o.paid_at))out.push({...common,at:o.paid_at,op:"Venda paga",channel:o.payment_method??"",value:String(o.total??"")});const sent=t.sent_at??t.email_sent_at;if(sent&&inRange(sent))out.push({...common,at:sent,op:"Distribuição / envio",channel:t.sent_via??(t.email_delivery_to?"E-mail":"Partilha")});if(t.printed_at&&inRange(t.printed_at))out.push({...common,at:t.printed_at,op:"Impressão",channel:"Impressão"});if(t.used_at&&inRange(t.used_at))out.push({...common,at:t.used_at,op:"Validação de entrada",channel:"Portaria"});return out;}).sort((a,b)=>a.at.localeCompare(b.at));
+ const details=ts.map(t=>{const g=gm.get(t.group_id),o=t.order_id?om.get(t.order_id):undefined,sh=t.share_id?sm.get(t.share_id):undefined;return[t.code,t.seq,g?.ticket_type??"",g?.name??"",g?.recipient??"",t.holder_name??"",t.holder_contact??"",sh?.partner_name??"",o?.buyer_name??"",o?.buyer_phone??"",status(t.status),fmt(t.created_at),fmt(o?.paid_at),fmt(t.printed_at),fmt(t.sent_at??t.email_sent_at),fmt(t.used_at),g?.price??""];});
+ const movementRows=moves.map(m=>[fmt(m.at),m.op,m.g?.ticket_type??"",m.g?.name??"",m.t.code,m.t.seq,m.holder,m.recipient,m.partner,m.buyer,m.channel,status(m.t.status),m.value]);
+ const gen=new Date().toLocaleString("pt-AO");const range=from||to?`${from||"início"} a ${to||"hoje"}`:"Todo o histórico registado";const base=safe(eventName||"Evento");
+ const buildSheets=()=>{
+  const out:{name:string;rows:unknown[][]}[]=[];const add=(name:string,rows:unknown[][])=>out.push({name,rows});
+  if(chosen.includes("summary"))add("Resumo",[["MY TICKETS · RELATÓRIO"],["Evento",eventName],["Gerado em",gen],["Grupos seleccionados",gs.length],["Período dos movimentos",range],["Nota","Resumo é posição actual; período filtra movimentos."],[],["Indicador","Quantidade"],["Ingressos gerados",total.total],["Activos",total.active],["Vendas pagas",total.sold],["Impressos",total.printed],["Distribuídos",total.distributed],["Entradas validadas",total.used],["Anulados",total.voided],["Disponíveis",total.available],["Movimentos no período",moves.length]]);
+  if(chosen.includes("groups")){add("Grupos",[["Grupo","Tipo / secção","Destinatário","Configurados","Gerados","Activos","Vendidos","Impressos","Distribuídos","Entradas","Anulados","Disponíveis"],...groupRows.map(r=>[r.g.name,r.g.ticket_type,r.g.recipient??"",r.g.quantity,r.total,r.active,r.sold,r.printed,r.distributed,r.used,r.voided,r.available])]);for(const r of groupRows){add(safe("Grupo "+r.g.name),[["Grupo",r.g.name],["Tipo",r.g.ticket_type],["Destinatário",r.g.recipient??""],["Gerado em",gen],[],["Código","Nº","Titular","Contacto","Parceiro","Comprador","Estado","Gerado","Pago","Impresso","Distribuído","Entrada"],...ts.filter(t=>t.group_id===r.g.id).map(t=>{const o=t.order_id?om.get(t.order_id):undefined,sh=t.share_id?sm.get(t.share_id):undefined;return[t.code,t.seq,t.holder_name??"",t.holder_contact??"",sh?.partner_name??"",o?.buyer_name??"",status(t.status),fmt(t.created_at),fmt(o?.paid_at),fmt(t.printed_at),fmt(t.sent_at??t.email_sent_at),fmt(t.used_at)];})]);}}
+  if(chosen.includes("types")){add("Tipos e seccoes",[["Tipo / secção","Grupos","Gerados","Vendidos","Impressos","Distribuídos","Entradas","Anulados","Disponíveis"],...typeRows.map(r=>[r.type,r.rows.length,...(["total","sold","printed","distributed","used","voided","available"] as const).map(k=>r.rows.reduce((n,x)=>n+x[k],0))])]);for(const r of typeRows)add(safe(r.type),[["Grupo","Destinatário","Configurados","Gerados","Vendidos","Impressos","Distribuídos","Entradas","Anulados","Disponíveis"],...r.rows.map(x=>[x.g.name,x.g.recipient??"",x.g.quantity,x.total,x.sold,x.printed,x.distributed,x.used,x.voided,x.available])]);}
+  if(chosen.includes("movements"))add("Movimentos",[["Data e hora","Operação","Tipo","Grupo / mesa","Código","Nº","Titular","Destinatário / contacto","Parceiro","Comprador","Canal","Estado actual","Valor registado"],...movementRows]);
+  if(chosen.includes("sales"))add("Vendas",[["Data/hora","Código","Tipo","Grupo","Comprador","Telefone","E-mail","Pagamento","Estado encomenda","Valor encomenda"],...ts.filter(t=>t.order_id&&om.has(t.order_id)).map(t=>{const o=om.get(t.order_id)!,g=gm.get(t.group_id);return[fmt(o.paid_at??o.created_at),t.code,g?.ticket_type??"",g?.name??"",o.buyer_name??"",o.buyer_phone??"",o.buyer_email??"",o.payment_method??"",o.status,o.total??""];})]);
+  if(chosen.includes("distribution"))add("Impressao e envio",[["Data/hora","Operação","Código","Tipo","Grupo","Titular","Destinatário","Parceiro","Canal","Estado"],...ts.flatMap(t=>{const g=gm.get(t.group_id),sh=t.share_id?sm.get(t.share_id):undefined,rows:unknown[][]=[];if(t.printed_at)rows.push([fmt(t.printed_at),"Impressão",t.code,g?.ticket_type??"",g?.name??"",t.holder_name??"",t.holder_contact??g?.recipient??"",sh?.partner_name??"","Impressão",status(t.status)]);const sent=t.sent_at??t.email_sent_at;if(sent)rows.push([fmt(sent),"Distribuição",t.code,g?.ticket_type??"",g?.name??"",t.holder_name??"",t.holder_contact??t.email_delivery_to??"",sh?.partner_name??"",t.sent_via??"E-mail",status(t.status)]);return rows;})]);
+  if(chosen.includes("tickets"))add("Ingressos",[["Código","Nº","Tipo","Grupo","Destinatário grupo","Titular","Contacto","Parceiro","Comprador","Telefone","Estado","Gerado em","Pago em","Impresso em","Distribuído em","Entrada em","Preço grupo"],...details]);
+  return out;
+ };
+ const exportXlsx=async()=>{if(!chosen.length||!gs.length)return toast.error("Seleccione grupos e pelo menos uma secção.");setBusy("xlsx");try{const sheets=buildSheets();await saveXlsx(sheets,`${base}_relatorio_${mode}.xlsx`);toast.success(`Excel criado com ${sheets.length} folhas.`);}catch(e){toast.error("Erro ao gerar Excel: "+(e as Error).message);}finally{setBusy(null);}};
+ const exportPdf=async()=>{if(!chosen.length||!gs.length)return toast.error("Seleccione grupos e pelo menos uma secção.");setBusy("pdf");try{const [{jsPDF},{default:autoTable}]=await Promise.all([import("jspdf"),import("jspdf-autotable")]);const pdf=new jsPDF({orientation:"landscape",format:"a4"});let first=true;const page=(title:string,sub:string)=>{if(!first)pdf.addPage();first=false;pdf.setFontSize(15);pdf.text(title,14,15);pdf.setFontSize(8);pdf.text(`MY Tickets · ${eventName} · Gerado em ${gen}`,14,21);pdf.text(sub,14,26);};const table=(head:string[],body:unknown[][])=>autoTable(pdf,{startY:31,head:[head],body:body.map(r=>r.map(v=>String(v??""))),styles:{fontSize:7,cellPadding:2,overflow:"linebreak"},headStyles:{fillColor:[21,36,58]},alternateRowStyles:{fillColor:[244,246,249]},margin:{left:14,right:14,bottom:14},didDrawPage:()=>{pdf.setFontSize(8);pdf.text(`MY Tickets · ${eventName}`,14,pdf.internal.pageSize.getHeight()-7);}});
+ if(chosen.includes("summary")){page("Resumo executivo","Posição actual · movimentos: "+range);table(["Indicador","Quantidade"],[["Gerados",total.total],["Activos",total.active],["Vendidos",total.sold],["Impressos",total.printed],["Distribuídos",total.distributed],["Entradas",total.used],["Anulados",total.voided],["Disponíveis",total.available],["Movimentos",moves.length]]);}
+ if(chosen.includes("groups")){page("Resumo por grupo",range);table(["Grupo","Tipo","Destinatário","Config.","Gerados","Vendidos","Impressos","Distrib.","Entradas","Anulados","Disponíveis"],groupRows.map(r=>[r.g.name,r.g.ticket_type,r.g.recipient??"",r.g.quantity,r.total,r.sold,r.printed,r.distributed,r.used,r.voided,r.available]));for(const r of groupRows){page("Grupo: "+r.g.name,r.g.ticket_type+" · "+(r.g.recipient??"Destinatário não registado"));table(["Código","Nº","Titular","Contacto","Parceiro","Comprador","Estado","Gerado","Pago","Impresso","Distribuído","Entrada"],ts.filter(t=>t.group_id===r.g.id).map(t=>{const o=t.order_id?om.get(t.order_id):undefined,sh=t.share_id?sm.get(t.share_id):undefined;return[t.code,t.seq,t.holder_name??"",t.holder_contact??"",sh?.partner_name??"",o?.buyer_name??"",status(t.status),fmt(t.created_at),fmt(o?.paid_at),fmt(t.printed_at),fmt(t.sent_at??t.email_sent_at),fmt(t.used_at)];}));}}
+ if(chosen.includes("types")){page("Resumo por tipo / secção",range);table(["Tipo","Grupos","Gerados","Vendidos","Impressos","Distribuídos","Entradas","Anulados","Disponíveis"],typeRows.map(r=>[r.type,r.rows.length,...(["total","sold","printed","distributed","used","voided","available"] as const).map(k=>r.rows.reduce((n,x)=>n+x[k],0))]));for(const r of typeRows){page("Tipo: "+r.type,"Grupos pertencentes a este tipo");table(["Grupo","Destinatário","Configurados","Gerados","Vendidos","Impressos","Distribuídos","Entradas","Anulados"],r.rows.map(x=>[x.g.name,x.g.recipient??"",x.g.quantity,x.total,x.sold,x.printed,x.distributed,x.used,x.voided]));}}
+ if(chosen.includes("movements")){page("Movimentos por data e hora",range);table(["Data/hora","Operação","Tipo","Grupo","Código","Titular","Destinatário","Parceiro","Comprador","Canal","Estado"],moves.map(m=>[fmt(m.at),m.op,m.g?.ticket_type??"",m.g?.name??"",m.t.code,m.holder,m.recipient,m.partner,m.buyer,m.channel,status(m.t.status)]));}
+ if(chosen.includes("sales")){page("Vendas e compradores",range);table(["Data/hora","Código","Grupo","Comprador","Telefone","E-mail","Pagamento","Estado","Valor"],ts.filter(t=>t.order_id&&om.has(t.order_id)).map(t=>{const o=om.get(t.order_id)!;return[fmt(o.paid_at??o.created_at),t.code,gm.get(t.group_id)?.name??"",o.buyer_name??"",o.buyer_phone??"",o.buyer_email??"",o.payment_method??"",o.status,o.total??""];}));}
+ if(chosen.includes("distribution")){page("Impressões e distribuições",range);table(["Data/hora","Operação","Código","Tipo","Grupo","Titular","Destinatário","Parceiro","Canal"],ts.flatMap(t=>{const g=gm.get(t.group_id),sh=t.share_id?sm.get(t.share_id):undefined,rows:unknown[][]=[];if(t.printed_at)rows.push([fmt(t.printed_at),"Impressão",t.code,g?.ticket_type??"",g?.name??"",t.holder_name??"",t.holder_contact??g?.recipient??"",sh?.partner_name??"","Impressão"]);const sent=t.sent_at??t.email_sent_at;if(sent)rows.push([fmt(sent),"Distribuição",t.code,g?.ticket_type??"",g?.name??"",t.holder_name??"",t.holder_contact??t.email_delivery_to??"",sh?.partner_name??"",t.sent_via??""]);return rows;}));}
+ if(chosen.includes("tickets")){page("Relação individual de ingressos",range);table(["Código","Nº","Tipo","Grupo","Titular","Contacto","Parceiro","Comprador","Estado","Gerado","Pago","Impresso","Distribuído","Entrada"],details.map(r=>[r[0],r[1],r[2],r[3],r[5],r[6],r[7],r[8],r[10],r[11],r[12],r[13],r[14],r[15]]));}
+ pdf.save(`${base}_relatorio_${mode}.pdf`);toast.success("PDF organizado e gerado.");}catch(e){toast.error("Erro ao gerar PDF: "+(e as Error).message);}finally{setBusy(null);}};
+ const openSheet=async()=>{const tab=window.open("about:blank","_blank");if(tab)tab.opener=null;setOpening(true);try{const{url}=await syncEventSheet({data:{eventId}});if(tab)tab.location.href=url;else window.location.assign(url);}catch(e){tab?.close();toast.error("Não foi possível abrir a folha: "+(e as Error).message);}finally{setOpening(false);}};
+ const visible=groups.filter(g=>g.name.toLowerCase().includes(search.toLowerCase())||g.ticket_type.toLowerCase().includes(search.toLowerCase()));const toggle=(id:Section,yes:boolean)=>setChosen(v=>yes?[...v,id]:v.filter(x=>x!==id));const loading=tq.isLoading||oq.isLoading||sq.isLoading;
+ const Bar=({n,d}:{n:number;d:number})=><div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-brand" style={{width:`${d?n/d*100:0}%`}}/></div>;
+ return <div className="space-y-6">
+ <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Actualização automática · {tickets.length.toLocaleString("pt-AO")} ingressos</p><Button variant="secondary" onClick={openSheet} disabled={opening}><ExternalLink className="h-4 w-4"/>{opening?"A actualizar…":"Abrir Google Sheets"}</Button></div>
+ {tq.error&&<p className="rounded border border-destructive p-3 text-sm text-destructive">Erro ao carregar: {(tq.error as Error).message}</p>}
+ <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[["Gerados",total.total],["Vendidos",total.sold],["Impressos",total.printed],["Distribuídos",total.distributed],["Entradas",total.used],["Anulados",total.voided],["Disponíveis",total.available],["Movimentos",moves.length]].map(([k,v])=><div key={k} className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">{k}</p><p className="mt-1 text-2xl font-bold">{v}</p></div>)}</div>
+ <section className="space-y-4 rounded-xl border bg-card p-4">
+ <div><h3 className="font-bold">Configurar relatório</h3><p className="text-sm text-muted-foreground">Escolha o período, grupos, tipos e secções. A posição geral é actual; as datas filtram os movimentos cronológicos.</p></div>
+ <div className="grid gap-3 sm:grid-cols-3"><label className="space-y-1 text-sm">Modelo<select className="h-10 w-full rounded-md border bg-background px-3" value={mode} onChange={e=>setMode(e.target.value as "general"|"daily")}><option value="general">Relatório geral organizado</option><option value="daily">Movimentos diários e horários</option></select></label><label className="space-y-1 text-sm">Data inicial<Input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="space-y-1 text-sm">Data final<Input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div>
+ <div className="grid gap-4 lg:grid-cols-2"><div className="space-y-2"><div className="flex justify-between"><h4 className="text-sm font-semibold">Grupos / mesas</h4><span className="flex gap-2 text-xs"><button className="underline" onClick={()=>setGroupIds(groups.map(g=>g.id))}>Todos</button><button className="underline" onClick={()=>setGroupIds([])}>Nenhum</button></span></div><Input placeholder="Pesquisar grupo ou tipo…" value={search} onChange={e=>setSearch(e.target.value)}/><div className="max-h-52 space-y-2 overflow-y-auto rounded border p-3">{visible.map(g=><label key={g.id} className="flex items-center gap-2 text-sm"><Checkbox checked={groupIds.includes(g.id)} onCheckedChange={v=>setGroupIds(old=>v?[...old,g.id]:old.filter(id=>id!==g.id))}/><span className="flex-1 truncate">{g.name}</span><span className="text-xs text-muted-foreground">{g.ticket_type}</span></label>)}</div></div>
+ <div className="space-y-2"><div className="flex justify-between"><h4 className="text-sm font-semibold">Tipos / secções</h4><span className="flex gap-2 text-xs"><button className="underline" onClick={()=>setTypes([...new Set(groups.map(g=>g.ticket_type))])}>Todos</button><button className="underline" onClick={()=>setTypes([])}>Nenhum</button></span></div><div className="max-h-52 space-y-2 overflow-y-auto rounded border p-3">{[...new Set(groups.map(g=>g.ticket_type))].map(t=><label key={t} className="flex items-center gap-2 text-sm"><Checkbox checked={types.includes(t)} onCheckedChange={v=>setTypes(old=>v?[...old,t]:old.filter(x=>x!==t))}/>{t}</label>)}</div></div></div>
+ <div className="space-y-2"><div className="flex justify-between"><h4 className="text-sm font-semibold">Secções a incluir</h4><span className="flex gap-2 text-xs"><button className="underline" onClick={()=>setChosen(sections.map(s=>s[0]))}>Todas</button><button className="underline" onClick={()=>setChosen([])}>Nenhuma</button></span></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{sections.map(([id,label])=><label key={id} className="flex items-center gap-2 rounded border p-2 text-sm"><Checkbox checked={chosen.includes(id)} onCheckedChange={v=>toggle(id,!!v)}/>{label}</label>)}</div></div>
+ <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"><p className="text-xs text-muted-foreground">{gs.length} grupos · {ts.length} ingressos · {moves.length} movimentos · gerado em {new Date().toLocaleString("pt-AO")}</p><div className="flex gap-2"><Button variant="secondary" disabled={loading||!!busy||!chosen.length||!gs.length} onClick={()=>void exportPdf()}><FileDown className="h-4 w-4"/>{busy==="pdf"?"A gerar…":"Exportar PDF"}</Button><Button disabled={loading||!!busy||!chosen.length||!gs.length} onClick={()=>void exportXlsx()}><FileSpreadsheet className="h-4 w-4"/>{busy==="xlsx"?"A gerar…":"Exportar Excel (.xlsx)"}</Button></div></div>
+ </section>
+ <div className="grid gap-6 md:grid-cols-2"><div className="space-y-3 rounded-xl border bg-card p-5"><h3 className="font-bold">Por tipo / secção</h3>{typeRows.map(r=>{const n=r.rows.reduce((a,x)=>a+x.used,0),d=r.rows.reduce((a,x)=>a+x.active,0);return <div key={r.type} className="space-y-1"><div className="flex justify-between text-sm"><span>{r.type}</span><span className="text-muted-foreground">{n} / {d}</span></div><Bar n={n} d={d}/></div>;})}</div><div className="space-y-3 rounded-xl border bg-card p-5"><h3 className="font-bold">Por grupo</h3>{groupRows.map(r=><div key={r.g.id} className="space-y-1"><div className="flex justify-between gap-2 text-sm"><span className="truncate">{r.g.name}{r.g.recipient?" · "+r.g.recipient:""}</span><span className="shrink-0 text-muted-foreground">{r.used} / {r.active}</span></div><Bar n={r.used} d={r.active}/></div>)}</div></div>
+ <p className="text-xs text-muted-foreground">Auditoria: são usados apenas horários guardados na base de dados. Se não existir nome, destinatário ou data, o campo fica vazio; não são inventados dados históricos.</p>
+ </div>;
 }
