@@ -79,6 +79,7 @@ BEGIN
   WHERE id=auth.uid();
   RETURN app_id;
 END $$;
+REVOKE ALL ON FUNCTION public.submit_promoter_application(jsonb,jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.submit_promoter_application(jsonb,jsonb) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.sign_promoter_application(p_application uuid, p_name text)
@@ -92,19 +93,21 @@ BEGIN
   WHERE id=p_application AND user_id=auth.uid() AND status IN ('pending','changes_requested');
   IF NOT FOUND THEN RAISE EXCEPTION 'Candidatura não encontrada ou indisponível para assinatura'; END IF;
 END $$;
+REVOKE ALL ON FUNCTION public.sign_promoter_application(uuid,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.sign_promoter_application(uuid,text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.review_promoter_application(p_application uuid, p_decision text, p_note text DEFAULT NULL, p_admin_name text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
-DECLARE app public.promoter_applications;
+DECLARE app public.promoter_applications; admin_name text;
 BEGIN
   IF NOT public.has_role(auth.uid(),'admin') THEN RAISE EXCEPTION 'Apenas a administração pode analisar candidaturas'; END IF;
   IF p_decision NOT IN ('under_review','changes_requested','rejected','approved') THEN RAISE EXCEPTION 'Decisão inválida'; END IF;
   SELECT * INTO app FROM public.promoter_applications WHERE id=p_application FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Candidatura não encontrada'; END IF;
+  SELECT coalesce(nullif(trim(full_name),''),email,'MY Tickets') INTO admin_name FROM public.profiles WHERE id=auth.uid();
   IF p_decision='approved' AND (app.promoter_signed_at IS NULL OR jsonb_array_length(coalesce(app.document_paths,'[]'::jsonb)) < 2) THEN RAISE EXCEPTION 'O promotor precisa assinar e apresentar os documentos obrigatórios'; END IF;
   UPDATE public.promoter_applications SET status=p_decision, admin_note=nullif(trim(coalesce(p_note,'')),''),
-    admin_signed_name=CASE WHEN p_decision='approved' THEN coalesce(nullif(trim(p_admin_name),''),'MY Tickets') ELSE admin_signed_name END,
+    admin_signed_name=CASE WHEN p_decision='approved' THEN coalesce(admin_name,'MY Tickets') ELSE admin_signed_name END,
     admin_signed_by=CASE WHEN p_decision='approved' THEN auth.uid() ELSE admin_signed_by END,
     admin_signed_at=CASE WHEN p_decision='approved' THEN now() ELSE admin_signed_at END,
     reviewed_at=now(), updated_at=now() WHERE id=p_application;
@@ -115,6 +118,7 @@ BEGIN
     DELETE FROM public.user_roles WHERE user_id=app.user_id AND role='promoter';
   END IF;
 END $$;
+REVOKE ALL ON FUNCTION public.review_promoter_application(uuid,text,text,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.review_promoter_application(uuid,text,text,text) TO authenticated;
 
 -- Enforce the agreed rates in database defaults and contract signing.
