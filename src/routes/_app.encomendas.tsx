@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendTicketEmail } from "@/lib/order-email.functions";
-import { deliveryLabel, kz, methodLabel, STATUS_LABEL } from "@/lib/payments";\nimport { COMMISSION_STANDARD } from "@/lib/company";
+import { deliveryLabel, kz, methodLabel, STATUS_LABEL } from "@/lib/payments";import { COMMISSION_STANDARD } from "@/lib/company";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
