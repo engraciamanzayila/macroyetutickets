@@ -92,7 +92,7 @@ function Login() {
         </form>
       </div>}
       <div className="relative flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border"/><span>ou</span><span className="h-px flex-1 bg-border"/></div>
-      <Button type="button" variant="secondary" className="w-full" onClick={async()=>{const r=await lovable.auth.signInWithOAuth("google",{redirect_uri:window.location.origin+next});if(r.error)toast.error("Não foi possível iniciar a autenticação Google.");}}>Continuar com Google</Button>
+      <Button type="button" variant="secondary" className="w-full" onClick={async()=>{const r=await lovable.auth.signInWithOAuth("google",{redirect_uri:window.location.origin+"/login?next="+encodeURIComponent(next)});if(r.error)toast.error("Não foi possível iniciar a autenticação Google.");}}>Continuar com Google</Button>
       <p className="text-xs text-muted-foreground">A autenticação por SMS depende de o fornecedor OTP estar activado e configurado no Supabase. Os dados legais de promotor não são pedidos neste cadastro de cliente.</p>
       <a href="/promotores" className="block text-center text-sm text-primary hover:underline">Quero candidatar-me como promotor</a>
     </div>
