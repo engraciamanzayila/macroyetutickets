@@ -20,7 +20,7 @@ export const Route = createFileRoute('/')({
     { property: 'og:description', content: 'Uma nova plataforma para descobrir eventos e viver grandes experiências em Angola.' },
     { property: 'og:type', content: 'website' },
     { name: 'twitter:card', content: 'summary_large_image' },
-  ]), component: Home });
+  ] }), component: Home });
  
 function Home() {
   const { isMember } = useAuth();
