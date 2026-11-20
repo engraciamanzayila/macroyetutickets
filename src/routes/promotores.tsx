@@ -43,7 +43,7 @@ function Promoters() {
       if (alive && data) { setApplication(data); setForm({...initial,...data.application_data}); setSignature(data.application_data?.full_name ?? ""); }
     });
     return () => { alive=false; };
-  },[session]);
+  },[session,db]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -96,7 +96,7 @@ function Promoters() {
       <h2 className="text-xl font-bold">Primeiro, aceda à sua conta</h2>
       <p className="text-sm text-muted-foreground">A conta de cliente é independente da candidatura. Depois de entrar, volte a esta página para preencher e enviar o formulário legal de promotor.</p>
       <Button asChild><a href="/login?next=%2Fpromotores">Entrar ou criar conta</a></Button>
-    </section> : application && application.status !== "changes_requested" ? <section className="rounded-2xl border bg-card p-6 space-y-3">
+    </section> : application && !["changes_requested","rejected"].includes(application.status) ? <section className="rounded-2xl border bg-card p-6 space-y-3">
       <h2 className="text-xl font-bold">A sua candidatura</h2>
       <p className="font-semibold">{statusLabel[application.status] ?? application.status}</p>
       {application.admin_note && <p className="rounded-lg bg-secondary p-3 text-sm">Nota da administração: {application.admin_note}</p>}
