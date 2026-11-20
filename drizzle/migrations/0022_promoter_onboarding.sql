@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS public.promoter_applications (
   document_paths jsonb NOT NULL DEFAULT '[]'::jsonb,
   promoter_signed_name text,
   promoter_signed_at timestamptz,
+  contract_version text NOT NULL DEFAULT '2026-11',
+  contract_terms jsonb NOT NULL DEFAULT '{"general_commission_pct":5,"exclusive_commission_pct":3.5}'::jsonb,
   admin_signed_name text,
   admin_signed_by uuid,
   admin_signed_at timestamptz,
@@ -18,7 +20,8 @@ CREATE TABLE IF NOT EXISTS public.promoter_applications (
 CREATE INDEX IF NOT EXISTS promoter_applications_user_idx ON public.promoter_applications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS promoter_applications_status_idx ON public.promoter_applications(status, created_at);
 ALTER TABLE public.promoter_applications ENABLE ROW LEVEL SECURITY;
-GRANT SELECT, INSERT ON public.promoter_applications TO authenticated;
+GRANT SELECT ON public.promoter_applications TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.promoter_applications FROM authenticated;
 GRANT ALL ON public.promoter_applications TO service_role;
 CREATE POLICY "promoter applications own or admin read" ON public.promoter_applications FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.has_role(auth.uid(),'admin'));
@@ -51,6 +54,7 @@ BEGIN
     OR length(trim(coalesce(p_data->>'nif',''))) < 5
     OR length(trim(coalesce(p_data->>'promoter_type',''))) = 0
     OR length(trim(coalesce(p_data->>'iban',''))) < 8
+    OR (p_data->>'promoter_type'='company' AND (length(trim(coalesce(p_data->>'company_name',''))) < 2 OR length(trim(coalesce(p_data->>'company_nif',''))) < 5 OR length(trim(coalesce(p_data->>'legal_representative',''))) < 3))
     OR jsonb_array_length(coalesce(p_documents,'[]'::jsonb)) < 2 THEN
     RAISE EXCEPTION 'Preencha os dados obrigatórios e anexe pelo menos BI/Passaporte e comprovativo de NIF';
   END IF;
