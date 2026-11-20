@@ -98,7 +98,7 @@ function ComingSoon() {
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-12 md:grid-cols-[1.05fr_.95fr] md:px-8 md:pb-24 md:pt-20">
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-orange-300/25 bg-orange-300/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.18em] text-orange-200"><Sparkles className="size-3.5" /> Uma nova experiência está a chegar</div>
-            <div key={activeMessage} className="myt-enter min-h-[285px] pt-8 md:min-h-[340px]">
+            <div key={activeMessage} className="myt-enter flex h-[500px] flex-col justify-center overflow-hidden py-8 md:h-[420px]">
               <p className="text-xs font-bold tracking-[.22em] text-orange-300">{message.eyebrow}</p>
               <h1 className="mt-4 max-w-2xl text-5xl font-black leading-[1.04] tracking-tight md:text-7xl">{message.title}</h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300 md:text-xl">{message.body}</p>
