@@ -23,10 +23,10 @@ ALTER TABLE public.promoter_applications ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.promoter_applications TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.promoter_applications FROM authenticated;
 GRANT ALL ON public.promoter_applications TO service_role;
+DROP POLICY IF EXISTS "promoter applications own or admin read" ON public.promoter_applications;
 CREATE POLICY "promoter applications own or admin read" ON public.promoter_applications FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.has_role(auth.uid(),'admin'));
-CREATE POLICY "promoter applications own insert" ON public.promoter_applications FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid() AND status = 'pending');
+DROP POLICY IF EXISTS "promoter applications admin update" ON public.promoter_applications;
 CREATE POLICY "promoter applications admin update" ON public.promoter_applications FOR UPDATE TO authenticated
   USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
 
@@ -35,10 +35,13 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('promoter-documents','promoter-documents',false,10485760,ARRAY['application/pdf','image/jpeg','image/png'])
 ON CONFLICT (id) DO UPDATE SET public=false, file_size_limit=10485760,
   allowed_mime_types=ARRAY['application/pdf','image/jpeg','image/png'];
+DROP POLICY IF EXISTS "promoter docs owner upload" ON storage.objects;
 CREATE POLICY "promoter docs owner upload" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id='promoter-documents' AND split_part(name,'/',1)=auth.uid()::text);
+DROP POLICY IF EXISTS "promoter docs owner or admin read" ON storage.objects;
 CREATE POLICY "promoter docs owner or admin read" ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id='promoter-documents' AND (split_part(name,'/',1)=auth.uid()::text OR public.has_role(auth.uid(),'admin')));
+DROP POLICY IF EXISTS "promoter docs owner delete" ON storage.objects;
 CREATE POLICY "promoter docs owner delete" ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id='promoter-documents' AND split_part(name,'/',1)=auth.uid()::text);
 
