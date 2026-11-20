@@ -7,8 +7,8 @@ export const COMPANY = {
   representative:
     "Matondo Kuanzambi Zolacanda Canga, Director Comercial e Produção, portador do BI nº 008669214UE040, residente em Luanda, Bairro KK-5000, natural do Songo, Província do Uíge, Município do Songo",
 };
-export const COMMISSION_STANDARD = 10;
-export const COMMISSION_EXCLUSIVE = 8;
+export const COMMISSION_STANDARD = 5;
+export const COMMISSION_EXCLUSIVE = 3.5;
 
 export const APPROVAL_LABEL: Record<string, string> = {
   draft: "Rascunho",
