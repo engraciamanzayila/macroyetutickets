@@ -44,7 +44,8 @@ export function ReportPanel({eventId,eventName,groups}:{eventId:string;eventName
  useEffect(()=>setGroupIds(groups.map(g=>g.id)),[groups]);useEffect(()=>setTypes([...new Set(groups.map(g=>g.ticket_type))]),[groups]);
  const tq=useQuery({queryKey:["report",eventId],queryFn:async()=>await fetchAllTickets({event_id:eventId},"id,code,seq,status,group_id,created_at,used_at,printed_at,holder_name,holder_contact,share_id,sent_at,sent_via,email_sent_at,email_delivery_to,order_id") as unknown as Ticket[]});
  const oq=useQuery({queryKey:["report-orders",eventId],queryFn:async()=>{const {data,error}=await supabase.from("orders").select("id,buyer_name,buyer_phone,buyer_email,payment_method,status,total,paid_at,created_at").eq("event_id",eventId);if(error)throw error;return(data??[]) as Order[];}});
- const orders=oq.data??[];\n const iq=useQuery({queryKey:["report-order-items",eventId,orders.map(o=>o.id).join(",")],enabled:orders.length>0,queryFn:async()=>{const {data,error}=await supabase.from("order_items").select("order_id,group_id,quantity,unit_price").in("order_id",orders.map(o=>o.id));if(error)throw error;return(data??[]) as OrderItem[];}});
+ const orders=oq.data??[];
+ const iq=useQuery({queryKey:["report-order-items",eventId,orders.map(o=>o.id).join(",")],enabled:orders.length>0,queryFn:async()=>{const {data,error}=await supabase.from("order_items").select("order_id,group_id,quantity,unit_price").in("order_id",orders.map(o=>o.id));if(error)throw error;return(data??[]) as OrderItem[];}});
  const items=iq.data??[];
  const itemMap=new Map(items.map(i=>[i.order_id+"|"+i.group_id,i]));
  const sq=useQuery({queryKey:["report-shares",eventId],queryFn:async()=>{const {data,error}=await supabase.from("group_shares").select("id,partner_name,partner_kind,contact,created_at").eq("event_id",eventId);if(error)throw error;return(data??[]) as Share[];}});
