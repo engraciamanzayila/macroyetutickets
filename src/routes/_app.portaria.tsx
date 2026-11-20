@@ -215,15 +215,21 @@ function Gate() {
       r.code = r.code ?? code;
     } else if (navigator.onLine) {
       const { data, error } = await supabase.rpc("check_in", { p_event: eventId, p_code: code });
-      if (!error && data) {
-        r = data as unknown as Result;
-        r.code = r.code ?? code;
-        if (r.result === "ok") scheduleSheetSync(eventId);
-        const local = cache?.tickets[code];
-        if (local && r.result === "ok") updateLocal(code, { ...local, s: "used", at: new Date().toISOString() });
+      if (error || !data) {
+        // If the browser reports connectivity but the server cannot confirm the ticket,
+        // fail closed. A backend/API failure must never fall back to offline acceptance.
+        validating.current = false;
+        toast.error(error ? "Não foi possível confirmar o ingresso no servidor. Tente novamente. " + error.message : "O servidor não devolveu uma validação. Entrada não autorizada.");
+        return;
       }
+      r = data as unknown as Result;
+      r.code = r.code ?? code;
+      if (r.result === "ok") scheduleSheetSync(eventId);
+      const local = cache?.tickets[code];
+      if (local && r.result === "ok") updateLocal(code, { ...local, s: "used", at: new Date().toISOString() });
     }
-    if (!r) {
+    // The local cache is consulted only when the browser has actually lost connectivity.
+    if (!navigator.onLine && !r) {
       const t = cache?.tickets[code];
       const g = t ? cache?.groups[t.g] : undefined;
       if (!cache) { validating.current = false; toast.error("Sem internet e sem lista guardada. Baixe a lista antes do evento."); return; }
