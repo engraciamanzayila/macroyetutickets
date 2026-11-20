@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -35,7 +36,35 @@ function Team() {
     },
   });
 
+
+  const { data: applications = [], refetch: refetchApplications } = useQuery({
+    queryKey: ["promoter-applications"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("promoter_applications").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const [applicationNotes, setApplicationNotes] = useState<Record<string,string>>({});
+  const reviewApplication = async (id: string, decision: string) => {
+    const { error } = await (supabase as any).rpc("review_promoter_application", {
+      p_application: id, p_decision: decision, p_note: applicationNotes[id] ?? "",
+      p_admin_name: session?.user.user_metadata?.full_name ?? session?.user.email ?? "MY Tickets",
+    });
+    if (error) return toast.error(error.message);
+    toast.success(decision === "approved" ? "Promotor aprovado e acesso activado." : "Estado da candidatura actualizado.");
+    await refetchApplications();
+    qc.invalidateQueries({ queryKey: ["team"] });
+  };
+  const openDocument = async (path: string) => {
+    const { data, error } = await supabase.storage.from("promoter-documents").createSignedUrl(path, 60);
+    if (error) return toast.error(error.message);
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
   const setRole = async (uid: string, role: Role | null) => {
+    if (role === "promoter") return toast.error("A activação de promotores só pode ocorrer pela aprovação de uma candidatura com contrato assinado.");
     if (uid === session?.user.id) return toast.error("Não pode alterar o seu próprio acesso.");
     const del = await supabase.from("user_roles").delete().eq("user_id", uid).select();
     if (del.error) return toast.error(del.error.message);
@@ -59,6 +88,38 @@ function Team() {
         </p>
       </div>
       {pending.length > 0 && <p className="rounded-lg bg-primary/10 text-sm p-3"><b>{pending.length}</b> pedido(s) de promotor por aprovar.</p>}
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold">Candidaturas de promotores</h2>
+          <p className="text-sm text-muted-foreground">Verifique dados e documentos antes de aprovar. O acesso de promotor só é concedido pela aprovação depois da assinatura do candidato.</p>
+        </div>
+        {applications.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">Ainda não existem candidaturas.</p> : applications.map((app: any) => {
+          const d = app.application_data ?? {};
+          return <article key={app.id} className="rounded-2xl border bg-card p-5 space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div><h3 className="font-bold">{d.full_name || d.company_name || "Candidato"}</h3><p className="text-xs text-muted-foreground">{d.email} · {d.phone} · {d.promoter_type === "company" ? "Empresa" : "Pessoa singular"}</p></div>
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold">{app.status}</span>
+            </div>
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              {([["BI / Passaporte",d.bi_number],["NIF",d.nif],["Morada",d.address],["Empresa",d.company_name],["NIF da empresa",d.company_nif],["Representante legal",d.legal_representative],["Banco",d.bank_name],["Titular",d.account_holder],["IBAN",d.iban],["Multicaixa Express",d.express_phone],["Actividade",d.business_activity]] as const).filter(([,v])=>!!v).map(([label,value])=><p key={label}><span className="text-muted-foreground">{label}: </span><b>{value}</b></p>)}
+            </div>
+            {d.portfolio && <p className="text-sm"><span className="text-muted-foreground">Experiência: </span>{d.portfolio}</p>}
+            <div className="flex flex-wrap gap-2">{(app.document_paths ?? []).map((path: string,index:number)=><Button key={path} size="sm" variant="outline" onClick={()=>void openDocument(path)}>Documento {index+1} · abrir</Button>)}</div>
+            <p className="text-xs text-muted-foreground">Assinatura do promotor: {app.promoter_signed_name || "Em falta"}{app.promoter_signed_at ? " · " + new Date(app.promoter_signed_at).toLocaleString("pt-AO") : ""}</p>
+            {app.admin_signed_at && <p className="text-xs text-muted-foreground">Aprovado e assinado por {app.admin_signed_name} · {new Date(app.admin_signed_at).toLocaleString("pt-AO")}</p>}
+            {app.admin_note && <p className="rounded-md bg-secondary p-2 text-sm">Nota anterior: {app.admin_note}</p>}
+            <textarea className="min-h-20 w-full rounded-md border bg-background p-3 text-sm" placeholder="Nota para o candidato / correcções necessárias" value={applicationNotes[app.id] ?? app.admin_note ?? ""} onChange={e=>setApplicationNotes(v=>({...v,[app.id]:e.target.value}))}/>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={()=>void reviewApplication(app.id,"under_review")}>Marcar em análise</Button>
+              <Button size="sm" variant="secondary" onClick={()=>void reviewApplication(app.id,"changes_requested")}>Pedir correcções</Button>
+              <Button size="sm" variant="destructive" onClick={()=>void reviewApplication(app.id,"rejected")}>Rejeitar</Button>
+              <Button size="sm" disabled={!app.promoter_signed_at} onClick={()=>void reviewApplication(app.id,"approved")}>Aprovar e activar promotor</Button>
+            </div>
+          </article>;
+        })}
+      </section>
+
       <div className="rounded-2xl border bg-card divide-y">
         {data.map((p) => {
           const current: Role | null = (["admin", "promoter", "promoter_support", "consumer_support", "staff"] as Role[]).find((r) => p.roles.includes(r)) ?? null;
@@ -72,8 +133,8 @@ function Team() {
                 {p.wants_promoter && current !== "promoter" && <p className="text-xs text-primary font-medium">Pediu para ser promotor</p>}
               </div>
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary p-1">
-                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor"], ["admin", "Gestão"]] as const).map(([r, l]) => (
-                  <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
+                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor (por candidatura)"], ["admin", "Gestão"]] as const).map(([r, l]) => (
+                  <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || r === "promoter" || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
                 ))}
               </div>
             </div>
