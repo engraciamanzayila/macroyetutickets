@@ -64,6 +64,7 @@ function Team() {
   };
 
   const setRole = async (uid: string, role: Role | null) => {
+    if (role === "promoter") return toast.error("A activação de promotores só pode ocorrer pela aprovação de uma candidatura com contrato assinado.");
     if (uid === session?.user.id) return toast.error("Não pode alterar o seu próprio acesso.");
     const del = await supabase.from("user_roles").delete().eq("user_id", uid).select();
     if (del.error) return toast.error(del.error.message);
@@ -132,8 +133,8 @@ function Team() {
                 {p.wants_promoter && current !== "promoter" && <p className="text-xs text-primary font-medium">Pediu para ser promotor</p>}
               </div>
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary p-1">
-                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor"], ["admin", "Gestão"]] as const).map(([r, l]) => (
-                  <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
+                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor (por candidatura)"], ["admin", "Gestão"]] as const).map(([r, l]) => (
+                  <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || r === "promoter" || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
                 ))}
               </div>
             </div>
