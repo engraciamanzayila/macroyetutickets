@@ -38,6 +38,7 @@ function Promoters() {
 
   useEffect(() => {
     if (!session) return;
+    setForm((current) => ({ ...current, email: session.user.email ?? current.email, full_name: session.user.user_metadata?.full_name ?? current.full_name, phone: session.user.phone ?? current.phone }));
     let alive = true;
     void db.from("promoter_applications").select("id,status,application_data,document_paths,promoter_signed_at,admin_note").eq("user_id",session.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle().then(({data}: {data:AppRow|null}) => {
       if (alive && data) { setApplication(data); setForm({...initial,...data.application_data}); setSignature(data.application_data?.full_name ?? ""); }
@@ -116,7 +117,7 @@ function Promoters() {
         <div className="space-y-3 border-t pt-5"><h3 className="font-semibold">3. Dados para pagamentos</h3><div className="grid gap-3 sm:grid-cols-2">
           {([["bank_name","Banco"],["account_holder","Titular da conta"],["iban","IBAN"],["express_phone","Número Multicaixa Express"]] as const).map(([key,label])=><div className="space-y-1" key={key}><Label>{label}{key==="iban"?" *":""}</Label><Input required={key==="iban"} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}/></div>)}
         </div><p className="text-xs text-muted-foreground">Os dados bancários são tratados como informação confidencial. A plataforma não efectua transferências automaticamente nesta etapa.</p></div>
-        <div className="space-y-3 border-t pt-5"><h3 className="font-semibold">4. Documentos</h3><p className="text-sm text-muted-foreground">Anexe BI/Passaporte, comprovativo de NIF e, se representar uma empresa, documento de registo e prova de poderes de representação. PDF, JPG ou PNG; máximo 10 MB por ficheiro.</p><Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setFiles(Array.from(e.target.files ?? []))}/>{files.length>0&&<p className="text-xs text-muted-foreground">{files.map(f=>f.name).join(" · ")}</p>}{application?.document_paths?.length ? <p className="text-xs text-muted-foreground">Documentos anteriormente enviados: {application.document_paths.length}</p> : null}</div>
+        <div className="space-y-3 border-t pt-5"><h3 className="font-semibold">4. Documentos</h3><p className="text-sm text-muted-foreground">Anexe BI/Passaporte, comprovativo de NIF e, se representar uma empresa, documento de registo e prova de poderes de representação. PDF, JPG ou PNG; máximo 10 MB por ficheiro.</p><Input type="file" multiple required={files.length < 2} accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setFiles(Array.from(e.target.files ?? []))}/>{files.length>0&&<p className="text-xs text-muted-foreground">{files.map(f=>f.name).join(" · ")}</p>}{application?.document_paths?.length ? <p className="text-xs text-muted-foreground">Documentos anteriormente enviados: {application.document_paths.length}</p> : null}</div>
         <div className="border-t pt-5 space-y-3">
           <article className="rounded-xl border bg-muted/30 p-4 space-y-2 text-sm">
             <h3 className="font-semibold">Termos do contrato de adesão — MY Tickets</h3>
