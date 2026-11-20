@@ -141,12 +141,7 @@ export function ContractPanel({ event }: { event: Ev }) {
             <p className="border-t pt-3 text-xs text-muted-foreground">A publicação na loja fica disponível após a aprovação da administração.</p>
           )}
           {isAdmin && (
-            <div className="space-y-3 border-t pt-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span>Comissão</span>
-                <Input type="number" step="0.5" defaultValue={event.commission_pct} className="h-8 w-24" onBlur={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v !== event.commission_pct) setPct(v); }} />%
-              </div>
-              <Textarea placeholder="Nota para o promotor (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
+            <div className="space-y-3 border-t pt-3"><Textarea placeholder="Nota para o promotor (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="flex gap-2">
                 <Button onClick={() => review(true)}>Aprovar</Button>
                 <Button variant="secondary" onClick={() => review(false)}>Recusar</Button>
@@ -183,7 +178,7 @@ export function ContractPanel({ event }: { event: Ev }) {
         <p><b>Cláusula 1ª — Objeto.</b> A primeira outorgante disponibiliza a sua plataforma para a criação, venda, entrega e validação dos ingressos do evento <b>{event.name}</b>{event.event_date ? `, a realizar em ${new Date(event.event_date).toLocaleDateString("pt-PT")}` : ""}{event.venue ? `, em ${event.venue}` : ""}{event.city ? `, ${event.city}` : ""}{d.capacity ? `, com lotação prevista de ${d.capacity} pessoas` : ""}.</p>
         <p><b>Cláusula 2ª — Custos.</b> O registo do promotor e a publicação do evento são gratuitos.</p>
         <p><b>Cláusula 3ª — Comissão.</b> A primeira outorgante cobra <b>{pct}%</b> sobre o valor de cada ingresso vendido na plataforma{exclusive ? ", taxa reduzida por se tratar de venda exclusiva" : ""}.</p>
-        <p><b>Cláusula 4ª — Exclusividade.</b> {exclusive ? "O segundo outorgante compromete-se a vender os ingressos deste evento exclusivamente através da plataforma MY Tickets. O incumprimento implica a aplicação da comissão normal de 10% sobre todas as vendas." : "Não há exclusividade: o segundo outorgante pode vender ingressos noutros canais."}</p>
+        <p><b>Cláusula 4ª — Exclusividade.</b> {exclusive ? "O segundo outorgante compromete-se a vender os ingressos deste evento exclusivamente através da plataforma MY Tickets. O incumprimento implica a aplicação da comissão normal de {COMMISSION_STANDARD}% sobre todas as vendas." : "Não há exclusividade: o segundo outorgante pode vender ingressos noutros canais."}</p>
         <p><b>Cláusula 5ª — Pagamentos.</b> O valor das vendas, deduzida a comissão, é transferido para o IBAN {d.iban || "indicado pelo promotor"} após a realização do evento.</p>
         <p><b>Cláusula 6ª — Aprovação.</b> O evento só é publicado depois de avaliado e aprovado pela administração da plataforma.</p>
         <p><b>Cláusula 7ª — Responsabilidade.</b> A realização do evento, licenças e eventuais reembolsos são da responsabilidade do segundo outorgante.</p>
