@@ -24,6 +24,9 @@ export const Route = createFileRoute("/_app/portaria")({
 type CacheTicket = { s: string; g: string; at?: string | null };
 type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null; price: number }>; tickets: Record<string, CacheTicket> };
 type QueueItem = { event: string; code: string; at: string };
+type SyncConflict = { event: string; code: string; at: string; reason: string; serverUsedAt?: string | null };
+const CONFLICTS = "myt-sync-conflicts";
+const readConflicts = (): SyncConflict[] => { try { return JSON.parse(localStorage.getItem(CONFLICTS) || "[]"); } catch { return []; } };
 type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean };
 
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
@@ -68,6 +71,7 @@ function Gate() {
   const [online, setOnline] = useState(navigator.onLine);
   const [cache, setCache] = useState<Cache | null>(null);
   const [queueLen, setQueueLen] = useState(readQueue().length);
+  const [syncConflicts, setSyncConflicts] = useState<SyncConflict[]>(readConflicts);
   const [result, setResult] = useState<Result | null>(null);
   const [manual, setManual] = useState("");
   const [showResult, setShowResult] = useState(false);
@@ -133,14 +137,41 @@ function Gate() {
     const q = readQueue();
     if (!q.length || !navigator.onLine) return;
     const left: QueueItem[] = [];
+    const conflicts = readConflicts();
+    let synced = 0;
+    let conflictCount = 0;
     for (const item of q) {
-      const { error } = await supabase.rpc("check_in", { p_event: item.event, p_code: item.code, p_at: item.at });
-      if (error) left.push(item);
-      else scheduleSheetSync(item.event);
+      const { data, error } = await supabase.rpc("check_in", { p_event: item.event, p_code: item.code, p_at: item.at });
+      if (error) {
+        left.push(item);
+        continue;
+      }
+      const outcome = (data as { result?: string; used_at?: string | null } | null)?.result;
+      if (outcome === "ok") {
+        synced += 1;
+        scheduleSheetSync(item.event);
+      } else if (outcome === "used" || outcome === "void" || outcome === "not_found") {
+        // The server is authoritative. Keep a durable audit trail instead of silently
+        // treating an offline acceptance as a successful cloud check-in.
+        conflicts.push({
+          event: item.event,
+          code: item.code,
+          at: item.at,
+          reason: outcome,
+          serverUsedAt: (data as { used_at?: string | null } | null)?.used_at ?? null,
+        });
+        conflictCount += 1;
+      } else {
+        // Unknown responses must remain pending for a later retry.
+        left.push(item);
+      }
     }
     writeQueue(left);
+    localStorage.setItem(CONFLICTS, JSON.stringify(conflicts));
     setQueueLen(left.length);
-    if (q.length - left.length > 0) toast.success(`${q.length - left.length} entrada(s) sincronizadas`);
+    setSyncConflicts(conflicts);
+    if (synced > 0) toast.success(`${synced} entrada(s) sincronizadas`);
+    if (conflictCount > 0) toast.error(`${conflictCount} conflito(s) offline detectado(s). Consulte o aviso na portaria.`, { duration: 10000 });
   }, []);
 
   useEffect(() => {
@@ -184,15 +215,21 @@ function Gate() {
       r.code = r.code ?? code;
     } else if (navigator.onLine) {
       const { data, error } = await supabase.rpc("check_in", { p_event: eventId, p_code: code });
-      if (!error && data) {
-        r = data as unknown as Result;
-        r.code = r.code ?? code;
-        if (r.result === "ok") scheduleSheetSync(eventId);
-        const local = cache?.tickets[code];
-        if (local && r.result === "ok") updateLocal(code, { ...local, s: "used", at: new Date().toISOString() });
+      if (error || !data) {
+        // If the browser reports connectivity but the server cannot confirm the ticket,
+        // fail closed. A backend/API failure must never fall back to offline acceptance.
+        validating.current = false;
+        toast.error(error ? "Não foi possível confirmar o ingresso no servidor. Tente novamente. " + error.message : "O servidor não devolveu uma validação. Entrada não autorizada.");
+        return;
       }
+      r = data as unknown as Result;
+      r.code = r.code ?? code;
+      if (r.result === "ok") scheduleSheetSync(eventId);
+      const local = cache?.tickets[code];
+      if (local && r.result === "ok") updateLocal(code, { ...local, s: "used", at: new Date().toISOString() });
     }
-    if (!r) {
+    // The local cache is consulted only when the browser has actually lost connectivity.
+    if (!navigator.onLine && !r) {
       const t = cache?.tickets[code];
       const g = t ? cache?.groups[t.g] : undefined;
       if (!cache) { validating.current = false; toast.error("Sem internet e sem lista guardada. Baixe a lista antes do evento."); return; }
@@ -257,6 +294,7 @@ function Gate() {
         <div className="flex items-center gap-3 text-sm">
           {online ? <span className="flex items-center gap-1 text-success"><Wifi className="h-4 w-4" /> Online</span> : <span className="flex items-center gap-1 text-warning"><CloudOff className="h-4 w-4" /> Sem internet</span>}
           {queueLen > 0 && <span className="text-warning">{queueLen} por sincronizar</span>}
+          {syncConflicts.length > 0 && <span className="text-destructive">{syncConflicts.length} conflito(s) para rever</span>}
         </div>
       </div>
 
@@ -272,6 +310,7 @@ function Gate() {
         </Button>
       </div>
       {cache && scanMode === "ticket" && <p className="text-xs text-muted-foreground -mt-3">Lista offline: {Object.keys(cache.tickets).length} ingressos · {new Date(cache.savedAt).toLocaleString("pt-PT")}</p>}
+      {syncConflicts.length > 0 && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm"><p className="font-bold text-destructive">Atenção: conflitos de validação offline</p><p className="mt-1 text-muted-foreground">{syncConflicts.length} leitura(s) offline não foram confirmadas como entradas válidas no servidor. Não liberte novas entradas com base apenas nestes registos; peça conferência ao supervisor.</p><ul className="mt-2 max-h-32 space-y-1 overflow-auto font-mono">{syncConflicts.slice(-8).reverse().map((item, index) => <li key={`${item.event}-${item.code}-${item.at}-${index}`}>{item.code} — {item.reason === "used" ? "já utilizado no servidor" : item.reason === "void" ? "ingresso anulado" : "código não encontrado"}</li>)}</ul></div>}
       {scanMode === "credential" && <p className="text-xs text-muted-foreground -mt-3">Modo de credenciamento: confirma apenas se a credencial foi emitida pela organização. A mesma credencial pode ser validada várias vezes, sem registar entradas ou saídas.</p>}
 
       {showResult && result && (
