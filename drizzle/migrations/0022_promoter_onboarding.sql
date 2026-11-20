@@ -50,15 +50,25 @@ BEGIN
     OR length(trim(coalesce(p_data->>'bi_number',''))) < 5
     OR length(trim(coalesce(p_data->>'nif',''))) < 5
     OR length(trim(coalesce(p_data->>'promoter_type',''))) = 0
-    OR length(trim(coalesce(p_data->>'iban',''))) < 8 THEN
-    RAISE EXCEPTION 'Preencha todos os dados obrigatórios da candidatura';
+    OR length(trim(coalesce(p_data->>'iban',''))) < 8
+    OR jsonb_array_length(coalesce(p_documents,'[]'::jsonb)) < 2 THEN
+    RAISE EXCEPTION 'Preencha os dados obrigatórios e anexe pelo menos BI/Passaporte e comprovativo de NIF';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.promoter_applications WHERE user_id=auth.uid() AND status IN ('pending','under_review','changes_requested')) THEN
-    RAISE EXCEPTION 'Já existe uma candidatura em análise. Consulte a equipa MY Tickets.';
+  SELECT id INTO app_id FROM public.promoter_applications
+    WHERE user_id=auth.uid() AND status='changes_requested' ORDER BY created_at DESC LIMIT 1;
+  IF app_id IS NOT NULL THEN
+    UPDATE public.promoter_applications SET application_data=coalesce(p_data,'{}'::jsonb),
+      document_paths=coalesce(p_documents,'[]'::jsonb), status='pending',
+      promoter_signed_name=NULL, promoter_signed_at=NULL, updated_at=now()
+    WHERE id=app_id;
+  ELSE
+    IF EXISTS (SELECT 1 FROM public.promoter_applications WHERE user_id=auth.uid() AND status IN ('pending','under_review')) THEN
+      RAISE EXCEPTION 'Já existe uma candidatura em análise. Consulte a equipa MY Tickets.';
+    END IF;
+    INSERT INTO public.promoter_applications(user_id, application_data, document_paths)
+    VALUES(auth.uid(), coalesce(p_data,'{}'::jsonb), coalesce(p_documents,'[]'::jsonb))
+    RETURNING id INTO app_id;
   END IF;
-  INSERT INTO public.promoter_applications(user_id, application_data, document_paths)
-  VALUES(auth.uid(), coalesce(p_data,'{}'::jsonb), coalesce(p_documents,'[]'::jsonb))
-  RETURNING id INTO app_id;
   UPDATE public.profiles SET full_name=coalesce(nullif(trim(p_data->>'full_name'),''),full_name),
     phone=coalesce(nullif(trim(p_data->>'phone'),''),phone),
     company=nullif(trim(p_data->>'company_name'),'')
@@ -88,7 +98,7 @@ BEGIN
   IF p_decision NOT IN ('under_review','changes_requested','rejected','approved') THEN RAISE EXCEPTION 'Decisão inválida'; END IF;
   SELECT * INTO app FROM public.promoter_applications WHERE id=p_application FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Candidatura não encontrada'; END IF;
-  IF p_decision='approved' AND app.promoter_signed_at IS NULL THEN RAISE EXCEPTION 'O promotor ainda não assinou o contrato'; END IF;
+  IF p_decision='approved' AND (app.promoter_signed_at IS NULL OR jsonb_array_length(coalesce(app.document_paths,'[]'::jsonb)) < 2) THEN RAISE EXCEPTION 'O promotor precisa assinar e apresentar os documentos obrigatórios'; END IF;
   UPDATE public.promoter_applications SET status=p_decision, admin_note=nullif(trim(coalesce(p_note,'')),''),
     admin_signed_name=CASE WHEN p_decision='approved' THEN coalesce(nullif(trim(p_admin_name),''),'MY Tickets') ELSE admin_signed_name END,
     admin_signed_by=CASE WHEN p_decision='approved' THEN auth.uid() ELSE admin_signed_by END,
