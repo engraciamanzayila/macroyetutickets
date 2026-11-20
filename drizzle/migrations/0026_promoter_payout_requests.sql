@@ -40,7 +40,7 @@ BEGIN
   SELECT coalesce(sum(estimated_promoter_share),0) INTO balance
     FROM public.promoter_wallet_summary WHERE promoter_id=auth.uid();
   SELECT coalesce(sum(amount),0) INTO reserved FROM public.promoter_payout_requests
-    WHERE promoter_id=auth.uid() AND status IN ('pending','approved');
+    WHERE promoter_id=auth.uid() AND status IN ('pending','approved','paid');
   IF p_amount > balance-reserved THEN RAISE EXCEPTION 'O valor solicitado ultrapassa a quota estimada disponível'; END IF;
   INSERT INTO public.promoter_payout_requests(promoter_id,amount,payment_method,destination_snapshot)
   VALUES(auth.uid(),round(p_amount,2),p_method,destination) RETURNING id INTO request_id;
