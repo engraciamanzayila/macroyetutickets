@@ -4,6 +4,7 @@ import { useSuspenseQuery, queryOptions } from '@tanstack/react-query';
 import { ArrowUpRight, CalendarDays, MapPin, Search, Ticket, Music2, Sparkles, ShieldCheck, Smartphone, Users, PlayCircle, ChevronRight, Clock3 } from 'lucide-react';
 import { listStoreEvents } from '@/lib/store.functions';
 import { StoreHeader } from '@/components/store/StoreHeader';
+import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
@@ -82,9 +83,8 @@ function ComingSoon() {
         @media (prefers-reduced-motion: reduce) { .myt-enter,.myt-orb,.myt-float { animation:none!important } }
       `}</style>
       <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8">
-        <Link to="/" aria-label="MY Tickets — início" className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-orange-400 text-slate-950 shadow-lg shadow-orange-500/20"><Ticket className="size-6" /></span>
-          <span className="text-xl font-black tracking-tight">MY <span className="text-orange-400">Tickets</span></span>
+        <Link to="/" aria-label="MY Tickets — início" className="inline-flex items-center">
+          <Logo />
         </Link>
         <div className="flex items-center gap-2">
           <span className="hidden rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 sm:inline-flex">Promotores: inscrições abertas</span>
