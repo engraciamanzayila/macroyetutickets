@@ -36,6 +36,10 @@ function Promoters() {
   const [accept,setAccept] = useState(false);
   const [wallet,setWallet] = useState<any[]>([]);
   const [messages,setMessages] = useState<any[]>([]);
+  const [payoutRequests,setPayoutRequests] = useState<any[]>([]);
+  const [payoutAmount,setPayoutAmount] = useState("");
+  const [payoutMethod,setPayoutMethod] = useState("bank_transfer");
+  const [payoutBusy,setPayoutBusy] = useState(false);
   const [messageDraft,setMessageDraft] = useState("");
   const [messageBusy,setMessageBusy] = useState(false);
   const db = supabase as any;
@@ -60,9 +64,26 @@ function Promoters() {
       void db.from("promoter_wallet_summary").select("*").eq("promoter_id",session.user.id).order("event_name").then(({data}: {data:any[]|null}) => {
         if (alive) setWallet(data ?? []);
       });
+      void db.from("promoter_payout_requests").select("*").eq("promoter_id",session.user.id).order("created_at",{ascending:false}).then(({data}: {data:any[]|null}) => {
+        if (alive) setPayoutRequests(data ?? []);
+      });
     }
     return () => { alive=false; };
   },[session,application?.id,application?.status,db]);
+
+  const requestPayout = async () => {
+    if (!payoutAmount || Number(payoutAmount)<=0) return toast.error("Indique um valor válido.");
+    setPayoutBusy(true);
+    const {error}=await db.rpc("request_promoter_payout",{p_amount:Number(payoutAmount),p_method:payoutMethod});
+    if(error) toast.error(error.message);
+    else {
+      toast.success("Pedido de levantamento enviado para análise.");
+      setPayoutAmount("");
+      const {data}=await db.from("promoter_payout_requests").select("*").eq("promoter_id",session?.user.id).order("created_at",{ascending:false});
+      setPayoutRequests(data ?? []);
+    }
+    setPayoutBusy(false);
+  };
 
   const sendMessage = async () => {
     if (!session || !application?.id || !messageDraft.trim()) return;
@@ -112,6 +133,10 @@ function Promoters() {
     toast.success("Assinatura actualizada.");
     setApplication({...application,promoter_signed_at:new Date().toISOString()});
   };
+
+  const estimatedShare=wallet.reduce((n,r)=>n+Number(r.estimated_promoter_share||0),0);
+  const reservedPayouts=payoutRequests.filter(r=>["pending","approved"].includes(r.status)).reduce((n,r)=>n+Number(r.amount||0),0);
+  const estimatedAvailable=Math.max(0,estimatedShare-reservedPayouts);
 
   return <><StoreHeader/><main className="mx-auto max-w-5xl px-5 py-12 space-y-10">
     <section className="max-w-3xl">
@@ -174,6 +199,16 @@ function Promoters() {
           </div>
           <div className="divide-y rounded-lg border">{wallet.map(row=><div key={row.event_id} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><div><b>{row.event_name}</b><p className="text-xs text-muted-foreground">{row.paid_tickets} bilhetes · {row.paid_orders} encomendas · comissão {row.platform_commission_pct}%</p></div><div className="text-right"><b>{Number(row.estimated_promoter_share||0).toLocaleString("pt-AO")} Kz</b><p className="text-xs text-muted-foreground">quota estimada</p></div></div>)}</div>
         </>}
+        <div className="border-t pt-4 space-y-3">
+          <h3 className="font-semibold">Pedidos de levantamento</h3>
+          <p className="text-sm text-muted-foreground">Quota estimada ainda não reservada: <b>{estimatedAvailable.toLocaleString("pt-AO")} Kz</b>. O pedido será analisado manualmente; não há transferência automática.</p>
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <Input type="number" min="1" max={estimatedAvailable} step="0.01" value={payoutAmount} onChange={e=>setPayoutAmount(e.target.value)} placeholder="Valor em Kz"/>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={payoutMethod} onChange={e=>setPayoutMethod(e.target.value)}><option value="bank_transfer">Transferência bancária (IBAN)</option><option value="multicaixa_express">Multicaixa Express</option></select>
+            <Button type="button" disabled={payoutBusy||!payoutAmount||Number(payoutAmount)>estimatedAvailable} onClick={()=>void requestPayout()}>{payoutBusy?"A enviar…":"Solicitar"}</Button>
+          </div>
+          {payoutRequests.length>0&&<div className="divide-y rounded-lg border">{payoutRequests.map(r=><div key={r.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"><div><b>{Number(r.amount).toLocaleString("pt-AO")} Kz</b><p className="text-xs text-muted-foreground">{r.payment_method==="bank_transfer"?"Transferência bancária":"Multicaixa Express"} · {new Date(r.created_at).toLocaleString("pt-AO")}</p></div><span className="rounded-full bg-muted px-2 py-1 text-xs">{({pending:"Pendente",approved:"Aprovado",rejected:"Recusado",paid:"Pago"} as Record<string,string>)[r.status]??r.status}</span></div>)}</div>}
+        </div>
         <p className="text-xs text-muted-foreground">Estes valores são uma estimativa sobre encomendas marcadas como pagas. Não representam ainda saldo levantável; o fluxo de recebimento centralizado, impostos, taxas e regras de levantamento tem de estar configurado e aprovado antes de qualquer pagamento.</p>
       </div>}
       <div className="space-y-3">
