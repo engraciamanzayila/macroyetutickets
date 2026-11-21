@@ -213,10 +213,13 @@ export function TableIdCardsPanel({
       if (missing.length) throw new Error("Não encontrei exactamente um cartão MESA para cada número de 51 a 80. Números em falta ou duplicados: " + missing.join(", ") + ". Sincronize/reveja os cartões antes de continuar.");
       const conflicts = existing.filter((card) => card.physical_identifier_type === "MESA" && card.physical_identifier_number !== null && card.physical_identifier_number >= 51 && card.physical_identifier_number <= 80 && card.card_number !== card.physical_identifier_number);
       if (conflicts.length) throw new Error("Já existem identificadores MESA 51–80 associados a outros cartões. Nenhuma alteração foi feita.");
+      for (const number of targets) {
+        const card = cardsByNumber.get(number)![0];
+        if (card.physical_identifier_type && (card.physical_identifier_type !== "MESA" || card.physical_identifier_number !== number)) throw new Error("O cartão MESA " + String(number).padStart(2, "0") + " já tem outro identificador físico. Nenhuma alteração foi feita.");
+      }
       let updated = 0;
       for (const number of targets) {
         const card = cardsByNumber.get(number)![0];
-        if (card.physical_identifier_type && (card.physical_identifier_type !== "MESA" || card.physical_identifier_number !== number)) throw new Error("O cartão MESA " + String(number).padStart(2, "0") + " já tem outro identificador físico. A operação foi interrompida.");
         const result = await db.from("event_table_cards").update({ physical_identifier_type: "MESA", physical_identifier_number: number, holder_name: null }).eq("id", card.id).eq("event_id", eventId);
         if (result.error) throw result.error;
         updated++;
