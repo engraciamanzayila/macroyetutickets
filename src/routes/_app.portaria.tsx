@@ -328,7 +328,7 @@ function Gate() {
             {result && (
               <div className="mt-2 space-y-0.5">
                 <p className="font-mono text-lg font-bold">{result.code}</p>
-                {result.group && <p>{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n                {scanMode === "ticket" && result.result === "ok" && <AccessGuidance result={result} />}
+                {result.group && <p>{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n                {result.tableCard && result.capacity != null && <p className="text-sm font-bold">Capacidade: {result.capacity} pessoas</p>}{scanMode === "ticket" && !result.tableCard && result.result === "ok" && <AccessGuidance result={result} />}
                 {scanMode === "ticket" && result.used_at && <p className="text-sm opacity-80">Entrou às {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
                 {result.offline && <p className="text-xs opacity-75">(validado sem internet)</p>}
               </div>
