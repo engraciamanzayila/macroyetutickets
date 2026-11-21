@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Plus, Link2, Unlink, QrCode } from "lucide-react";
+import { Plus, Unlink, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,7 @@ const db = supabase as any;
 
 function cardTypeFor(group?: Group): "MESA" | "BOX" {
   if (!group) return "MESA";
-  return Number(group.price ?? 0) === 1_000_000 ||
-    group.ticket_type.toUpperCase().includes("BOX") ||
-    group.name.toUpperCase().includes("BOX")
-    ? "BOX"
-    : "MESA";
+  return Number(group.price ?? 0) === 1_000_000 ? "BOX" : "MESA";
 }
 
 export function TableIdCardsPanel({
@@ -48,9 +44,7 @@ export function TableIdCardsPanel({
   const eligibleGroups = useMemo(
     () => groups.filter((g) =>
       g.ticket_type.toUpperCase().includes("MESA") ||
-      g.ticket_type.toUpperCase().includes("BOX") ||
       g.name.toUpperCase().includes("MESA") ||
-      g.name.toUpperCase().includes("BOX") ||
       Number(g.price ?? 0) === 1_000_000
     ),
     [groups],
