@@ -126,7 +126,7 @@ export function TableIdCardsPanel({
       const existingByGroup = new Map<string, TableCard[]>();
       cards.forEach((card) => existingByGroup.set(card.group_id, [...(existingByGroup.get(card.group_id) || []), card]));
       const rows = await Promise.all(eligibleGroups.map(async (g) => {
-        const result = await db.from("tickets").select("seq,holder_name").eq("event_id", eventId).eq("group_id", g.id).order("seq");
+        const result = await db.from("tickets").select("id,seq,holder_name").eq("event_id", eventId).eq("group_id", g.id).order("seq");
         if (result.error) throw result.error;
         return { group: g, tickets: result.data || [] };
       }));
