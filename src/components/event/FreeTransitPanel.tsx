@@ -23,10 +23,20 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
 
   const refresh = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).from("event_free_transit_passes").select("id,reference_code,qr_token,status,vehicle_plate,checked_in_at").eq("event_id", eventId).order("reference_code");
+    const allPasses: Pass[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await (supabase as any).from("event_free_transit_passes")
+        .select("id,reference_code,qr_token,status,vehicle_plate,checked_in_at")
+        .eq("event_id", eventId).order("reference_code").range(from, from + 999);
+      if (error) {
+        setLoading(false);
+        return toast.error("Não foi possível carregar os passes: " + error.message);
+      }
+      allPasses.push(...((data ?? []) as Pass[]));
+      if (!data || data.length < 1000) break;
+    }
+    setPasses(allPasses);
     setLoading(false);
-    if (error) return toast.error("Não foi possível carregar os passes: " + error.message);
-    setPasses((data ?? []) as Pass[]);
   };
 
   useEffect(() => { void refresh(); }, [eventId]);
