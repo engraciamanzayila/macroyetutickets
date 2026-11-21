@@ -151,7 +151,7 @@ export function TableIdCardsPanel({
           while (used.has(next) && next <= maximum) next++;
           if (next > maximum) throw new Error(`Não há identificadores livres para ${kind}.`);
           const group = groups.find((item) => item.id === card.group_id);
-          const paxMatch = group?.name.match(/(?:^|\\D)(4|6|8)\\s*PAX(?:\\D|$)/i) ?? group?.ticket_type.match(/(?:^|\\D)(4|6|8)\\s*PAX(?:\\D|$)/i);
+          const paxMatch = group?.name.match(/(?:^|\D)(4|6|8)\s*PAX(?:\D|$)/i) ?? group?.ticket_type.match(/(?:^|\D)(4|6|8)\s*PAX(?:\D|$)/i);
           const inferredCapacity = paxMatch ? Number(paxMatch[1]) : null;
           assignments.push({ card, number: next, capacity: card.capacity ?? inferredCapacity });
           used.add(next);
