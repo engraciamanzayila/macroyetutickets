@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.event_table_cards (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
   group_id uuid NOT NULL REFERENCES public.ticket_groups(id) ON DELETE RESTRICT,
+  source_ticket_id uuid REFERENCES public.tickets(id) ON DELETE SET NULL,
   card_type text NOT NULL CHECK (card_type IN ('MESA', 'BOX')),
   card_number integer NOT NULL CHECK (card_number BETWEEN 1 AND 1000),
   holder_name text,
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.event_table_cards (
   status text NOT NULL DEFAULT 'valid' CHECK (status IN ('valid', 'void')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT event_table_cards_group_number_unique UNIQUE (group_id, card_number),
+
   CONSTRAINT event_table_cards_identifier_pair CHECK (
     (physical_identifier_type IS NULL AND physical_identifier_number IS NULL)
     OR (physical_identifier_type IS NOT NULL AND physical_identifier_number IS NOT NULL
@@ -25,6 +26,14 @@ CREATE TABLE IF NOT EXISTS public.event_table_cards (
         AND physical_identifier_number <= CASE WHEN physical_identifier_type = 'BOX' THEN 20 ELSE 80 END)
   )
 );
+
+ALTER TABLE public.event_table_cards ADD COLUMN IF NOT EXISTS source_ticket_id uuid REFERENCES public.tickets(id) ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS event_table_cards_source_ticket_unique
+  ON public.event_table_cards(source_ticket_id) WHERE source_ticket_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS event_table_cards_type_number_unique
+  ON public.event_table_cards(event_id, card_type, card_number);
 
 CREATE UNIQUE INDEX IF NOT EXISTS event_table_cards_physical_identifier_unique
   ON public.event_table_cards(event_id, physical_identifier_type, physical_identifier_number)
