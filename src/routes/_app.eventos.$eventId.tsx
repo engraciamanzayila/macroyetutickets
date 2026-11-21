@@ -20,6 +20,7 @@ import { ReportPanel } from "@/components/event/ReportPanel";
 import { SharesPanel } from "@/components/event/SharesPanel";
 import { AdminDispatchPanel } from "@/components/event/AdminDispatchPanel";
 import { TablesPanel } from "@/components/event/TablesPanel";
+import { TableIdCardsPanel } from "@/components/event/TableIdCardsPanel";
 import { PrintHistoryPanel } from "@/components/event/PrintHistoryPanel";
 import { CredentialingPanel } from "@/components/event/CredentialingPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -303,6 +304,13 @@ function EventPage() {
           {groups.some((g) => g.ticket_type.toUpperCase().includes("MESA")) && (
             <TabsTrigger value="mesas">Mesas</TabsTrigger>
           )}
+          {groups.some((g) =>
+            g.ticket_type.toUpperCase().includes("MESA") ||
+            g.ticket_type.toUpperCase().includes("BOX") ||
+            g.name.toUpperCase().includes("MESA") ||
+            g.name.toUpperCase().includes("BOX") ||
+            Number(g.price ?? 0) === 1_000_000
+          ) && <TabsTrigger value="cartoes-id">Cartões ID de mesa</TabsTrigger>}
           <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
           <TabsTrigger value="credenciamento">Credenciamento</TabsTrigger>
           <TabsTrigger value="impressoes">Impressões</TabsTrigger>
@@ -310,6 +318,10 @@ function EventPage() {
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
         </TabsList>
+        <TabsContent value="cartoes-id" className="mt-6">
+          <TableIdCardsPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} />
+        </TabsContent>
+
         <TabsContent value="credenciamento" className="mt-6">
           <CredentialingPanel eventId={eventId} eventName={event?.name ?? "Evento"} />
         </TabsContent>
