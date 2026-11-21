@@ -17,7 +17,7 @@ type TableCard = {
   card_type: "MESA" | "BOX";
   card_number: number;
   holder_name: string | null;
-  capacity: number;
+  capacity: number | null;
   physical_identifier_type: "MESA" | "BOX" | null;
   physical_identifier_number: number | null;
   qr_token: string;
@@ -105,7 +105,7 @@ export function TableIdCardsPanel({
         for (let i = 0; i < missingCount; i++) {
           const ticket = candidates[i];
           if (kind === "BOX") boxNo++; else mesaNo++;
-          inserts.push({ event_id: eventId, group_id: row.group.id, source_ticket_id: ticket ? ticket.id : null, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket && ticket.holder_name ? ticket.holder_name.trim() : null, capacity: 10 });
+          inserts.push({ event_id: eventId, group_id: row.group.id, source_ticket_id: ticket ? ticket.id : null, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket && ticket.holder_name ? ticket.holder_name.trim() : null, capacity: null });
         }
       }
       if (inserts.length) { const result = await db.from("event_table_cards").insert(inserts); if (result.error) throw result.error; }
@@ -115,9 +115,9 @@ export function TableIdCardsPanel({
     finally { setSyncing(false); }
   };
   const saveCapacity = async (card: TableCard, value: string) => {
-    const cap = Number(value);
-    if (!Number.isInteger(cap) || cap < 1 || cap > 1000)
-      return toast.error("Capacidade inválida. Use um número entre 1 e 1000.");
+    const cap = value.trim() === "" ? null : Number(value);
+    if (cap !== null && (!Number.isInteger(cap) || cap < 1 || cap > 1000))
+      return toast.error("Capacidade inválida. Use um número entre 1 e 1000 ou deixe em branco.");
     const { error } = await db.from("event_table_cards")
       .update({ capacity: cap }).eq("id", card.id).eq("event_id", eventId);
     if (error) return toast.error("Não foi possível guardar a capacidade: " + error.message);
@@ -154,10 +154,10 @@ export function TableIdCardsPanel({
 
   const printCards = async (requested: TableCard[]) => {
     const printable = requested.filter((card) =>
-      card.status === "valid" && card.physical_identifier_type && card.physical_identifier_number,
+      card.status === "valid" && card.physical_identifier_type && card.physical_identifier_number && card.capacity !== null,
     );
     if (!printable.length) {
-      toast.error("Associe primeiro os identificadores físicos aos cartões que pretende imprimir.");
+      toast.error("Antes de imprimir, associe o identificador físico e defina a capacidade dos cartões.");
       return;
     }
     setPrinting(true);
@@ -261,7 +261,7 @@ export function TableIdCardsPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{cards.length} cartões</Badge>
             <Badge variant="outline">{cards.filter((c) => c.physical_identifier_type).length} identificadores associados</Badge>
-            <Button size="sm" variant="outline" disabled={printing || !cards.some((c) => c.status === "valid" && c.physical_identifier_type)} onClick={() => void printCards(cards)}>
+            <Button size="sm" variant="outline" disabled={printing || !cards.some((c) => c.status === "valid" && c.physical_identifier_type && c.capacity !== null)} onClick={() => void printCards(cards)}>
               <Printer className="h-4 w-4" /> Imprimir todos associados
             </Button>
             <Button size="sm" disabled={printing || !selectedCardIds.size} onClick={() => void printCards(cards.filter((c) => selectedCardIds.has(c.id)))}>
@@ -279,7 +279,7 @@ export function TableIdCardsPanel({
             const max = card.card_type === "BOX" ? 20 : 80;
             return <article key={card.id} className="grid gap-3 p-4 lg:grid-cols-[auto_minmax(170px,1fr)_minmax(180px,1fr)_minmax(190px,1fr)_auto] lg:items-center">
               <div className="flex items-start gap-3">
-                <input type="checkbox" aria-label={"Selecionar cartão " + card.card_type + " " + card.card_number} checked={selectedCardIds.has(card.id)} disabled={card.status !== "valid" || !card.physical_identifier_type} onChange={(e) => toggleCardSelection(card.id, e.target.checked)} className="mt-1 h-4 w-4 accent-primary" />
+                <input type="checkbox" aria-label={"Selecionar cartão " + card.card_type + " " + card.card_number} checked={selectedCardIds.has(card.id)} disabled={card.status !== "valid" || !card.physical_identifier_type || card.capacity === null} onChange={(e) => toggleCardSelection(card.id, e.target.checked)} className="mt-1 h-4 w-4 accent-primary" />
                 <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Badge variant={card.card_type === "BOX" ? "default" : "secondary"}>{card.card_type}</Badge>
@@ -292,10 +292,10 @@ export function TableIdCardsPanel({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="col-span-2 space-y-1 text-xs">
-                  <span>Capacidade</span>
-                  <Input key={`${card.id}-capacity-${card.capacity}`} type="number" min="1" max="1000" defaultValue={card.capacity}
+                  <span>Capacidade (pessoas)</span>
+                  <Input key={`${card.id}-capacity-${card.capacity}`} type="number" min="1" max="1000" defaultValue={card.capacity ?? ""} placeholder="Definir pessoas"
                     onBlur={(e) => {
-                      if (Number(e.currentTarget.value) !== card.capacity) void saveCapacity(card, e.currentTarget.value);
+                      if ((e.currentTarget.value.trim() === "" ? null : Number(e.currentTarget.value)) !== card.capacity) void saveCapacity(card, e.currentTarget.value);
                     }} />
                 </label>
               </div>
