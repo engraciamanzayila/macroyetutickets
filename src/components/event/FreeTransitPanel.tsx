@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
@@ -27,7 +27,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
     setPasses((data ?? []) as Pass[]);
   };
 
-  useMemo(() => { void refresh(); return null; }, [eventId]);
+  useEffect(() => { void refresh(); }, [eventId]);
 
   const generateTen = async () => {
     if (passes.length) return toast.error("Já existem passes gerados para este evento. Não serão criadas duplicações.");
