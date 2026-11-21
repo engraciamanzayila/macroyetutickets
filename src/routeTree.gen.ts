@@ -20,6 +20,7 @@ import { Route as AppEncomendasRouteImport } from './routes/_app.encomendas'
 import { Route as AppEquipaRouteImport } from './routes/_app.equipa'
 import { Route as AppIdentidadeRouteImport } from './routes/_app.identidade'
 import { Route as AppPortariaRouteImport } from './routes/_app.portaria'
+import { Route as AppLivreTransitoTokenRouteImport } from './routes/_app.livre-transito.$token'
 import { Route as AppVisaoGeralRouteImport } from './routes/_app.visao-geral'
 import { Route as AppZohoRouteImport } from './routes/_app.zoho'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
@@ -85,6 +86,11 @@ const AppPortariaRoute = AppPortariaRouteImport.update({
   path: '/portaria',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLivreTransitoTokenRoute = AppLivreTransitoTokenRouteImport.update({
+  id: '/livre-transito/$token',
+  path: '/livre-transito/$token',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppVisaoGeralRoute = AppVisaoGeralRouteImport.update({
   id: '/visao-geral',
   path: '/visao-geral',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/equipa': typeof AppEquipaRoute
   '/identidade': typeof AppIdentidadeRoute
   '/portaria': typeof AppPortariaRoute
+  '/livre-transito/$token': typeof AppLivreTransitoTokenRoute
   '/visao-geral': typeof AppVisaoGeralRoute
   '/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
@@ -194,6 +201,7 @@ export interface FileRoutesById {
   '/_app/equipa': typeof AppEquipaRoute
   '/_app/identidade': typeof AppIdentidadeRoute
   '/_app/portaria': typeof AppPortariaRoute
+  '/_app/livre-transito/$token': typeof AppLivreTransitoTokenRoute
   '/_app/visao-geral': typeof AppVisaoGeralRoute
   '/_app/zoho': typeof AppZohoRoute
   '/e/$slug': typeof ESlugRoute
@@ -447,6 +455,7 @@ interface AppRouteChildren {
   AppEquipaRoute: typeof AppEquipaRoute
   AppIdentidadeRoute: typeof AppIdentidadeRoute
   AppPortariaRoute: typeof AppPortariaRoute
+  AppLivreTransitoTokenRoute: typeof AppLivreTransitoTokenRoute
   AppVisaoGeralRoute: typeof AppVisaoGeralRoute
   AppZohoRoute: typeof AppZohoRoute
   AppEditorGroupIdRoute: typeof AppEditorGroupIdRoute
@@ -460,6 +469,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipaRoute: AppEquipaRoute,
   AppIdentidadeRoute: AppIdentidadeRoute,
   AppPortariaRoute: AppPortariaRoute,
+  AppLivreTransitoTokenRoute: AppLivreTransitoTokenRoute,
   AppVisaoGeralRoute: AppVisaoGeralRoute,
   AppZohoRoute: AppZohoRoute,
   AppEditorGroupIdRoute: AppEditorGroupIdRoute,
