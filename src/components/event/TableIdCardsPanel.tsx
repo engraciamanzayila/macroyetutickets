@@ -60,10 +60,16 @@ export function TableIdCardsPanel({
   const { data: cards = [], isLoading, error } = useQuery<TableCard[]>({
     queryKey: ["event-table-id-cards", eventId],
     queryFn: async () => {
-      const { data, error } = await db.from("event_table_cards")
-        .select("*").eq("event_id", eventId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as TableCard[];
+      const allCards: TableCard[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await db.from("event_table_cards")
+          .select("*").eq("event_id", eventId)
+          .order("created_at", { ascending: false }).range(from, from + 999);
+        if (error) throw error;
+        allCards.push(...((data ?? []) as TableCard[]));
+        if (!data || data.length < 1000) break;
+      }
+      return allCards;
     },
   });
 
