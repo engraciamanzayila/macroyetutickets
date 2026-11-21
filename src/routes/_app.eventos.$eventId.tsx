@@ -21,6 +21,7 @@ import { SharesPanel } from "@/components/event/SharesPanel";
 import { AdminDispatchPanel } from "@/components/event/AdminDispatchPanel";
 import { TablesPanel } from "@/components/event/TablesPanel";
 import { TableIdCardsPanel } from "@/components/event/TableIdCardsPanel";
+import { FreeTransitPanel } from "@/components/event/FreeTransitPanel";
 import { PrintHistoryPanel } from "@/components/event/PrintHistoryPanel";
 import { CredentialingPanel } from "@/components/event/CredentialingPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -301,6 +302,7 @@ function EventPage() {
       <Tabs defaultValue="grupos">
         <TabsList className="max-w-full overflow-x-auto justify-start">
           <TabsTrigger value="grupos">Grupos & geração</TabsTrigger>
+          <TabsTrigger value="livre-transito">Livre-trânsito</TabsTrigger>
           {groups.some((g) => g.ticket_type.toUpperCase().includes("MESA")) && (
             <TabsTrigger value="mesas">Mesas</TabsTrigger>
           )}
@@ -318,6 +320,9 @@ function EventPage() {
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
         </TabsList>
+        <TabsContent value="livre-transito" className="mt-6">
+          <FreeTransitPanel eventId={eventId} eventName={event?.name ?? "THIS IS HOUSE MUSIC"} />
+        </TabsContent>
         <TabsContent value="cartoes-id" className="mt-6">
           <TableIdCardsPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} />
         </TabsContent>

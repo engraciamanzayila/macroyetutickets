@@ -15,6 +15,7 @@ export const AREA_ROLES: Record<string, Role[]> = {
   editor: ["admin", "promoter"],
   encomendas: ["admin", "promoter", "consumer_support"],
   portaria: ["admin", "promoter", "staff"],
+  "livre-transito": ["admin", "promoter", "staff"],
   equipa: ["admin"],
   identidade: ["admin"],
   zoho: ["admin"],
