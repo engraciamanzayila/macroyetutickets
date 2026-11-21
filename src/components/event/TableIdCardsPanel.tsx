@@ -29,6 +29,9 @@ const db = supabase as any;
 
 function cardTypeFor(group?: Group): "MESA" | "BOX" {
   if (!group) return "MESA";
+  const labels = (group.ticket_type + " " + group.name).toUpperCase();
+  if (labels.includes("BOX")) return "BOX";
+  if (labels.includes("MESA")) return "MESA";
   return Number(group.price ?? 0) === 1_000_000 ? "BOX" : "MESA";
 }
 
@@ -343,6 +346,9 @@ export function TableIdCardsPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{cards.length} cartões</Badge>
             <Badge variant="outline">{cards.filter((c) => c.physical_identifier_type).length} identificadores associados</Badge>
+            <Button size="sm" variant="outline" disabled={printing || cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 1 && c.physical_identifier_number <= 50 && c.capacity !== null).length !== 50} onClick={() => void printCards(cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 1 && c.physical_identifier_number <= 50))}>
+              <Printer className="h-4 w-4" /> Imprimir lista oficial (50)
+            </Button>
             <Button size="sm" variant="outline" disabled={printing || !cards.some((c) => c.status === "valid" && c.physical_identifier_type && c.capacity !== null)} onClick={() => void printCards(cards)}>
               <Printer className="h-4 w-4" /> Imprimir todos associados
             </Button>
