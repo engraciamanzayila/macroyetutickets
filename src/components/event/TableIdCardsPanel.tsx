@@ -160,9 +160,7 @@ export function TableIdCardsPanel({
         const group = groupsByPrice.get(price)!;
         let card = existing.find((c) => c.physical_identifier_type === "MESA" && c.physical_identifier_number === number);
         if (!card) {
-          card = existing.find((c) => c.card_type === "MESA" && c.card_number === number &&
-            (!c.physical_identifier_type || c.physical_identifier_type === "MESA") &&
-            (!c.physical_identifier_number || c.physical_identifier_number === number));
+          card = existing.find((c) => c.card_type === "MESA" && c.card_number === number);
         }
         const patch = {
           group_id: group.id,
