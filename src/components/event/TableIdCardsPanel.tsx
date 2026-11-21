@@ -297,6 +297,7 @@ export function TableIdCardsPanel({
                     onBlur={(e) => {
                       if ((e.currentTarget.value.trim() === "" ? null : Number(e.currentTarget.value)) !== card.capacity) void saveCapacity(card, e.currentTarget.value);
                     }} />
+                  <p className="text-xs text-muted-foreground">{card.capacity === null ? "Capacidade por definir — necessária antes da impressão." : "Número de pessoas permitido nesta mesa."}</p>
                 </label>
               </div>
               <label className="space-y-1 text-xs">
@@ -320,7 +321,7 @@ export function TableIdCardsPanel({
                 <Button size="sm" variant="outline" onClick={() => void makeQr(card)}>
                   <QrCode className="h-4 w-4" /> QR
                 </Button>
-                <Button size="sm" variant="outline" disabled={printing || card.status !== "valid" || !card.physical_identifier_type} onClick={() => void printCards([card])}>
+                <Button size="sm" variant="outline" disabled={printing || card.status !== "valid" || !card.physical_identifier_type || card.capacity === null} onClick={() => void printCards([card])}>
                   <Printer className="h-4 w-4" /> Imprimir cartão
                 </Button>
                 {qrImages[card.id] && <>
