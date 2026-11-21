@@ -16,7 +16,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
   const [passes, setPasses] = useState<Pass[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [quantity, setQuantity] = useState("10");
+  const [quantity, setQuantity] = useState("50");
   const [ref, setRef] = useState("");
   const [plate, setPlate] = useState("");
   const [checking, setChecking] = useState(false);
