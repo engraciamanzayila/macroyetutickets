@@ -17,4 +17,12 @@ describe("ticket group filename parsing", () => {
       price: 12.5,
     });
   });
+
+  it("recognizes BOX as a separate table category", () => {
+    expect(parseFilename("Evento - 20 BOX - 1.000.000 Kz.pdf")).toMatchObject({
+      ticketType: "Box",
+      quantity: 20,
+      price: 1000000,
+    });
+  });
 });
