@@ -141,6 +141,8 @@ export function TableIdCardsPanel({
         const kind = cardTypeFor(row.group);
         const linkedIds = new Set(existing.map((card) => card.source_ticket_id).filter(Boolean));
         const candidates = row.tickets.filter((ticket: { id: string }) => !linkedIds.has(ticket.id));
+        const linkedIds = new Set(existing.map((card) => card.source_ticket_id).filter(Boolean));
+        const candidates = row.tickets.filter((ticket: { id: string }) => !linkedIds.has(ticket.id));
         for (let i = 0; i < missingCount; i++) {
           const ticket = candidates[i];
           if (kind === "BOX") boxNo++; else mesaNo++;
