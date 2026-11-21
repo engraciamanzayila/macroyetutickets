@@ -133,13 +133,13 @@ export function TableIdCardsPanel({
       let boxNo = cards.filter((c) => c.card_type === "BOX").reduce((n, c) => Math.max(n, c.card_number), 0);
       const inserts: Record<string, unknown>[] = [];
       for (const row of rows) {
-        const existing = new Set((existingByGroup.get(row.group.id) || []).map((c) => c.card_number));
+        const existing = existingByGroup.get(row.group.id) || [];
+        const missingCount = Math.max(0, Number(row.group.quantity || 0) - existing.length);
         const kind = cardTypeFor(row.group);
-        for (let seq = 1; seq <= Number(row.group.quantity || 0); seq++) {
-          if (existing.has(seq)) continue;
-          const ticket = row.tickets.find((t: { seq: number }) => Number(t.seq) === seq);
+        for (let i = 0; i < missingCount; i++) {
+          const ticket = row.tickets[i];
           if (kind === "BOX") boxNo++; else mesaNo++;
-          inserts.push({ event_id: eventId, group_id: row.group.id, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket?.holder_name?.trim() || null, capacity: 10 });
+          inserts.push({ event_id: eventId, group_id: row.group.id, source_ticket_id: ticket ? ticket.id : null, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket && ticket.holder_name ? ticket.holder_name.trim() : null, capacity: 10 });
         }
       }
       if (inserts.length) { const result = await db.from("event_table_cards").insert(inserts); if (result.error) throw result.error; }
