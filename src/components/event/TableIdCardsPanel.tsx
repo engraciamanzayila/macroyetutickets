@@ -60,10 +60,16 @@ export function TableIdCardsPanel({
   const { data: cards = [], isLoading, error } = useQuery<TableCard[]>({
     queryKey: ["event-table-id-cards", eventId],
     queryFn: async () => {
-      const { data, error } = await db.from("event_table_cards")
-        .select("*").eq("event_id", eventId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as TableCard[];
+      const allCards: TableCard[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await db.from("event_table_cards")
+          .select("*").eq("event_id", eventId)
+          .order("created_at", { ascending: false }).range(from, from + 999);
+        if (error) throw error;
+        allCards.push(...((data ?? []) as TableCard[]));
+        if (!data || data.length < 1000) break;
+      }
+      return allCards;
     },
   });
 
@@ -82,7 +88,7 @@ export function TableIdCardsPanel({
     try {
       const targetMesa = eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0);
       const targetBox = eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0);
-      if (targetMesa > 80 || targetBox > 20) throw new Error("Quantidade excede o inventário: MESA " + targetMesa + "/80; BOX " + targetBox + "/20.");
+      if (![targetMesa, targetBox].every((value) => Number.isSafeInteger(value) && value >= 0)) throw new Error("As quantidades configuradas para mesas e boxes são inválidas.");
       const currentMesa = cards.filter((c) => c.card_type === "MESA").length;
       const currentBox = cards.filter((c) => c.card_type === "BOX").length;
       if (currentMesa > targetMesa || currentBox > targetBox) throw new Error("Já existem mais cartões do que a quantidade configurada. Reveja os cartões existentes; nenhum será apagado automaticamente.");
@@ -250,8 +256,8 @@ export function TableIdCardsPanel({
           <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 text-sm">
-          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · máximo 80</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
-          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">BOX · máximo 20 · 1.000.000 Kz</p><p className="font-semibold">{cards.filter((c) => c.card_type === "BOX").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
+          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · identificadores dinâmicos</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
+          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">BOX · identificadores dinâmicos · 1.000.000 Kz</p><p className="font-semibold">{cards.filter((c) => c.card_type === "BOX").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
         </div>
         <p className="text-xs text-muted-foreground">A sincronização não apaga cartões existentes. A impressão em lote só será liberada quando as quantidades estiverem certas e todos os identificadores físicos estiverem associados.</p>
       </section>
@@ -276,7 +282,9 @@ export function TableIdCardsPanel({
             const group = groups.find((g) => g.id === card.group_id);
             const assignedValue = card.physical_identifier_type && card.physical_identifier_number
               ? `${card.physical_identifier_type}:${card.physical_identifier_number}` : "";
-            const max = card.card_type === "BOX" ? 20 : 80;
+            const targetCount = eligibleGroups.filter((g) => cardTypeFor(g) === card.card_type).reduce((n, g) => n + Number(g.quantity || 0), 0);
+            const currentMax = cards.filter((item) => item.physical_identifier_type === card.card_type).reduce((n, item) => Math.max(n, item.physical_identifier_number ?? 0), 0);
+            const max = Math.max(card.card_type === "BOX" ? 20 : 80, targetCount, currentMax);
             return <article key={card.id} className="grid gap-3 p-4 lg:grid-cols-[auto_minmax(170px,1fr)_minmax(180px,1fr)_minmax(190px,1fr)_auto] lg:items-center">
               <div className="flex items-start gap-3">
                 <input type="checkbox" aria-label={"Selecionar cartão " + card.card_type + " " + card.card_number} checked={selectedCardIds.has(card.id)} disabled={card.status !== "valid" || !card.physical_identifier_type || card.capacity === null} onChange={(e) => toggleCardSelection(card.id, e.target.checked)} className="mt-1 h-4 w-4 accent-primary" />
