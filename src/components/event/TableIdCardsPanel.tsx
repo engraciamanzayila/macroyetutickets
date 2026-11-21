@@ -93,14 +93,15 @@ export function TableIdCardsPanel({
       const nextNumber = kindCards.reduce((max, c) => Math.max(max, c.card_number), 0) + 1;
       const ticketResult = await db.from("tickets").select("id,seq,holder_name").eq("event_id", eventId).eq("group_id", activeGroup.id).order("seq", { ascending: true });
       if (ticketResult.error) throw ticketResult.error;
-      const nextTicket = (ticketResult.data ?? []).find((t: { seq: number }) => Number(t.seq) === nextNumber);
+      const groupCount = cards.filter((card) => card.group_id === activeGroup.id).length;
+      const nextTicket = (ticketResult.data ?? []).find((t: { seq: number }) => Number(t.seq) === groupCount + 1);
       const { error } = await db.from("event_table_cards").insert({
         event_id: eventId,
         group_id: activeGroup.id,
         source_ticket_id: nextTicket?.id ?? null,
         card_type: activeType,
         card_number: nextNumber,
-        holder_name: holder.trim() || null,
+        holder_name: holder.trim() || nextTicket?.holder_name?.trim() || null,
         capacity: cap,
       });
       if (error) throw error;
