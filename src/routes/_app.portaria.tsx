@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_app/portaria")({
 type CacheTicket = { s: string; g: string; at?: string | null };
 type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null; price: number }>; tickets: Record<string, CacheTicket> };
 type QueueItem = { event: string; code: string; at: string };
-type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean };
+type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean; tableCard?: boolean; capacity?: number | null };
 
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
 const cacheKey = (e: string) => `myt-cache-${e}`;
@@ -160,15 +160,44 @@ function Gate() {
 
   const validate = useCallback(async (raw: string) => {
     if (resultOpen.current || validating.current) return;
-    const code = raw.trim().toUpperCase();
-    if (!code || !eventId) return;
+    const scanned = raw.trim();
+    if (!scanned || !eventId) return;
+    // Os QR dos cartões de mesa usam a rota pública /validar-mesa/<token>.
+    // Reconhecê-los aqui mantém a leitura no mesmo scanner da Portaria.
+    const tableMatch = scanned.match(/(?:^|\\/)validar-mesa\\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?#]|$)/i);
+    const code = tableMatch ? tableMatch[1].toUpperCase() : scanned.toUpperCase();
     const now = Date.now();
     if (last.current.code === code && now - last.current.t < 3000) return;
     last.current = { code, t: now };
     validating.current = true;
 
     let r: Result | null = null;
-    if (scanMode === "credential") {
+    if (tableMatch) {
+      if (!navigator.onLine) {
+        validating.current = false;
+        toast.error("A validação de cartões de mesa requer ligação à internet.");
+        return;
+      }
+      const { data, error } = await (supabase as any).rpc("verify_table_card", { p_token: code });
+      if (error) {
+        validating.current = false;
+        toast.error("Falha ao verificar cartão de mesa: " + error.message);
+        return;
+      }
+      const card = data as { result: "valid" | "void" | "not_found"; card_type?: string; card_number?: number; category?: string; holder_name?: string | null; capacity?: number | null; physical_identifier_type?: string | null; physical_identifier_number?: number | null };
+      const physical = card.physical_identifier_type && card.physical_identifier_number
+        ? card.physical_identifier_type + " " + String(card.physical_identifier_number).padStart(2, "0")
+        : (card.card_type ?? "MESA") + " " + String(card.card_number ?? "").padStart(2, "0");
+      r = {
+        result: card.result === "valid" ? "ok" : card.result === "void" ? "void" : "not_found",
+        code: physical,
+        group: card.category,
+        type: "Cartão de mesa",
+        recipient: card.holder_name,
+        tableCard: true,
+        capacity: card.capacity,
+      };
+    } else if (scanMode === "credential") {
       if (!navigator.onLine) {
         validating.current = false;
         toast.error("A validação de credenciais requer ligação à internet neste momento.");
@@ -208,7 +237,7 @@ function Gate() {
         r = { result: "ok", code, group: g?.name, type: g?.type, recipient: g?.recipient, offline: true };
       }
     }
-    if (r.result === "ok") setCount((c) => c + 1);
+    if (r.result === "ok" && !r.tableCard) setCount((c) => c + 1);
     navigator.vibrate?.(r.result === "ok" ? 80 : [200, 80, 200]);
     resultOpen.current = true;
     validating.current = false;
@@ -248,7 +277,11 @@ function Gate() {
   const tone = result
     ? result.result === "ok" ? "bg-success text-success-foreground" : result.result === "used" ? "bg-warning text-warning-foreground" : "bg-destructive text-destructive-foreground"
     : "bg-card";
-  const title = result ? (scanMode === "credential" ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA" } : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" })[result.result] : "Pronto para ler";
+  const title = result ? (result.tableCard
+    ? { ok: "CARTÃO DE MESA VÁLIDO", used: "CARTÃO DE MESA VÁLIDO", void: "CARTÃO DE MESA ANULADO", not_found: "CARTÃO DE MESA NÃO RECONHECIDO" }[result.result]
+    : scanMode === "credential"
+      ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA" }[result.result]
+      : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" }[result.result]) : "Pronto para ler";
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
@@ -280,7 +313,7 @@ function Gate() {
             {result.result === "ok" ? <CheckCircle2 className="mx-auto mb-5 h-24 w-24" /> : result.result === "used" ? <AlertTriangle className="mx-auto mb-5 h-24 w-24" /> : <XCircle className="mx-auto mb-5 h-24 w-24" />}
             <h2 className="text-3xl font-extrabold">{title}</h2>
             <p className="mt-4 font-mono text-xl font-bold">{result.code}</p>
-            {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n            {scanMode === "ticket" && result.result === "ok" && <AccessGuidance result={result} />}
+            {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n            {result.tableCard && result.capacity != null && <p className="mt-2 text-lg font-bold">Capacidade: {result.capacity} pessoas</p>}{scanMode === "ticket" && !result.tableCard && result.result === "ok" && <AccessGuidance result={result} />}
             {scanMode === "ticket" && result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
             {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
             <Button className="mt-8 h-14 w-full text-lg" variant="secondary" onClick={() => { resultOpen.current = false; setShowResult(false); }}>Continuar leitura</Button>
@@ -303,8 +336,8 @@ function Gate() {
           </div>
 
           <div className="rounded-2xl border bg-card overflow-hidden">
-            <div id="qr-reader" className={camOn || cameraStarting ? "w-full" : "hidden"} />
-            <div className="p-4 flex gap-2">
+            <div id="qr-reader" className="w-full min-h-[260px] bg-black/5" />
+            {!camOn && !cameraStarting && <p className="px-4 pt-3 text-sm text-muted-foreground">A área da câmara fica aqui visível. Autorize o acesso e toque em “Ler QR com a câmara” para iniciar a leitura.</p>}\n            <div className="p-4 flex gap-2">
               <Button className="flex-1" variant={camOn ? "secondary" : "default"} onClick={camOn ? stopCam : startCam} disabled={cameraStarting}>
                 {camOn ? <><CameraOff className="h-4 w-4" /> Parar câmara</> : <><Camera className="h-4 w-4" /> {cameraStarting ? "A abrir câmara…" : "Ler QR com a câmara"}</>}
               </Button>
