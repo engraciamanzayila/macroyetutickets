@@ -1,4 +1,4 @@
-export const TICKET_TYPES = ["Normal", "VIP", "VIP em pé", "Mesa", "Convite", "Backstage"] as const;
+export const TICKET_TYPES = ["Normal", "VIP", "VIP em pé", "Mesa", "Box", "Convite", "Backstage"] as const;
 
 export type ParsedName = {
   name: string;
@@ -16,6 +16,7 @@ const strip = (s: string) =>
 
 function detectType(s: string): string | null {
   const u = strip(s);
+  if (/\bBOX\b/.test(u)) return "Box";
   if (/VIP\s*(EM\s*)?PE\b/.test(u)) return "VIP em pé";
   if (/\bMESAS?\b/.test(u)) return "Mesa";
   if (/\bVIP\b/.test(u)) return "VIP";
@@ -26,7 +27,7 @@ function detectType(s: string): string | null {
 }
 
 const SIZE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm)?/i;
-const QTY_ONLY_RE = /^(\d+)\s*(F|UN|UND|UNID|UNIDADES|PCS|X|QTD|EX|MESAS?|INGRESSOS?)?$/i;
+const QTY_ONLY_RE = /^(\d+)\s*(F|UN|UND|UNID|UNIDADES|PCS|X|QTD|EX|MESAS?|BOX|INGRESSOS?)?$/i;
 const PRICE_RE = /\b(?:PREÇO|PRECO|VALOR)\s*[:=]?\s*(\d[\d., ]*)|\b(?:KZ|AOA|AKZ)\s*(\d[\d., ]*)|(\d[\d., ]*)\s*(?:KZ|AOA|AKZ)\b/i;
 
 function parsePrice(value: string) {
@@ -77,6 +78,7 @@ export function parseFilename(filename: string): ParsedName {
     if (q) {
       quantity = parseInt(q[1], 10);
       if (/\bMESAS?\b/i.test(s)) ticketType = ticketType ?? "Mesa";
+      if (/\bBOX\b/i.test(s)) ticketType = ticketType ?? "Box";
       continue;
     }
     const qInline = s.match(/(?:QTD|QUANT(?:IDADE)?)\D*(\d+)/i);
@@ -88,7 +90,7 @@ export function parseFilename(filename: string): ParsedName {
     if (t) {
       ticketType = ticketType ?? t;
       const leftover = strip(s)
-        .replace(/VIP\s*(EM\s*)?PE|MESAS?|VIP|BACKSTAGE|CONVITES?|NORMA(L|IS)|GERAL|AREA/g, "")
+        .replace(/BOX|VIP\s*(EM\s*)?PE|MESAS?|VIP|BACKSTAGE|CONVITES?|NORMA(L|IS)|GERAL|AREA/g, "")
         .trim();
       if (leftover.length < 2) continue;
     }
