@@ -53,7 +53,6 @@ export function TableIdCardsPanel({
     [groups],
   );
   const [groupId, setGroupId] = useState("");
-  const [holder, setHolder] = useState("");
   const [capacity, setCapacity] = useState("10");
   const [creating, setCreating] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -101,11 +100,10 @@ export function TableIdCardsPanel({
         source_ticket_id: nextTicket?.id ?? null,
         card_type: activeType,
         card_number: nextNumber,
-        holder_name: holder.trim() || nextTicket?.holder_name?.trim() || null,
+        holder_name: nextTicket?.holder_name?.trim() || null,
         capacity: cap,
       });
       if (error) throw error;
-      setHolder("");
       toast.success(`Cartão ${activeType} #${String(nextNumber).padStart(2, "0")} criado.`);
       await refresh();
     } catch (e) {
@@ -141,8 +139,6 @@ export function TableIdCardsPanel({
         const kind = cardTypeFor(row.group);
         const linkedIds = new Set(existing.map((card) => card.source_ticket_id).filter(Boolean));
         const candidates = row.tickets.filter((ticket: { id: string }) => !linkedIds.has(ticket.id));
-        const linkedIds = new Set(existing.map((card) => card.source_ticket_id).filter(Boolean));
-        const candidates = row.tickets.filter((ticket: { id: string }) => !linkedIds.has(ticket.id));
         for (let i = 0; i < missingCount; i++) {
           const ticket = candidates[i];
           if (kind === "BOX") boxNo++; else mesaNo++;
@@ -155,13 +151,6 @@ export function TableIdCardsPanel({
     } catch (e) { toast.error("Falha na sincronização: " + (e as Error).message); }
     finally { setSyncing(false); }
   };
-  const saveHolder = async (card: TableCard, value: string) => {
-    const { error } = await db.from("event_table_cards")
-      .update({ holder_name: value.trim() || null }).eq("id", card.id).eq("event_id", eventId);
-    if (error) return toast.error("Não foi possível guardar o responsável: " + error.message);
-    await refresh();
-  };
-
   const saveCapacity = async (card: TableCard, value: string) => {
     const cap = Number(value);
     if (!Number.isInteger(cap) || cap < 1 || cap > 1000)
@@ -220,7 +209,7 @@ export function TableIdCardsPanel({
 
       <section className="rounded-xl border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="font-semibold">Sincronizar quantidade de cartões</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Nomes já associados aos ingressos são importados automaticamente; os restantes ficam em branco para preenchimento manual.</p></div>
+          <div><h3 className="font-semibold">Sincronizar quantidade de cartões</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Nomes já associados aos ingressos são importados automaticamente; os restantes ficam com o campo reservado em branco para preenchimento à mão depois da impressão.</p></div>
           <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 text-sm">
@@ -246,10 +235,6 @@ export function TableIdCardsPanel({
                   {g.name} · {Number(g.price ?? 0).toLocaleString("pt-AO")} Kz
                 </option>)}
               </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Responsável (opcional)</span>
-              <Input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="Nome do responsável" />
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">Capacidade de pessoas</span>
@@ -295,13 +280,6 @@ export function TableIdCardsPanel({
                 <p className="text-xs text-muted-foreground">{group ? Number(group.price ?? 0).toLocaleString("pt-AO") + " Kz" : eventName}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="col-span-2 space-y-1 text-xs">
-                  <span>Responsável</span>
-                  <Input key={`${card.id}-holder-${card.holder_name}`} defaultValue={card.holder_name ?? ""}
-                    placeholder="Nome" onBlur={(e) => {
-                      if (e.currentTarget.value.trim() !== (card.holder_name ?? "")) void saveHolder(card, e.currentTarget.value);
-                    }} />
-                </label>
                 <label className="col-span-2 space-y-1 text-xs">
                   <span>Capacidade</span>
                   <Input key={`${card.id}-capacity-${card.capacity}`} type="number" min="1" max="1000" defaultValue={card.capacity}
