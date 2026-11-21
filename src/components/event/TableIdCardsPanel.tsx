@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Unlink, QrCode, RefreshCw } from "lucide-react";
+import { Unlink, QrCode, RefreshCw, Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,8 @@ export function TableIdCardsPanel({
   );
   const [syncing, setSyncing] = useState(false);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [printing, setPrinting] = useState(false);
 
   const { data: cards = [], isLoading, error } = useQuery<TableCard[]>({
     queryKey: ["event-table-id-cards", eventId],
@@ -150,6 +152,80 @@ export function TableIdCardsPanel({
     }
   };
 
+  const printCards = async (requested: TableCard[]) => {
+    const printable = requested.filter((card) =>
+      card.status === "valid" && card.physical_identifier_type && card.physical_identifier_number,
+    );
+    if (!printable.length) {
+      toast.error("Associe primeiro os identificadores físicos aos cartões que pretende imprimir.");
+      return;
+    }
+    setPrinting(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      const cardW = 94, cardH = 52, gapX = 6, gapY = 5;
+      const marginX = (210 - (cardW * 2 + gapX)) / 2, marginY = 8, perPage = 10;
+      for (let index = 0; index < printable.length; index++) {
+        if (index > 0 && index % perPage === 0) pdf.addPage("a4", "portrait");
+        const card = printable[index];
+        const pos = index % perPage, col = pos % 2, row = Math.floor(pos / 2);
+        const x = marginX + col * (cardW + gapX), y = marginY + row * (cardH + gapY);
+        const group = groups.find((item) => item.id === card.group_id);
+        const physicalLabel = card.physical_identifier_type + " " + String(card.physical_identifier_number).padStart(2, "0");
+
+        pdf.setDrawColor(145, 145, 145); pdf.setLineWidth(0.25);
+        pdf.roundedRect(x, y, cardW, cardH, 1.5, 1.5, "S");
+        pdf.setDrawColor(80, 80, 80); pdf.setLineWidth(0.35);
+        const mark = 3;
+        pdf.line(x - 1, y, x + mark, y); pdf.line(x + cardW - mark, y, x + cardW + 1, y);
+        pdf.line(x - 1, y + cardH, x + mark, y + cardH); pdf.line(x + cardW - mark, y + cardH, x + cardW + 1, y + cardH);
+
+        pdf.setTextColor(35, 35, 35); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+        pdf.text("MY TICKETS", x + 5, y + 6);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.5);
+        pdf.text(eventName || "Evento", x + 5, y + 10, { maxWidth: cardW - 10 });
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(19);
+        pdf.text(physicalLabel, x + 5, y + 23);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
+        pdf.text(group?.name || "Categoria", x + 5, y + 28, { maxWidth: 62 });
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+        pdf.text("CAPACIDADE: " + card.capacity + " PESSOAS", x + 5, y + 34);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.5);
+        pdf.text("RESPONSÁVEL", x + 5, y + 40);
+        if (card.holder_name?.trim()) {
+          pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+          pdf.text(card.holder_name.trim(), x + 5, y + 46, { maxWidth: 61 });
+        } else {
+          pdf.setDrawColor(70, 70, 70); pdf.setLineWidth(0.25);
+          pdf.line(x + 5, y + 47, x + 64, y + 47);
+        }
+        const qrUrl = window.location.origin + "/validar-mesa/" + card.qr_token;
+        const qrData = await QRCode.toDataURL(qrUrl, { width: 360, margin: 1, errorCorrectionLevel: "H" });
+        pdf.addImage(qrData, "PNG", x + 69, y + 25, 20, 20);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(5.5);
+        pdf.text("VALIDAÇÃO", x + 79, y + 48, { align: "center" });
+      }
+      const suffix = printable.length === 1
+        ? printable[0].physical_identifier_type + "-" + String(printable[0].physical_identifier_number).padStart(2, "0")
+        : printable.length + "-cartoes";
+      pdf.save("MY-Tickets-ID-Mesas-" + suffix + ".pdf");
+      toast.success(printable.length + " cartão(ões) preparado(s) para impressão.");
+    } catch (e) {
+      toast.error("Não foi possível preparar o PDF: " + (e as Error).message);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const toggleCardSelection = (cardId: string, checked: boolean) => {
+    setSelectedCardIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(cardId); else next.delete(cardId);
+      return next;
+    });
+  };
+
   const downloadQr = (card: TableCard) => {
     const dataUrl = qrImages[card.id];
     if (!dataUrl) return;
@@ -182,9 +258,15 @@ export function TableIdCardsPanel({
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Cartões criados</h3>
-          <div className="flex gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{cards.length} cartões</Badge>
             <Badge variant="outline">{cards.filter((c) => c.physical_identifier_type).length} identificadores associados</Badge>
+            <Button size="sm" variant="outline" disabled={printing || !cards.some((c) => c.status === "valid" && c.physical_identifier_type)} onClick={() => void printCards(cards)}>
+              <Printer className="h-4 w-4" /> Imprimir todos associados
+            </Button>
+            <Button size="sm" disabled={printing || !selectedCardIds.size} onClick={() => void printCards(cards.filter((c) => selectedCardIds.has(c.id)))}>
+              <Printer className="h-4 w-4" /> Imprimir selecionados ({selectedCardIds.size})
+            </Button>
           </div>
         </div>
         {isLoading ? <p className="py-6 text-sm text-muted-foreground">A carregar cartões…</p> :
@@ -195,14 +277,18 @@ export function TableIdCardsPanel({
             const assignedValue = card.physical_identifier_type && card.physical_identifier_number
               ? `${card.physical_identifier_type}:${card.physical_identifier_number}` : "";
             const max = card.card_type === "BOX" ? 20 : 80;
-            return <article key={card.id} className="grid gap-3 p-4 lg:grid-cols-[minmax(170px,1fr)_minmax(180px,1fr)_minmax(190px,1fr)_auto] lg:items-center">
-              <div className="space-y-1">
+            return <article key={card.id} className="grid gap-3 p-4 lg:grid-cols-[auto_minmax(170px,1fr)_minmax(180px,1fr)_minmax(190px,1fr)_auto] lg:items-center">
+              <div className="flex items-start gap-3">
+                <input type="checkbox" aria-label={"Selecionar cartão " + card.card_type + " " + card.card_number} checked={selectedCardIds.has(card.id)} disabled={card.status !== "valid" || !card.physical_identifier_type} onChange={(e) => toggleCardSelection(card.id, e.target.checked)} className="mt-1 h-4 w-4 accent-primary" />
+                <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Badge variant={card.card_type === "BOX" ? "default" : "secondary"}>{card.card_type}</Badge>
                   <span className="font-mono font-semibold">#{String(card.card_number).padStart(2, "0")}</span>
                 </div>
                 <p className="text-sm font-medium">{group?.name ?? "Categoria"}</p>
                 <p className="text-xs text-muted-foreground">{group ? Number(group.price ?? 0).toLocaleString("pt-AO") + " Kz" : eventName}</p>
+                <p className="text-xs text-muted-foreground">{card.holder_name?.trim() ? "Responsável: " + card.holder_name : "Nome em branco para preencher à mão após a impressão"}</p>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="col-span-2 space-y-1 text-xs">
@@ -233,6 +319,9 @@ export function TableIdCardsPanel({
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 <Button size="sm" variant="outline" onClick={() => void makeQr(card)}>
                   <QrCode className="h-4 w-4" /> QR
+                </Button>
+                <Button size="sm" variant="outline" disabled={printing || card.status !== "valid" || !card.physical_identifier_type} onClick={() => void printCards([card])}>
+                  <Printer className="h-4 w-4" /> Imprimir cartão
                 </Button>
                 {qrImages[card.id] && <>
                   <img src={qrImages[card.id]} alt={`QR do cartão ${card.card_type} ${card.card_number}`} className="h-16 w-16 rounded border bg-white p-1" />
