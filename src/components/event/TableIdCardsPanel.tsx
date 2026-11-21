@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Plus, Unlink, QrCode, RefreshCw } from "lucide-react";
+import { Unlink, QrCode, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -52,13 +52,8 @@ export function TableIdCardsPanel({
     ),
     [groups],
   );
-  const [groupId, setGroupId] = useState("");
-  const [capacity, setCapacity] = useState("10");
-  const [creating, setCreating] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
-  const activeGroup = eligibleGroups.find((g) => g.id === groupId) ?? eligibleGroups[0];
-  const activeType = cardTypeFor(activeGroup);
 
   const { data: cards = [], isLoading, error } = useQuery<TableCard[]>({
     queryKey: ["event-table-id-cards", eventId],
@@ -77,40 +72,6 @@ export function TableIdCardsPanel({
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ["event-table-id-cards", eventId] });
-  };
-
-  const createCard = async () => {
-    if (!activeGroup || creating) return;
-    const cap = Number(capacity);
-    if (!Number.isInteger(cap) || cap < 1 || cap > 1000) {
-      toast.error("A capacidade deve ser um número inteiro entre 1 e 1000.");
-      return;
-    }
-    setCreating(true);
-    try {
-      const kindCards = cards.filter((c) => c.card_type === activeType);
-      const nextNumber = kindCards.reduce((max, c) => Math.max(max, c.card_number), 0) + 1;
-      const ticketResult = await db.from("tickets").select("id,seq,holder_name").eq("event_id", eventId).eq("group_id", activeGroup.id).order("seq", { ascending: true });
-      if (ticketResult.error) throw ticketResult.error;
-      const groupCount = cards.filter((card) => card.group_id === activeGroup.id).length;
-      const nextTicket = (ticketResult.data ?? []).find((t: { seq: number }) => Number(t.seq) === groupCount + 1);
-      const { error } = await db.from("event_table_cards").insert({
-        event_id: eventId,
-        group_id: activeGroup.id,
-        source_ticket_id: nextTicket?.id ?? null,
-        card_type: activeType,
-        card_number: nextNumber,
-        holder_name: nextTicket?.holder_name?.trim() || null,
-        capacity: cap,
-      });
-      if (error) throw error;
-      toast.success(`Cartão ${activeType} #${String(nextNumber).padStart(2, "0")} criado.`);
-      await refresh();
-    } catch (e) {
-      toast.error("Não foi possível criar o cartão: " + (e as Error).message);
-    } finally {
-      setCreating(false);
-    }
   };
 
   const synchronizeCards = async () => {
@@ -209,51 +170,15 @@ export function TableIdCardsPanel({
 
       <section className="rounded-xl border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="font-semibold">Sincronizar quantidade de cartões</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Nomes já associados aos ingressos são importados automaticamente; os restantes ficam com o campo reservado em branco para preenchimento à mão depois da impressão.</p></div>
+          <div><h3 className="font-semibold">Sincronização automática</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Os nomes existentes nos ingressos são importados automaticamente; quando não houver nome, o cartão mantém o espaço em branco para preenchimento à mão depois da impressão. Os cartões são gerados em lote — não é necessário criar nomes manualmente.</p></div>
           <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 text-sm">
           <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · máximo 80</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
           <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">BOX · máximo 20 · 1.000.000 Kz</p><p className="font-semibold">{cards.filter((c) => c.card_type === "BOX").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
         </div>
-        <p className="text-xs text-muted-foreground">A sincronização não apaga cartões existentes. Antes de imprimir, a quantidade criada deve coincidir com a configurada e cada cartão deve ter identificador físico associado.</p>
+        <p className="text-xs text-muted-foreground">A sincronização não apaga cartões existentes. A impressão em lote só será liberada quando as quantidades estiverem certas e todos os identificadores físicos estiverem associados.</p>
       </section>
-      <section className="rounded-xl border bg-card p-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold">Criar cartão de ID</h3>
-          <Badge variant={activeType === "BOX" ? "default" : "secondary"}>
-            {activeType === "BOX" ? "BOX · 1.000.000 Kz" : "MESA"}
-          </Badge>
-        </div>
-        {eligibleGroups.length ? <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Categoria / grupo do evento</span>
-              <select value={activeGroup?.id ?? ""} onChange={(e) => setGroupId(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3">
-                {eligibleGroups.map((g) => <option key={g.id} value={g.id}>
-                  {g.name} · {Number(g.price ?? 0).toLocaleString("pt-AO")} Kz
-                </option>)}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Capacidade de pessoas</span>
-              <Input type="number" min="1" max="1000" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
-            </label>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {activeType === "BOX"
-              ? "O grupo de 1.000.000 Kz gera cartões BOX. A associação física ficará limitada aos identificadores BOX 01–20."
-              : "Esta categoria gera cartões MESA. A associação física ficará limitada aos identificadores MESA 01–80."}
-          </p>
-          <Button onClick={() => void createCard()} disabled={!activeGroup || creating}>
-            <Plus className="h-4 w-4" /> {creating ? "A criar…" : "Criar cartão"}
-          </Button>
-        </> : <p className="text-sm text-muted-foreground">
-          Ainda não existem grupos de mesas ou BOX neste evento. Crie primeiro os grupos nas configurações do evento.
-        </p>}
-      </section>
-
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Cartões criados</h3>
