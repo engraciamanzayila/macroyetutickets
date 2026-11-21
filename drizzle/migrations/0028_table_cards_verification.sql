@@ -1,8 +1,6 @@
 -- Table ID cards are the source of truth; physical printed identifiers are assigned to cards.
 DROP FUNCTION IF EXISTS public.verify_table_card(text);
 
-ALTER TABLE public.tickets DROP COLUMN IF EXISTS table_capacity;
-
 CREATE TABLE IF NOT EXISTS public.event_table_cards (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
