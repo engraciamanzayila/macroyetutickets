@@ -47,12 +47,10 @@ BEGIN
   SELECT * INTO g FROM public.ticket_groups WHERE id = NEW.group_id AND event_id = NEW.event_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'O grupo selecionado não pertence a este evento'; END IF;
 
-  IF (COALESCE(g.price, 0) = 1000000 OR upper(g.ticket_type) LIKE '%BOX%' OR upper(g.name) LIKE '%BOX%')
-     AND NEW.card_type <> 'BOX' THEN
-    RAISE EXCEPTION 'Grupos BOX de 1.000.000 Kz exigem cartão do tipo BOX';
+  IF COALESCE(g.price, 0) = 1000000 AND NEW.card_type <> 'BOX' THEN
+    RAISE EXCEPTION 'Grupos de 1.000.000 Kz exigem cartão do tipo BOX';
   END IF;
-  IF NOT (COALESCE(g.price, 0) = 1000000 OR upper(g.ticket_type) LIKE '%BOX%' OR upper(g.name) LIKE '%BOX%')
-     AND NEW.card_type = 'BOX' THEN
+  IF COALESCE(g.price, 0) <> 1000000 AND NEW.card_type = 'BOX' THEN
     RAISE EXCEPTION 'Cartões BOX são reservados à categoria de 1.000.000 Kz';
   END IF;
 
