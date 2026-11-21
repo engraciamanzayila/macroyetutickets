@@ -20,6 +20,7 @@ type Verification = {
   holder_name?: string | null;
   capacity?: number | null;
   group?: string;
+  table_type?: string;
   code?: string;
 };
 
@@ -51,6 +52,7 @@ function VerifyTableCard() {
          <p className="text-lg font-semibold text-center">{data?.event}</p>
          <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-4 text-sm">
            <div><p className="text-muted-foreground">Mesa</p><p className="font-bold">#{data?.table_number}</p></div>
+           <div className="col-span-2"><p className="text-muted-foreground">Tipo de mesa</p><p className="font-bold">{data?.table_type || data?.group || "Não indicado"}</p></div>
            <div><p className="text-muted-foreground">Capacidade</p><p className="font-bold">{data?.capacity ?? "—"} pessoas</p></div>
            <div className="col-span-2"><p className="text-muted-foreground">Responsável</p><p className="font-semibold">{data?.holder_name || "Não indicado"}</p></div>
            <div className="col-span-2"><p className="text-muted-foreground">Referência</p><p className="break-all font-mono text-xs">{data?.code}</p></div>
