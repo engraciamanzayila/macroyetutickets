@@ -45,7 +45,9 @@ export function TableIdCardsPanel({
   const eligibleGroups = useMemo(
     () => groups.filter((g) =>
       g.ticket_type.toUpperCase().includes("MESA") ||
+      g.ticket_type.toUpperCase().includes("BOX") ||
       g.name.toUpperCase().includes("MESA") ||
+      g.name.toUpperCase().includes("BOX") ||
       Number(g.price ?? 0) === 1_000_000
     ),
     [groups],
@@ -136,8 +138,10 @@ export function TableIdCardsPanel({
         const existing = existingByGroup.get(row.group.id) || [];
         const missingCount = Math.max(0, Number(row.group.quantity || 0) - existing.length);
         const kind = cardTypeFor(row.group);
+        const linkedIds = new Set(existing.map((card) => card.source_ticket_id).filter(Boolean));
+        const candidates = row.tickets.filter((ticket: { id: string }) => !linkedIds.has(ticket.id));
         for (let i = 0; i < missingCount; i++) {
-          const ticket = row.tickets[i];
+          const ticket = candidates[i];
           if (kind === "BOX") boxNo++; else mesaNo++;
           inserts.push({ event_id: eventId, group_id: row.group.id, source_ticket_id: ticket ? ticket.id : null, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket && ticket.holder_name ? ticket.holder_name.trim() : null, capacity: 10 });
         }
