@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS public.event_table_cards (
   CONSTRAINT event_table_cards_identifier_pair CHECK (
     (physical_identifier_type IS NULL AND physical_identifier_number IS NULL)
     OR (physical_identifier_type IS NOT NULL AND physical_identifier_number IS NOT NULL
-        AND physical_identifier_type = card_type)
+        AND physical_identifier_type = card_type
+        AND physical_identifier_number <= CASE WHEN physical_identifier_type = 'BOX' THEN 20 ELSE 80 END)
   )
 );
 
