@@ -198,6 +198,39 @@ export function TableIdCardsPanel({
     }
   };
 
+  const associateRemainingBlankTables = async () => {
+    if (syncing || isLoading) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await db.from("event_table_cards")
+        .select("*").eq("event_id", eventId).eq("card_type", "MESA");
+      if (error) throw error;
+      const existing = (data ?? []) as TableCard[];
+      const targets = Array.from({ length: 30 }, (_, index) => index + 51);
+      const cardsByNumber = new Map<number, TableCard[]>();
+      for (const card of existing) cardsByNumber.set(card.card_number, [...(cardsByNumber.get(card.card_number) || []), card]);
+      const missing = targets.filter((number) => (cardsByNumber.get(number) || []).length !== 1);
+      if (missing.length) throw new Error("Não encontrei exactamente um cartão MESA para cada número de 51 a 80. Números em falta ou duplicados: " + missing.join(", ") + ". Sincronize/reveja os cartões antes de continuar.");
+      const conflicts = existing.filter((card) => card.physical_identifier_type === "MESA" && card.physical_identifier_number !== null && card.physical_identifier_number >= 51 && card.physical_identifier_number <= 80 && card.card_number !== card.physical_identifier_number);
+      if (conflicts.length) throw new Error("Já existem identificadores MESA 51–80 associados a outros cartões. Nenhuma alteração foi feita.");
+      for (const number of targets) {
+        const card = cardsByNumber.get(number)![0];
+        if (card.physical_identifier_type && (card.physical_identifier_type !== "MESA" || card.physical_identifier_number !== number)) throw new Error("O cartão MESA " + String(number).padStart(2, "0") + " já tem outro identificador físico. Nenhuma alteração foi feita.");
+      }
+      let updated = 0;
+      for (const number of targets) {
+        const card = cardsByNumber.get(number)![0];
+        const result = await db.from("event_table_cards").update({ physical_identifier_type: "MESA", physical_identifier_number: number, holder_name: null }).eq("id", card.id).eq("event_id", eventId);
+        if (result.error) throw result.error;
+        updated++;
+      }
+      await refresh();
+      toast.success(updated + " cartões em branco associados às mesas MESA 51–80. A capacidade e a categoria existentes foram preservadas.");
+    } catch (e) {
+      toast.error("Não foi possível associar as mesas em branco: " + (e as Error).message);
+      await refresh();
+    } finally { setSyncing(false); }
+  };
   const saveCapacity = async (card: TableCard, value: string) => {
     const cap = value.trim() === "" ? null : Number(value);
     if (cap !== null && (!Number.isInteger(cap) || cap < 1 || cap > 1000))
@@ -333,6 +366,7 @@ export function TableIdCardsPanel({
           <div><h3 className="font-semibold">Sincronização automática</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Os nomes existentes nos ingressos são importados automaticamente; quando não houver nome, o cartão mantém o espaço em branco para preenchimento à mão depois da impressão. Os cartões são gerados em lote — não é necessário criar nomes manualmente.</p></div>
           <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
           <Button variant="outline" onClick={() => void importOfficialTableList()} disabled={syncing || isLoading}><ListChecks className="h-4 w-4" />{syncing ? "A aplicar lista…" : "Aplicar lista oficial · 50 mesas"}</Button>
+          <Button variant="outline" onClick={() => void associateRemainingBlankTables()} disabled={syncing || isLoading}><ListChecks className="h-4 w-4" />{syncing ? "A associar…" : "Associar mesas em branco · 51–80"}</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 text-sm">
           <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · identificadores dinâmicos</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
@@ -348,6 +382,9 @@ export function TableIdCardsPanel({
             <Badge variant="outline">{cards.filter((c) => c.physical_identifier_type).length} identificadores associados</Badge>
             <Button size="sm" variant="outline" disabled={printing || cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 1 && c.physical_identifier_number <= 50 && c.capacity !== null).length !== 50} onClick={() => void printCards(cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 1 && c.physical_identifier_number <= 50))}>
               <Printer className="h-4 w-4" /> Imprimir lista oficial (50)
+            </Button>
+            <Button size="sm" variant="outline" disabled={printing || cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 51 && c.physical_identifier_number <= 80 && c.capacity !== null && !c.holder_name?.trim()).length !== 30} onClick={() => void printCards(cards.filter((c) => c.status === "valid" && c.physical_identifier_type === "MESA" && c.physical_identifier_number !== null && c.physical_identifier_number >= 51 && c.physical_identifier_number <= 80 && !c.holder_name?.trim()))}>
+              <Printer className="h-4 w-4" /> Imprimir mesas em branco (30)
             </Button>
             <Button size="sm" variant="outline" disabled={printing || !cards.some((c) => c.status === "valid" && c.physical_identifier_type && c.capacity !== null)} onClick={() => void printCards(cards)}>
               <Printer className="h-4 w-4" /> Imprimir todos associados
