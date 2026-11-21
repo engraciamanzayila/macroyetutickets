@@ -164,7 +164,7 @@ function Gate() {
     if (!scanned || !eventId) return;
     // Os QR dos cartões de mesa usam a rota pública /validar-mesa/<token>.
     // Reconhecê-los aqui mantém a leitura no mesmo scanner da Portaria.
-    const tableMatch = scanned.match(/(?:^|\\/)validar-mesa\\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?#]|$)/i);
+    const tableMatch = scanned.match(/(?:^|\/)validar-mesa\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?#]|$)/i);
     const code = tableMatch ? tableMatch[1].toUpperCase() : scanned.toUpperCase();
     const now = Date.now();
     if (last.current.code === code && now - last.current.t < 3000) return;
