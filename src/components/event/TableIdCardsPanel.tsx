@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Unlink, QrCode, RefreshCw, Printer } from "lucide-react";
+import { Unlink, QrCode, RefreshCw, Printer, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -120,6 +120,70 @@ export function TableIdCardsPanel({
     } catch (e) { toast.error("Falha na sincronização: " + (e as Error).message); }
     finally { setSyncing(false); }
   };
+  const autoAssignPhysicalIdentifiers = async () => {
+    if (syncing || isLoading) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await db.from("event_table_cards")
+        .select("*").eq("event_id", eventId).eq("status", "valid")
+        .order("card_type").order("card_number");
+      if (error) throw error;
+      const current = (data ?? []) as TableCard[];
+      const mesa = current.filter((card) => card.card_type === "MESA");
+      const box = current.filter((card) => card.card_type === "BOX");
+      if (mesa.length !== 80 || box.length !== 20) {
+        throw new Error(`Para associar automaticamente, são necessários exactamente 80 cartões MESA e 20 cartões BOX. Encontrados: ${mesa.length} MESA e ${box.length} BOX. Reveja a sincronização dos grupos antes de continuar.`);
+      }
+
+      const usedMesa = new Set(mesa.filter((card) => card.physical_identifier_type === "MESA" && card.physical_identifier_number).map((card) => card.physical_identifier_number as number));
+      const usedBox = new Set(box.filter((card) => card.physical_identifier_type === "BOX" && card.physical_identifier_number).map((card) => card.physical_identifier_number as number));
+      const assignments: Array<{ card: TableCard; number: number; capacity: number | null }> = [];
+
+      const plan = (items: TableCard[], kind: "MESA" | "BOX", used: Set<number>, maximum: number) => {
+        let next = 1;
+        for (const card of items) {
+          if (card.physical_identifier_type && card.physical_identifier_number) {
+            if (card.physical_identifier_type !== kind || card.physical_identifier_number < 1 || card.physical_identifier_number > maximum) {
+              throw new Error(`O cartão ${card.card_type} #${card.card_number} já tem um identificador incompatível. Nenhuma associação foi alterada.`);
+            }
+            continue;
+          }
+          while (used.has(next) && next <= maximum) next++;
+          if (next > maximum) throw new Error(`Não há identificadores livres para ${kind}.`);
+          const group = groups.find((item) => item.id === card.group_id);
+          const paxMatch = group?.name.match(/(?:^|\D)(4|6|8)\s*PAX(?:\D|$)/i) ?? group?.ticket_type.match(/(?:^|\D)(4|6|8)\s*PAX(?:\D|$)/i);
+          const inferredCapacity = paxMatch ? Number(paxMatch[1]) : null;
+          assignments.push({ card, number: next, capacity: card.capacity ?? inferredCapacity });
+          used.add(next);
+          next++;
+        }
+      };
+
+      plan(mesa, "MESA", usedMesa, 80);
+      plan(box, "BOX", usedBox, 20);
+
+      for (const item of assignments) {
+        const patch: Record<string, unknown> = {
+          physical_identifier_type: item.card.card_type,
+          physical_identifier_number: item.number,
+        };
+        if (item.card.capacity === null && item.capacity !== null) patch.capacity = item.capacity;
+        const result = await db.from("event_table_cards").update(patch)
+          .eq("id", item.card.id).eq("event_id", eventId);
+        if (result.error) throw result.error;
+      }
+      await refresh();
+      toast.success(assignments.length
+        ? `${assignments.length} identificador(es) associado(s). Capacidades preenchidas apenas quando o grupo indicava 4, 6 ou 8 PAX.`
+        : "Os 100 identificadores já estavam associados.");
+    } catch (e) {
+      toast.error("Não foi possível concluir a associação automática: " + (e as Error).message);
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const saveCapacity = async (card: TableCard, value: string) => {
     const cap = value.trim() === "" ? null : Number(value);
     if (cap !== null && (!Number.isInteger(cap) || cap < 1 || cap > 1000))
@@ -254,6 +318,7 @@ export function TableIdCardsPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="font-semibold">Sincronização automática</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Os nomes existentes nos ingressos são importados automaticamente; quando não houver nome, o cartão mantém o espaço em branco para preenchimento à mão depois da impressão. Os cartões são gerados em lote — não é necessário criar nomes manualmente.</p></div>
           <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
+          <Button variant="outline" onClick={() => void autoAssignPhysicalIdentifiers()} disabled={syncing || isLoading}><Link2 className="h-4 w-4" />{syncing ? "A associar…" : "Associar 80 MESA + 20 BOX"}</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 text-sm">
           <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · identificadores dinâmicos</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
