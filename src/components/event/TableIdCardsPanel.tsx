@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Plus, Unlink, QrCode } from "lucide-react";
+import { Plus, Unlink, QrCode, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ export function TableIdCardsPanel({
   const [holder, setHolder] = useState("");
   const [capacity, setCapacity] = useState("10");
   const [creating, setCreating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const activeGroup = eligibleGroups.find((g) => g.id === groupId) ?? eligibleGroups[0];
   const activeType = cardTypeFor(activeGroup);
@@ -106,6 +107,42 @@ export function TableIdCardsPanel({
     }
   };
 
+  const synchronizeCards = async () => {
+    if (syncing || !eligibleGroups.length) return;
+    setSyncing(true);
+    try {
+      const targetMesa = eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0);
+      const targetBox = eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0);
+      if (targetMesa > 80 || targetBox > 20) throw new Error("Quantidade excede o inventário: MESA " + targetMesa + "/80; BOX " + targetBox + "/20.");
+      const currentMesa = cards.filter((c) => c.card_type === "MESA").length;
+      const currentBox = cards.filter((c) => c.card_type === "BOX").length;
+      if (currentMesa > targetMesa || currentBox > targetBox) throw new Error("Já existem mais cartões do que a quantidade configurada. Reveja os cartões existentes; nenhum será apagado automaticamente.");
+      const existingByGroup = new Map<string, TableCard[]>();
+      cards.forEach((card) => existingByGroup.set(card.group_id, [...(existingByGroup.get(card.group_id) || []), card]));
+      const rows = await Promise.all(eligibleGroups.map(async (g) => {
+        const result = await db.from("tickets").select("seq,holder_name").eq("event_id", eventId).eq("group_id", g.id).order("seq");
+        if (result.error) throw result.error;
+        return { group: g, tickets: result.data || [] };
+      }));
+      let mesaNo = cards.filter((c) => c.card_type === "MESA").reduce((n, c) => Math.max(n, c.card_number), 0);
+      let boxNo = cards.filter((c) => c.card_type === "BOX").reduce((n, c) => Math.max(n, c.card_number), 0);
+      const inserts: Record<string, unknown>[] = [];
+      for (const row of rows) {
+        const existing = new Set((existingByGroup.get(row.group.id) || []).map((c) => c.card_number));
+        const kind = cardTypeFor(row.group);
+        for (let seq = 1; seq <= Number(row.group.quantity || 0); seq++) {
+          if (existing.has(seq)) continue;
+          const ticket = row.tickets.find((t: { seq: number }) => Number(t.seq) === seq);
+          if (kind === "BOX") boxNo++; else mesaNo++;
+          inserts.push({ event_id: eventId, group_id: row.group.id, card_type: kind, card_number: kind === "BOX" ? boxNo : mesaNo, holder_name: ticket?.holder_name?.trim() || null, capacity: 10 });
+        }
+      }
+      if (inserts.length) { const result = await db.from("event_table_cards").insert(inserts); if (result.error) throw result.error; }
+      await refresh();
+      toast.success(inserts.length ? inserts.length + " cartão(ões) criados; nomes existentes importados." : "Cartões já sincronizados com as quantidades configuradas.");
+    } catch (e) { toast.error("Falha na sincronização: " + (e as Error).message); }
+    finally { setSyncing(false); }
+  };
   const saveHolder = async (card: TableCard, value: string) => {
     const { error } = await db.from("event_table_cards")
       .update({ holder_name: value.trim() || null }).eq("id", card.id).eq("event_id", eventId);
@@ -169,6 +206,17 @@ export function TableIdCardsPanel({
         </p>
       </header>
 
+      <section className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-semibold">Sincronizar quantidade de cartões</h3><p className="text-sm text-muted-foreground">A quantidade vem dos grupos de mesas do evento. Nomes já associados aos ingressos são importados automaticamente; os restantes ficam em branco para preenchimento manual.</p></div>
+          <Button onClick={() => void synchronizeCards()} disabled={syncing || isLoading || !eligibleGroups.length}><RefreshCw className="h-4 w-4" />{syncing ? "A sincronizar…" : "Sincronizar cartões"}</Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 text-sm">
+          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">MESA · máximo 80</p><p className="font-semibold">{cards.filter((c) => c.card_type === "MESA").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "MESA").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
+          <div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">BOX · máximo 20 · 1.000.000 Kz</p><p className="font-semibold">{cards.filter((c) => c.card_type === "BOX").length} cartões / {eligibleGroups.filter((g) => cardTypeFor(g) === "BOX").reduce((n, g) => n + Number(g.quantity || 0), 0)} configurados</p></div>
+        </div>
+        <p className="text-xs text-muted-foreground">A sincronização não apaga cartões existentes. Antes de imprimir, a quantidade criada deve coincidir com a configurada e cada cartão deve ter identificador físico associado.</p>
+      </section>
       <section className="rounded-xl border bg-card p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Criar cartão de ID</h3>
