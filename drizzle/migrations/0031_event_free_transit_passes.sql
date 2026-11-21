@@ -17,6 +17,10 @@ ALTER TABLE public.event_free_transit_passes ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE ON public.event_free_transit_passes TO authenticated;
 GRANT ALL ON public.event_free_transit_passes TO service_role;
 DROP POLICY IF EXISTS "event managers manage free transit passes" ON public.event_free_transit_passes;
+DROP POLICY IF EXISTS "staff read free transit passes" ON public.event_free_transit_passes;
+CREATE POLICY "staff read free transit passes"
+  ON public.event_free_transit_passes FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'staff'));
 CREATE POLICY "event managers manage free transit passes"
   ON public.event_free_transit_passes FOR ALL TO authenticated
   USING (public.can_manage_event(auth.uid(), event_id))
@@ -43,9 +47,6 @@ BEGIN
   WHERE qr_token = p_token
   FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('result','not_found'); END IF;
-  IF NOT public.can_manage_event(auth.uid(), pass.event_id) THEN
-    RAISE EXCEPTION 'forbidden';
-  END IF;
   IF pass.status = 'void' THEN
     RETURN jsonb_build_object('result','void');
   END IF;
