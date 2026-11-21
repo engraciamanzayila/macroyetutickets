@@ -226,6 +226,7 @@ export interface FileRouteTypes {
     | '/equipa'
     | '/identidade'
     | '/portaria'
+    | '/livre-transito/$token'
     | '/visao-geral'
     | '/zoho'
     | '/e/$slug'
@@ -271,6 +272,7 @@ export interface FileRouteTypes {
     | '/_app/equipa'
     | '/_app/identidade'
     | '/_app/portaria'
+    | '/_app/livre-transito/$token'
     | '/_app/visao-geral'
     | '/_app/zoho'
     | '/e/$slug'
@@ -374,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: '/portaria'
       fullPath: '/portaria'
       preLoaderRoute: typeof AppPortariaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/livre-transito/$token': {
+      id: '/_app/livre-transito/$token'
+      path: '/livre-transito/$token'
+      fullPath: '/livre-transito/$token'
+      preLoaderRoute: typeof AppLivreTransitoTokenRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/visao-geral': {
