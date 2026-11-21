@@ -13,6 +13,7 @@ type TableCard = {
   id: string;
   event_id: string;
   group_id: string;
+  source_ticket_id: string | null;
   card_type: "MESA" | "BOX";
   card_number: number;
   holder_name: string | null;
@@ -86,11 +87,15 @@ export function TableIdCardsPanel({
     }
     setCreating(true);
     try {
-      const groupCards = cards.filter((c) => c.group_id === activeGroup.id);
-      const nextNumber = groupCards.reduce((max, c) => Math.max(max, c.card_number), 0) + 1;
+      const kindCards = cards.filter((c) => c.card_type === activeType);
+      const nextNumber = kindCards.reduce((max, c) => Math.max(max, c.card_number), 0) + 1;
+      const ticketResult = await db.from("tickets").select("id,seq,holder_name").eq("event_id", eventId).eq("group_id", activeGroup.id).order("seq", { ascending: true });
+      if (ticketResult.error) throw ticketResult.error;
+      const nextTicket = (ticketResult.data ?? []).find((t: { seq: number }) => Number(t.seq) === nextNumber);
       const { error } = await db.from("event_table_cards").insert({
         event_id: eventId,
         group_id: activeGroup.id,
+        source_ticket_id: nextTicket?.id ?? null,
         card_type: activeType,
         card_number: nextNumber,
         holder_name: holder.trim() || null,
