@@ -45,6 +45,7 @@ BEGIN
     'holder_name', t.holder_name,
     'capacity', t.table_capacity,
     'group', g.name,
+    'table_type', g.name,
     'code', t.code
   );
 END;
