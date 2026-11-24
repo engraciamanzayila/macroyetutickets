@@ -274,7 +274,7 @@ async function accessToken(credentials: ZohoCredentials) {
 
 export const sendTicketEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { eventId: string; ticketIds: string[]; recipient: string }) => {
+  .inputValidator((input: { eventId: string; ticketIds: string[]; recipient: string; attachment?: { fileName: string; base64: string } | null }) => {
     if (!/^[0-9a-f-]{36}$/i.test(input?.eventId ?? "")) throw new Error("Evento inválido");
     const ticketIds = [...new Set(input.ticketIds ?? [])];
     if (
@@ -288,7 +288,24 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
       .trim()
       .toLowerCase();
     if (!EMAIL_RE.test(recipient)) throw new Error("Indique um e-mail de destino válido");
-    return { eventId: input.eventId, ticketIds, recipient };
+    const attachment = input.attachment ?? null;
+    if (ticketIds.length <= 10 && !attachment) {
+      throw new Error("Até 10 ingressos, prepare o PDF para anexar ao e-mail.");
+    }
+    if (ticketIds.length > 10 && attachment) {
+      throw new Error("Acima de 10 ingressos, a entrega deve ser feita por link.");
+    }
+    if (attachment) {
+      if (
+        !/^[a-zA-Z0-9._-]{1,100}\\.pdf$/i.test(attachment.fileName) ||
+        typeof attachment.base64 !== "string" ||
+        attachment.base64.length > 4_100_000 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(attachment.base64)
+      ) {
+        throw new Error("O PDF anexado é inválido ou demasiado grande.");
+      }
+    }
+    return { eventId: input.eventId, ticketIds, recipient, attachment };
   })
   .handler(async ({ data, context }) => {
     const sb = context.supabase;
@@ -362,16 +379,32 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
       ].filter((email) => email !== data.recipient);
 
       const baseUrl = new URL(getRequest().url).origin;
-      const holderLinks: string[] = [];
-      for (let offset = 0; offset < tickets.length; offset += 50) {
-        const batch = tickets.slice(offset, offset + 50);
-        const url = `${baseUrl}/i/${batch.map((ticket) => encodeURIComponent(ticket.share_token)).join(",")}`;
-        const end = offset + batch.length;
-        const label =
-          tickets.length > 50 ? `Abrir ingressos ${offset + 1}–${end}` : "Abrir e baixar ingressos";
-        holderLinks.push(
-          `<p style="margin:14px 0"><a href="${html(url)}" style="display:inline-block;padding:12px 18px;background:#d9b643;color:#111;text-decoration:none;font-weight:bold;border-radius:6px">${label}</a></p>`,
-        );
+      const deliveryUrl = `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token)).join(",")}`;
+      let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
+      if (data.attachment) {
+        const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
+        const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?fileName=${encodeURIComponent(data.attachment.fileName)}&isInline=false`;
+        const upload = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Zoho-oauthtoken ${token}`,
+            "Content-Type": "application/pdf",
+            Accept: "application/json",
+          },
+          body: raw,
+        });
+        const uploaded = (await upload.json().catch(() => null)) as {
+          status?: { code?: number; description?: string };
+          data?: { storeName?: string; attachmentPath?: string; attachmentName?: string };
+        } | null;
+        if (!upload.ok || uploaded?.status?.code !== 200 || !uploaded.data?.storeName || !uploaded.data.attachmentPath || !uploaded.data.attachmentName) {
+          throw new Error(`Zoho não conseguiu preparar o PDF anexo (${uploaded?.status?.description ?? upload.status}).`);
+        }
+        zohoAttachment = {
+          storeName: uploaded.data.storeName,
+          attachmentPath: uploaded.data.attachmentPath,
+          attachmentName: uploaded.data.attachmentName,
+        };
       }
       const counts = new Map<string, { count: number; type: string; name: string }>();
       for (const ticket of tickets) {
@@ -403,7 +436,10 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
       ];
       const greeting = recipients.length === 1 ? `Olá ${html(recipients[0])},` : "Olá,";
       const subject = `${tickets.length} ingresso(s) para ${event.name} — MY Tickets`;
-      const content = `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#202124"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><tr><td style="background:#111827;padding:25px 30px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;background:#d9b643;border-radius:10px;text-align:center;vertical-align:middle;color:#111827;font-size:23px;font-weight:bold">▣</td><td style="padding-left:12px;color:#fff;font-size:22px;font-weight:800">MY <span style="color:#e5c65c">Tickets</span></td></tr></table><p style="margin:20px 0 0;color:#e5c65c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase">Os seus ingressos</p><h1 style="margin:8px 0 0;color:#fff;font-size:25px;line-height:1.25">${html(event.name)}</h1>${eventInfo ? `<p style="margin:9px 0 0;color:#d1d5db;font-size:13px;line-height:1.5">${eventInfo}</p>` : ""}</td></tr><tr><td style="padding:30px"><p style="margin:0 0 15px;font-size:16px">${greeting}</p><p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.7">Os seus ingressos para este evento estão prontos. Utilize os botões abaixo para abrir a página segura e descarregar os ficheiros em PDF.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#faf8f0;border:1px solid #eee6c9;border-radius:12px;margin:0 0 22px"><tr><td style="padding:17px 19px"><p style="margin:0;color:#806000;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px">Resumo da entrega</p><p style="margin:7px 0 0;color:#222;font-size:15px;font-weight:bold">${tickets.length} ingresso(s)</p><p style="margin:5px 0 0;color:#666;font-size:13px">Acesso digital seguro através da MY Tickets</p></td></tr></table>${holderLinks.join("")}<p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">Na página que abrir, descarregue os ingressos em PDF. Apresente o QR Code ou a referência de cada ingresso à entrada; cada ingresso permite uma única entrada.</p><hr style="border:0;border-top:1px solid #ececec;margin:25px 0"><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Mensagem automática da <strong style="color:#333">MY Tickets</strong>. Em caso de dúvidas, contacte a organização do evento.</p></td></tr></table><p style="margin:16px 0 0;color:#9ca3af;font-size:11px">© MY Tickets</p></td></tr></table></body></html>`;
+      const deliverySection = data.attachment
+        ? `<p style="margin:14px 0;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;color:#166534;font-size:14px;line-height:1.6"><strong>Os seus ingressos seguem em anexo.</strong> Descarregue o PDF junto desta mensagem e apresente o QR Code de cada ingresso à entrada.</p>`
+        : `<p style="margin:18px 0"><a href="${html(deliveryUrl)}" style="display:inline-block;padding:13px 20px;background:#d9b643;color:#111;text-decoration:none;font-weight:bold;border-radius:6px">Gerir e descarregar os meus ingressos</a></p><p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">Este link permite consultar e descarregar todos os ingressos desta entrega em conjunto. Apresente o QR Code ou a referência de cada ingresso à entrada.</p>`;
+      const content = `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#202124"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><tr><td style="background:#111827;padding:25px 30px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;background:#d9b643;border-radius:10px;text-align:center;vertical-align:middle;color:#111827;font-size:23px;font-weight:bold">▣</td><td style="padding-left:12px;color:#fff;font-size:22px;font-weight:800">MY <span style="color:#e5c65c">Tickets</span></td></tr></table><p style="margin:20px 0 0;color:#e5c65c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase">Os seus ingressos</p><h1 style="margin:8px 0 0;color:#fff;font-size:25px;line-height:1.25">${html(event.name)}</h1>${eventInfo ? `<p style="margin:9px 0 0;color:#d1d5db;font-size:13px;line-height:1.5">${eventInfo}</p>` : ""}</td></tr><tr><td style="padding:30px"><p style="margin:0 0 15px;font-size:16px">${greeting}</p><p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.7">A sua entrega de ingressos para este evento está pronta.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#faf8f0;border:1px solid #eee6c9;border-radius:12px;margin:0 0 22px"><tr><td style="padding:17px 19px"><p style="margin:0;color:#806000;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px">Resumo da entrega</p><p style="margin:7px 0 0;color:#222;font-size:15px;font-weight:bold">${tickets.length} ingresso(s)</p><p style="margin:5px 0 0;color:#666;font-size:13px">Acesso digital seguro através da MY Tickets</p></td></tr></table>${deliverySection}<hr style="border:0;border-top:1px solid #ececec;margin:25px 0"><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Mensagem automática da <strong style="color:#333">MY Tickets</strong>. Em caso de dúvidas, contacte a organização do evento.</p></td></tr></table><p style="margin:16px 0 0;color:#9ca3af;font-size:11px">© MY Tickets</p></td></tr></table></body></html>`;
 
       await sb
         .from("tickets")
@@ -424,6 +460,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
             ...(cc.length ? { ccAddress: cc.join(",") } : {}),
             subject,
             content,
+            ...(zohoAttachment ? { attachments: [zohoAttachment] } : {}),
             mailFormat: "html",
           }),
         },
