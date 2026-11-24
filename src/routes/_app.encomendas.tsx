@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendTicketEmail } from "@/lib/order-email.functions";
+import { createTicketEmailAttachment } from "@/lib/ticket-files";
 import { deliveryLabel, kz, methodLabel, STATUS_LABEL } from "@/lib/payments";import { COMMISSION_STANDARD } from "@/lib/company";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,12 +57,10 @@ function Orders() {
         toast.warning("Pagamento confirmado; não foi possível preparar o e-mail automático.");
       } else {
         try {
+          const ticketIds = (ticketRows ?? []).map((ticket) => ticket.id);
+          const attachment = await createTicketEmailAttachment(order.event_id, ticketIds, (order.events as { name: string } | null)?.name ?? "MY Tickets");
           const delivery = await sendTicketEmail({
-            data: {
-              eventId: order.event_id,
-              ticketIds: (ticketRows ?? []).map((ticket) => ticket.id),
-              recipient: order.buyer_email,
-            },
+            data: { eventId: order.event_id, ticketIds, recipient: order.buyer_email, attachment },
           });
           toast.success(
             delivery.status === "sent"
@@ -82,12 +81,10 @@ function Orders() {
   const retryEmail = async (order: (typeof data)[number]) => {
     if (!order.buyer_email || !order.email_tickets.length) return;
     try {
+      const ticketIds = order.email_tickets.map((ticket) => ticket.id);
+      const attachment = await createTicketEmailAttachment(order.event_id, ticketIds, (order.events as { name: string } | null)?.name ?? "MY Tickets");
       const result = await sendTicketEmail({
-        data: {
-          eventId: order.event_id,
-          ticketIds: order.email_tickets.map((ticket) => ticket.id),
-          recipient: order.buyer_email,
-        },
+        data: { eventId: order.event_id, ticketIds, recipient: order.buyer_email, attachment },
       });
       toast.success(`Ingressos enviados para ${result.recipient}`);
       qc.invalidateQueries({ queryKey: ["orders"] });
