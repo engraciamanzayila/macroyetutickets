@@ -9,8 +9,6 @@ type AuthState = {
   roles: Role[];
   realRoles: Role[];
   isSuperAdmin: boolean;
-  viewAs: Role | null;
-  setViewAs: (r: Role | null) => void;
   loading: boolean;
   isAdmin: boolean;
   isMember: boolean;
@@ -25,18 +23,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewAs, setViewAs] = useState<Role | null>(null);
 
   const loadRoles = async (uid: string | undefined) => {
-    if (!uid) return setRoles([]);
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", uid);
+    if (!uid) {
+      setRoles([]);
+      return;
+    }
+    const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", uid);
+    if (error) {
+      setRoles([]);
+      return;
+    }
     setRoles((data ?? []).map((r) => r.role as Role));
   };
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
-      setTimeout(() => void loadRoles(s?.user.id), 0);
+      void loadRoles(s?.user.id);
     });
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
@@ -46,26 +50,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const isSuperAdmin = roles.includes("admin") && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
+
   return (
     <AuthContext.Provider
-      value={(() => {
-        const isSuperAdmin = roles.includes("admin") && session?.user.email?.toLowerCase() === "macroyetu@gmail.com";
-        const eff: Role[] = isSuperAdmin && viewAs ? [viewAs] : roles;
-        return {
+      value={{
         session,
-        roles: eff,
+        roles,
         realRoles: roles,
         isSuperAdmin,
-        viewAs: isSuperAdmin ? viewAs : null,
-        setViewAs,
         loading,
-        isAdmin: eff.includes("admin"),
+        isAdmin: roles.includes("admin"),
         isMember: roles.length > 0,
-        isPromoter: eff.includes("promoter"),
-        isManager: eff.includes("admin") || eff.includes("promoter"),
+        isPromoter: roles.includes("promoter"),
+        isManager: roles.includes("admin") || roles.includes("promoter"),
         refreshRoles: () => loadRoles(session?.user.id),
-        };
-      })()}
+      }}
     >
       {children}
     </AuthContext.Provider>
