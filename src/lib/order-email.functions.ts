@@ -297,7 +297,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
     }
     if (attachment) {
       if (
-        !/^[a-zA-Z0-9._-]{1,100}\\.pdf$/i.test(attachment.fileName) ||
+        !/^[a-zA-Z0-9._-]{1,100}\.pdf$/i.test(attachment.fileName) ||
         typeof attachment.base64 !== "string" ||
         attachment.base64.length > 4_100_000 ||
         !/^[A-Za-z0-9+/]+={0,2}$/.test(attachment.base64)
@@ -733,7 +733,7 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
     if (!/^[0-9a-f-]{36}$/i.test(orderToken)) throw new Error("Link de encomenda inválido");
     const attachment = input.attachment ?? null;
     if (attachment && (
-      !/^[a-zA-Z0-9._-]{1,100}\\.pdf$/i.test(attachment.fileName) ||
+      !/^[a-zA-Z0-9._-]{1,100}\.pdf$/i.test(attachment.fileName) ||
       typeof attachment.base64 !== "string" ||
       attachment.base64.length > 4_100_000 ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(attachment.base64)
