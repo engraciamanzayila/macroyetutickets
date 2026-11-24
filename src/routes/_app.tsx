@@ -14,7 +14,9 @@ export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
-const PANEL_NAV: Record<Role, { to: string; label: string; icon: typeof LayoutGrid }[]> = {
+type PanelPath = "/visao-geral" | "/eventos" | "/editor" | "/encomendas" | "/portaria" | "/livre-transito" | "/equipa" | "/identidade" | "/zoho" | "/bases-dados";
+
+const PANEL_NAV: Record<Role, { to: PanelPath; label: string; icon: typeof LayoutGrid }[]> = {
   admin: [
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
     { to: "/eventos", label: "Eventos", icon: CalendarDays },
@@ -27,6 +29,7 @@ const PANEL_NAV: Record<Role, { to: string; label: string; icon: typeof LayoutGr
   promoter: [
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
     { to: "/eventos", label: "Os meus eventos", icon: CalendarDays },
+    { to: "/editor", label: "Editor", icon: Palette },
     { to: "/encomendas", label: "Vendas", icon: Receipt },
     { to: "/portaria", label: "Portaria", icon: ScanLine },
     { to: "/livre-transito", label: "Livre-trânsito", icon: ScanLine },
