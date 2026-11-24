@@ -99,7 +99,7 @@ function Team() {
         ? ["consumer_support", "promoter_support"]
         : [role];
       const { error } = await supabase.from("user_roles").insert(
-        rolesToInsert.map((assignedRole) => ({ user_id: uid, role: assignedRole as Role }))
+        rolesToInsert.map((assignedRole) => ({ user_id: uid, role: assignedRole as "consumer_support" | "promoter_support" | "admin" | "promoter" | "staff" }))
       );
       if (error) return toast.error(role === "admin" ? "Só o administrador principal pode nomear administradores." : error.message);
       if (role === "promoter") await supabase.from("profiles").update({ wants_promoter: false }).eq("id", uid);
