@@ -21,6 +21,7 @@ export type PublicOrder = {
   buyer_name: string;
   payment_method: string;
   payment_reference: string | null;
+  delivery_channel: string;
   event: { name: string; payment_info: string | null };
   items: { name: string; quantity: number; unit_price: number }[];
   tickets: { code: string; token: string; status: string }[];
@@ -208,7 +209,7 @@ function OrderPage() {
                     <Button className="w-full" disabled={downloadBusy} onClick={() => void downloadAll()}>
                       {downloadBusy ? "A preparar os ingressos…" : "Descarregar todos os ingressos em PDF"}
                     </Button>
-                    {Number(order.total) === 0 && (
+                    {Number(order.total) === 0 && order.delivery_channel === "email" && (
                       <Button className="w-full" variant="secondary" disabled={emailBusy} onClick={() => void resendFreeEmail()}>
                         {emailBusy ? "A enviar e-mail…" : "Enviar / reenviar ingressos por e-mail"}
                       </Button>
