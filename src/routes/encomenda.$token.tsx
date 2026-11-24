@@ -4,7 +4,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StoreHeader } from "@/components/store/StoreHeader";
-import { getOrderHolderTickets } from "@/lib/shares.functions";
+import { getOrderHolderTickets, getHolderTickets } from "@/lib/shares.functions";
+import { createPdfBase64 } from "@/lib/share-render";
+import { sendFreeOrderTicketEmail } from "@/lib/order-email.functions";
 import { downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +58,34 @@ function OrderPage() {
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [downloadBusy, setDownloadBusy] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const resendFreeEmail = async () => {
+    if (!order) return;
+    setEmailBusy(true);
+    try {
+      let attachment: { fileName: string; base64: string } | null = null;
+      if (order.tickets.length <= 10) {
+        const holder = await getHolderTickets({
+          data: { tokens: order.tickets.map((ticket) => ticket.token) },
+        });
+        const base64 = await createPdfBase64(
+          holder.tickets.map((ticket) => ({
+            g: holder.groups.find((group) => group.id === ticket.group_id) as unknown as RenderGroup,
+            code: ticket.code,
+            holderName: ticket.holder_name,
+          })),
+        );
+        attachment = { fileName: "MY_Tickets_ingressos.pdf", base64 };
+      }
+      await sendFreeOrderTicketEmail({ data: { orderToken: token, attachment } });
+      toast.success("Os ingressos foram enviados por e-mail.");
+      refetch();
+    } catch (emailError) {
+      toast.error(`Não foi possível enviar o e-mail: ${(emailError as Error).message}`);
+    } finally {
+      setEmailBusy(false);
+    }
+  };
   const downloadAll = async () => {
     setDownloadBusy(true);
     try {
@@ -174,9 +204,16 @@ function OrderPage() {
                   {Number(order.total) === 0 ? "A sua reserva está confirmada" : "Ingressos disponíveis"}
                 </h2>
                 {order.tickets.length > 0 && (
-                  <Button className="w-full" disabled={downloadBusy} onClick={() => void downloadAll()}>
-                    {downloadBusy ? "A preparar os ingressos…" : "Descarregar todos os ingressos em PDF"}
-                  </Button>
+                  <>
+                    <Button className="w-full" disabled={downloadBusy} onClick={() => void downloadAll()}>
+                      {downloadBusy ? "A preparar os ingressos…" : "Descarregar todos os ingressos em PDF"}
+                    </Button>
+                    {Number(order.total) === 0 && (
+                      <Button className="w-full" variant="secondary" disabled={emailBusy} onClick={() => void resendFreeEmail()}>
+                        {emailBusy ? "A enviar e-mail…" : "Enviar / reenviar ingressos por e-mail"}
+                      </Button>
+                    )}
+                  </>
                 )}
                 {order.tickets.map((t) => (
                   <Button asChild key={t.code} variant="secondary">
