@@ -724,3 +724,169 @@ export const sendSharedTicketEmail = createServerFn({ method: "POST" })
       throw new Error(message);
     }
   });
+
+
+/** Public customer delivery: the private order token is the sole capability credential. */
+export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
+  .inputValidator((input: { orderToken: string; attachment?: { fileName: string; base64: string } | null }) => {
+    const orderToken = String(input?.orderToken ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(orderToken)) throw new Error("Link de encomenda inválido");
+    const attachment = input.attachment ?? null;
+    if (attachment && (
+      !/^[a-zA-Z0-9._-]{1,100}\\.pdf$/i.test(attachment.fileName) ||
+      typeof attachment.base64 !== "string" ||
+      attachment.base64.length > 4_100_000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(attachment.base64)
+    )) throw new Error("O PDF anexado é inválido ou demasiado grande");
+    return { orderToken, attachment };
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select("id,event_id,buyer_email,buyer_name,total,status,delivery_channel")
+      .eq("access_token", data.orderToken)
+      .maybeSingle();
+    if (orderError || !order) throw new Error("Encomenda não encontrada");
+    if (order.status !== "paid" || Number(order.total) !== 0) throw new Error("Só é possível enviar automaticamente uma encomenda gratuita confirmada");
+    if (order.delivery_channel !== "email" || !order.buyer_email || !EMAIL_RE.test(order.buyer_email)) {
+      throw new Error("Esta encomenda não tem um endereço de e-mail válido para entrega");
+    }
+
+    const { data: tickets, error: ticketsError } = await supabaseAdmin
+      .from("tickets")
+      .select("id,code,share_token,group_id,holder_name,seq")
+      .eq("order_id", order.id)
+      .eq("event_id", order.event_id)
+      .eq("status", "valid")
+      .order("seq");
+    if (ticketsError || !tickets?.length) throw new Error("Os ingressos desta encomenda ainda não estão disponíveis");
+    if (tickets.length <= 10 && !data.attachment) throw new Error("Prepare o PDF dos ingressos antes do envio");
+    if (tickets.length > 10 && data.attachment) throw new Error("Acima de 10 ingressos, a entrega deve ser feita pelo link de gestão");
+    if (tickets.length > 10 && tickets.some((ticket) => !/^[0-9a-f-]{36}$/i.test(ticket.share_token ?? ""))) {
+      throw new Error("Não foi possível preparar o link seguro de todos os ingressos");
+    }
+
+    const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: claimed, error: claimError } = await supabaseAdmin
+      .from("tickets")
+      .update({
+        email_delivery_status: "sending",
+        email_delivery_error: null,
+        email_delivery_updated_at: new Date().toISOString(),
+      })
+      .eq("order_id", order.id)
+      .in("id", tickets.map((ticket) => ticket.id))
+      .eq("status", "valid")
+      .or(`email_delivery_status.in.(pending,failed),and(email_delivery_status.eq.sending,email_delivery_updated_at.lt.${staleBefore})`)
+      .select("id");
+    if (claimError) throw new Error(claimError.message);
+    if (!claimed || claimed.length !== tickets.length) {
+      const claimedIds = (claimed ?? []).map((ticket) => ticket.id);
+      if (claimedIds.length) await supabaseAdmin.from("tickets").update({
+        email_delivery_status: "failed",
+        email_delivery_error: "Envio interrompido antes da confirmação do lote",
+        email_delivery_updated_at: new Date().toISOString(),
+      }).eq("order_id", order.id).in("id", claimedIds).eq("email_delivery_status", "sending");
+      throw new Error("Um ou mais ingressos já foram enviados ou estão a ser enviados");
+    }
+
+    const fail = async (message: string) => {
+      await supabaseAdmin.from("tickets").update({
+        email_delivery_status: "failed",
+        email_delivery_error: message.slice(0, 500),
+        email_delivery_updated_at: new Date().toISOString(),
+      }).eq("order_id", order.id).in("id", tickets.map((ticket) => ticket.id));
+    };
+
+    try {
+      const credentials = await getCredentials();
+      const token = await accessToken(credentials);
+      const [{ data: event, error: eventError }, { data: groups, error: groupsError }] = await Promise.all([
+        supabaseAdmin.from("events").select("id,name,event_date,event_time,venue,city").eq("id", order.event_id).single(),
+        supabaseAdmin.from("ticket_groups").select("id,name,ticket_type").in("id", [...new Set(tickets.map((ticket) => ticket.group_id))]),
+      ]);
+      if (eventError || !event) throw new Error("Evento não encontrado");
+      if (groupsError) throw new Error(groupsError.message);
+      const groupMap = new Map((groups ?? []).map((group) => [group.id, group]));
+      const summary = new Map<string, { count: number; name: string; type: string }>();
+      for (const ticket of tickets) {
+        const group = groupMap.get(ticket.group_id);
+        const current = summary.get(ticket.group_id) ?? {
+          count: 0,
+          name: group?.name ?? event.name,
+          type: group?.ticket_type ?? "Ingresso",
+        };
+        current.count += 1;
+        summary.set(ticket.group_id, current);
+      }
+      const rows = [...summary.values()].map((item) =>
+        `<tr><td style="padding:10px 12px;border-bottom:1px solid #e8e8e8">${html(String(item.count))} × ${html(item.type)} · ${html(item.name)}</td></tr>`
+      ).join("");
+      const eventInfo = [event.event_date, event.event_time, event.venue, event.city].filter((value): value is string => !!value).map(html).join(" · ");
+      const greeting = `Olá ${html(order.buyer_name)},`;
+      const baseUrl = new URL(getRequest().url).origin;
+      const deliveryUrl = data.attachment ? "" : `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token)).join(",")}`;
+      let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
+      if (data.attachment) {
+        const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
+        const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?fileName=${encodeURIComponent(data.attachment.fileName)}&isInline=false`;
+        const upload = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/pdf", Accept: "application/json" },
+          body: raw,
+        });
+        const uploaded = (await upload.json().catch(() => null)) as {
+          status?: { code?: number; description?: string };
+          data?: { storeName?: string; attachmentPath?: string; attachmentName?: string };
+        } | null;
+        if (!upload.ok || uploaded?.status?.code !== 200 || !uploaded.data?.storeName || !uploaded.data.attachmentPath || !uploaded.data.attachmentName) {
+          throw new Error(`Zoho não conseguiu preparar o PDF anexo (${uploaded?.status?.description ?? upload.status})`);
+        }
+        zohoAttachment = {
+          storeName: uploaded.data.storeName,
+          attachmentPath: uploaded.data.attachmentPath,
+          attachmentName: uploaded.data.attachmentName,
+        };
+      }
+      const deliverySection = data.attachment
+        ? `<p style="margin:14px 0;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;color:#166534;font-size:14px;line-height:1.6"><strong>Os seus ingressos seguem em anexo.</strong> Descarregue o PDF e apresente o QR Code de cada ingresso à entrada.</p>`
+        : `<p style="margin:18px 0"><a href="${html(deliveryUrl)}" style="display:inline-block;padding:13px 20px;background:#d9b643;color:#111;text-decoration:none;font-weight:bold;border-radius:6px">Gerir e descarregar os meus ingressos</a></p><p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">Este link permite consultar a lista completa e descarregar os ingressos individualmente ou em conjunto.</p>`;
+      const content = `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#202124"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><tr><td style="background:#111827;padding:25px 30px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;background:#d9b643;border-radius:10px;text-align:center;vertical-align:middle;color:#111827;font-size:23px;font-weight:bold">▣</td><td style="padding-left:12px;color:#fff;font-size:22px;font-weight:800">MY <span style="color:#e5c65c">Tickets</span></td></tr></table><p style="margin:20px 0 0;color:#e5c65c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase">Reserva confirmada</p><h1 style="margin:8px 0 0;color:#fff;font-size:25px;line-height:1.25">${html(event.name)}</h1>${eventInfo ? `<p style="margin:9px 0 0;color:#d1d5db;font-size:13px;line-height:1.5">${eventInfo}</p>` : ""}</td></tr><tr><td style="padding:30px"><p style="margin:0 0 15px;font-size:16px">${greeting}</p><p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.7">A sua reserva foi confirmada e os seus ingressos estão prontos.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#faf8f0;border:1px solid #eee6c9;border-radius:12px;margin:0 0 22px"><tr><td style="padding:17px 19px"><p style="margin:0;color:#806000;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px">Resumo da reserva</p><p style="margin:7px 0 0;color:#222;font-size:15px;font-weight:bold">${tickets.length} ingresso(s) · Gratuito</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table></td></tr></table>${deliverySection}<p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">Cada ingresso tem um QR Code individual e permite uma única entrada. Apresente-o na portaria do evento.</p><hr style="border:0;border-top:1px solid #ececec;margin:25px 0"><p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">Mensagem automática da <strong style="color:#333">MY Tickets</strong>. Em caso de dúvidas, contacte a organização do evento.</p></td></tr></table><p style="margin:16px 0 0;color:#9ca3af;font-size:11px">© MY Tickets</p></td></tr></table></body></html>`;
+      const response = await fetch(
+        `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages`,
+        {
+          method: "POST",
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromAddress: SENDER,
+            toAddress: order.buyer_email,
+            subject: `A tua reserva está confirmada — ${event.name} | MY Tickets`,
+            content,
+            ...(zohoAttachment ? { attachments: [zohoAttachment] } : {}),
+            mailFormat: "html",
+          }),
+        },
+      );
+      const result = (await response.json().catch(() => null)) as { status?: { code?: number; description?: string } } | null;
+      if (!response.ok || (result?.status?.code && result.status.code !== 200)) {
+        throw new Error(`Zoho Mail recusou o envio${result?.status?.description ? `: ${result.status.description}` : ` (${response.status})`}`);
+      }
+      const sentAt = new Date().toISOString();
+      const { error: updateError } = await supabaseAdmin.from("tickets").update({
+        email_delivery_status: "sent",
+        email_delivery_error: null,
+        email_delivery_updated_at: sentAt,
+        email_delivery_to: order.buyer_email,
+        email_sent_at: sentAt,
+        sent_at: sentAt,
+        sent_via: "email",
+      }).eq("order_id", order.id).in("id", tickets.map((ticket) => ticket.id));
+      if (updateError) throw new Error("O e-mail foi enviado, mas não foi possível actualizar o estado dos ingressos");
+      return { status: "sent" as const, recipient: order.buyer_email, count: tickets.length, deliveryMode: zohoAttachment ? "attachment" as const : "link" as const };
+    } catch (error) {
+      const message = (error as Error).message;
+      await fail(message);
+      throw new Error(message);
+    }
+  });
