@@ -115,7 +115,7 @@ function Team() {
       <div>
         <h1 className="text-3xl font-bold">Equipa</h1>
         <p className="text-muted-foreground text-sm">
-          <b>Portaria</b>: só lê QR e vê os ingressos. <b>Promotor</b>: cria eventos (gratuito) que a administração aprova. <b>Gestão (Admin)</b>: aprova eventos e promotores, gera ingressos extra. Só o administrador principal pode nomear ou retirar membros da gestão.
+          <b>Portaria</b>: valida ingressos e credenciais. <b>Promotor</b>: gere os seus eventos e operações. <b>Equipa de Operações e Apoio</b>: presta apoio limitado a clientes e promotores, sem validar ingressos nem tratar pagamentos. <b>Administração</b>: controla as funções globais e financeiras. Só o administrador principal pode nomear administradores.
         </p>
       </div>
       {pending.length > 0 && <p className="rounded-lg bg-primary/10 text-sm p-3"><b>{pending.length}</b> pedido(s) de promotor por aprovar.</p>}
@@ -173,8 +173,8 @@ function Team() {
         {data.map((p) => {
           const current: Role | null = p.roles.includes("admin") ? "admin"
             : p.roles.includes("promoter") ? "promoter"
-            : p.roles.includes("staff") ? "staff"
             : p.roles.includes("consumer_support") || p.roles.includes("promoter_support") ? "operations_support"
+            : p.roles.includes("staff") ? "staff"
             : null;
           const targetSuper = p.email?.toLowerCase() === SUPER;
           const lockedRow = p.id === session?.user.id || targetSuper || (current === "admin" && !isSuper);
