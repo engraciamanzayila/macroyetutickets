@@ -38,9 +38,16 @@ const PANEL_NAV: Record<Role, { to: PanelPath; label: string; icon: typeof Layou
     { to: "/portaria", label: "Validação", icon: ScanLine },
     { to: "/livre-transito", label: "Livre-trânsito", icon: ScanLine },
   ],
+  operations_support: [
+    { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
+    { to: "/eventos", label: "Apoio a eventos", icon: CalendarDays },
+    { to: "/encomendas", label: "Apoio a clientes", icon: Receipt },
+    { to: "/portaria", label: "Apoio à portaria", icon: ScanLine },
+    { to: "/livre-transito", label: "Livre-trânsito", icon: ScanLine },
+  ],
   consumer_support: [
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
-    { to: "/encomendas", label: "Apoio a vendas", icon: Receipt },
+    { to: "/encomendas", label: "Apoio a clientes", icon: Receipt },
   ],
   promoter_support: [
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
