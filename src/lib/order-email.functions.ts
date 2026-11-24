@@ -763,9 +763,7 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
     if (ticketsError || !tickets?.length) throw new Error("Os ingressos desta encomenda ainda não estão disponíveis");
     if (tickets.length <= 10 && !data.attachment) throw new Error("Prepare o PDF dos ingressos antes do envio");
     if (tickets.length > 10 && data.attachment) throw new Error("Acima de 10 ingressos, a entrega deve ser feita pelo link de gestão");
-    if (tickets.length > 10 && tickets.some((ticket) => !/^[0-9a-f-]{36}$/i.test(ticket.share_token ?? ""))) {
-      throw new Error("Não foi possível preparar o link seguro de todos os ingressos");
-    }
+
 
     const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: claimed, error: claimError } = await supabaseAdmin
@@ -826,7 +824,7 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
       const eventInfo = [event.event_date, event.event_time, event.venue, event.city].filter((value): value is string => !!value).map(html).join(" · ");
       const greeting = `Olá ${html(order.buyer_name)},`;
       const baseUrl = new URL(getRequest().url).origin;
-      const deliveryUrl = data.attachment ? "" : `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token)).join(",")}`;
+      const deliveryUrl = data.attachment ? "" : `${baseUrl}/encomenda/${encodeURIComponent(data.orderToken)}`;
       let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
       if (data.attachment) {
         const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
