@@ -4,6 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StoreHeader } from "@/components/store/StoreHeader";
+import { getOrderHolderTickets } from "@/lib/shares.functions";
+import { downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +55,27 @@ function OrderPage() {
   });
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const downloadAll = async () => {
+    setDownloadBusy(true);
+    try {
+      const files = await getOrderHolderTickets({ data: { orderToken: token } });
+      const groupOf = (id: string) =>
+        files.groups.find((group) => group.id === id) as unknown as RenderGroup;
+      await downloadPdf(
+        files.tickets.map((ticket) => ({
+          g: groupOf(ticket.group_id),
+          code: ticket.code,
+          holderName: ticket.holder_name,
+        })),
+        `${files.event.name}_ingressos`,
+      );
+    } catch (downloadError) {
+      toast.error(`Não foi possível preparar os ingressos: ${(downloadError as Error).message}`);
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
 
   return (
     <>
@@ -151,13 +174,8 @@ function OrderPage() {
                   {Number(order.total) === 0 ? "A sua reserva está confirmada" : "Ingressos disponíveis"}
                 </h2>
                 {order.tickets.length > 0 && (
-                  <Button asChild className="w-full">
-                    <Link
-                      to="/i/$tokens"
-                      params={{ tokens: order.tickets.map((ticket) => ticket.token).join(",") }}
-                    >
-                      Gerir e descarregar todos os ingressos
-                    </Link>
+                  <Button className="w-full" disabled={downloadBusy} onClick={() => void downloadAll()}>
+                    {downloadBusy ? "A preparar os ingressos…" : "Descarregar todos os ingressos em PDF"}
                   </Button>
                 )}
                 {order.tickets.map((t) => (
