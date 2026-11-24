@@ -42,8 +42,6 @@ const PANEL_NAV: Record<Role, { to: PanelPath; label: string; icon: typeof Layou
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
     { to: "/eventos", label: "Apoio a eventos", icon: CalendarDays },
     { to: "/encomendas", label: "Apoio a clientes", icon: Receipt },
-    { to: "/portaria", label: "Apoio à portaria", icon: ScanLine },
-    { to: "/livre-transito", label: "Livre-trânsito", icon: ScanLine },
   ],
   consumer_support: [
     { to: "/visao-geral", label: "Visão geral", icon: LayoutGrid },
