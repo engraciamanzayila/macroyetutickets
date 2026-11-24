@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { COMPANY } from "@/lib/company";
 
-const SENDER = "mytickets@macroyetu.com";
+const SENDER = "myticket@macroyeto.com";
 const DATA_CENTERS = [
   "com",
   "eu",
