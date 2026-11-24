@@ -95,7 +95,12 @@ function Team() {
     const del = await supabase.from("user_roles").delete().eq("user_id", uid).select();
     if (del.error) return toast.error(del.error.message);
     if (role) {
-      const { error } = await supabase.from("user_roles").insert({ user_id: uid, role });
+      const rolesToInsert = role === "operations_support"
+        ? ["consumer_support", "promoter_support"]
+        : [role];
+      const { error } = await supabase.from("user_roles").insert(
+        rolesToInsert.map((assignedRole) => ({ user_id: uid, role: assignedRole as Role }))
+      );
       if (error) return toast.error(role === "admin" ? "Só o administrador principal pode nomear administradores." : error.message);
       if (role === "promoter") await supabase.from("profiles").update({ wants_promoter: false }).eq("id", uid);
     }
@@ -166,7 +171,11 @@ function Team() {
 
       <div className="rounded-2xl border bg-card divide-y">
         {data.map((p) => {
-          const current: Role | null = (["admin", "promoter", "promoter_support", "consumer_support", "staff"] as Role[]).find((r) => p.roles.includes(r)) ?? null;
+          const current: Role | null = p.roles.includes("admin") ? "admin"
+            : p.roles.includes("promoter") ? "promoter"
+            : p.roles.includes("staff") ? "staff"
+            : p.roles.includes("consumer_support") || p.roles.includes("promoter_support") ? "operations_support"
+            : null;
           const targetSuper = p.email?.toLowerCase() === SUPER;
           const lockedRow = p.id === session?.user.id || targetSuper || (current === "admin" && !isSuper);
           return (
@@ -177,7 +186,7 @@ function Team() {
                 {p.wants_promoter && current !== "promoter" && <p className="text-xs text-primary font-medium">Pediu para ser promotor</p>}
               </div>
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary p-1">
-                {([[null, "Sem acesso"], ["staff", "Portaria"], ["consumer_support", "Apoio ao público"], ["promoter_support", "Apoio a promotores"], ["promoter", "Promotor (por candidatura)"], ["admin", "Gestão"]] as const).map(([r, l]) => (
+                {([[null, "Sem acesso"], ["staff", "Portaria"], ["operations_support", "Equipa de Operações e Apoio"], ["promoter", "Promotor (por candidatura)"], ["admin", "Gestão"]] as const).map(([r, l]) => (
                   <Button key={l} size="sm" variant={current === r ? "default" : "ghost"} disabled={lockedRow || r === "promoter" || (r === "admin" && !isSuper)} onClick={() => setRole(p.id, r)}>{l}</Button>
                 ))}
               </div>
