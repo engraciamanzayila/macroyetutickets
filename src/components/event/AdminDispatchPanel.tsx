@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { WhatsAppShareFlow, type WhatsAppFilePayload } from "@/components/event/WhatsAppShareFlow";
 import { ensureTickets, fetchAllTickets, type Group, type TicketRow } from "@/lib/generate";
-import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
+import { createTicketFiles, createTicketEmailAttachment, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import { artUrl } from "@/lib/generate";
 import { holderLink, downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { sendTicketEmail } from "@/lib/order-email.functions";
@@ -189,12 +189,10 @@ export function AdminDispatchPanel({
         throw new Error("Selecione até 100 ingressos por e-mail");
       if (via === "email") {
         await releaseForRedistribution(selection);
+        const ticketIds = selection.map((ticket) => ticket.id);
+        const attachment = await createTicketEmailAttachment(eventId, ticketIds, eventName);
         const result = await sendTicketEmail({
-          data: {
-            eventId,
-            ticketIds: selection.map((ticket) => ticket.id),
-            recipient: email.trim(),
-          },
+          data: { eventId, ticketIds, recipient: email.trim(), attachment },
         });
         if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
         toast.success(
