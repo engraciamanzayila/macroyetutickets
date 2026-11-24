@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { downloadPdf, type RenderGroup } from "@/lib/share-render";
 import { supabase } from "@/integrations/supabase/client";
 import type { Group, TicketRow } from "@/lib/generate";
-import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
+import { createTicketFiles, createTicketEmailAttachment, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import { sendTicketEmail } from "@/lib/order-email.functions";
 import { holderLink } from "@/lib/share-render";
 import { Input } from "@/components/ui/input";
@@ -214,8 +214,9 @@ export function TicketsPanel({
         });
         released = true;
       }
+      const attachment = await createTicketEmailAttachment(eventId, [ticket.id], eventName);
       const result = await sendTicketEmail({
-        data: { eventId, ticketIds: [ticket.id], recipient: contact },
+        data: { eventId, ticketIds: [ticket.id], recipient: contact, attachment },
       });
       if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
       toast.success(`E-mail enviado a ${result.recipient}`);
@@ -296,12 +297,10 @@ export function TicketsPanel({
       return toast.error("Indique um e-mail válido.");
     setBusy(true);
     try {
+      const ticketIds = selectedForSharing.map((ticket) => ticket.id);
+      const attachment = await createTicketEmailAttachment(eventId, ticketIds, eventName);
       const result = await sendTicketEmail({
-        data: {
-          eventId,
-          ticketIds: selectedForSharing.map((ticket) => ticket.id),
-          recipient: contact.trim(),
-        },
+        data: { eventId, ticketIds, recipient: contact.trim(), attachment },
       });
       if (result.status !== "sent") throw new Error("O e-mail não foi confirmado pelo servidor.");
       setPicked(new Set());
