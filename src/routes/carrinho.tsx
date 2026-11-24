@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getStoreEvent } from "@/lib/store.functions";
+import { getHolderTickets } from "@/lib/shares.functions";
+import { createPdfBase64, type RenderGroup } from "@/lib/share-render";
+import { sendFreeOrderTicketEmail } from "@/lib/order-email.functions";
 import { readCart, subscribeToCartChanges, writeCart, type CartItem } from "@/lib/cart";
 import { DELIVERY_CHANNELS, PAYMENT_METHODS, kz } from "@/lib/payments";
 import { supabase } from "@/integrations/supabase/client";
@@ -133,15 +136,52 @@ function CartPage() {
           JSON.stringify([...new Set([...previous, ...result.orders.map((order) => order.token)])]),
         );
         writeCart([]);
-        toast.success(`${result.orders.length} encomenda(s) criada(s), uma por evento.`);
       } catch (storageError) {
-        console.error(
-          "As encomendas foram criadas, mas não foi possível guardar o estado local.",
-          storageError,
-        );
-        toast.warning(
-          "Encomendas criadas, mas não foi possível atualizar o carrinho neste dispositivo.",
-        );
+        console.error("As encomendas foram criadas, mas não foi possível guardar o estado local.", storageError);
+        toast.warning("Encomendas criadas, mas não foi possível atualizar o carrinho neste dispositivo.");
+      }
+
+      if (delivery === "email") {
+        let delivered = 0;
+        const failed: string[] = [];
+        for (const order of result.orders) {
+          if (Number(order.total) !== 0) continue;
+          try {
+            const { data: orderData, error: readError } = await supabase.rpc("get_order", {
+              p_token: order.token,
+            });
+            if (readError || !orderData) throw new Error(readError?.message ?? "Não foi possível consultar a reserva");
+            const ticketTokens = ((orderData as { tickets?: { token: string }[] }).tickets ?? [])
+              .map((ticket) => ticket.token)
+              .filter((token): token is string => typeof token === "string");
+            if (!ticketTokens.length) throw new Error("A reserva não contém ingressos emitidos");
+            let attachment: { fileName: string; base64: string } | null = null;
+            if (ticketTokens.length <= 10) {
+              const holder = await getHolderTickets({ data: { tokens: ticketTokens } });
+              const base64 = await createPdfBase64(
+                holder.tickets.map((ticket) => ({
+                  g: holder.groups.find((group) => group.id === ticket.group_id) as unknown as RenderGroup,
+                  code: ticket.code,
+                  holderName: ticket.holder_name,
+                })),
+              );
+              const safeName = order.event_name.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 60) || "evento";
+              attachment = { fileName: `${safeName}_ingressos.pdf`, base64 };
+            }
+            await sendFreeOrderTicketEmail({
+              data: { orderToken: order.token, attachment },
+            });
+            delivered += 1;
+          } catch (deliveryError) {
+            console.error("A reserva gratuita foi criada, mas o e-mail não foi enviado.", deliveryError);
+            failed.push(order.event_name);
+          }
+        }
+        if (delivered > 0) toast.success(`${delivered} reserva(s) gratuita(s) confirmada(s) e enviada(s) por e-mail.`);
+        if (failed.length > 0) toast.warning(`Reserva(s) confirmada(s), mas o e-mail falhou para: ${failed.join(", ")}. Os ingressos continuam disponíveis no link da encomenda.`);
+        if (delivered === 0 && failed.length === 0) toast.success(`${result.orders.length} encomenda(s) criada(s), uma por evento.`);
+      } else {
+        toast.success(`${result.orders.length} encomenda(s) criada(s), uma por evento.`);
       }
     } catch (error) {
       toast.error(`Não foi possível finalizar o carrinho: ${(error as Error).message}`);
@@ -169,8 +209,9 @@ function CartPage() {
           <section className="space-y-4 rounded-2xl border bg-card p-5">
             <h2 className="text-xl font-bold">Encomendas criadas</h2>
             <p className="text-sm text-muted-foreground">
-              O pagamento é confirmado separadamente para cada evento. Abre cada encomenda para ver
-              as instruções.
+              As reservas gratuitas são confirmadas automaticamente. As encomendas pagas continuam
+              pendentes até à confirmação do pagamento. Abre cada encomenda para consultar os ingressos
+              ou as instruções de pagamento.
             </p>
             {orders.map((order) => (
               <div
@@ -183,7 +224,7 @@ function CartPage() {
                 </div>
                 <Button asChild>
                   <Link to="/encomenda/$token" params={{ token: order.token }}>
-                    Ver encomenda e pagamento
+                    {Number(order.total) === 0 ? "Ver ingressos" : "Ver encomenda e pagamento"}
                   </Link>
                 </Button>
               </div>
@@ -317,8 +358,9 @@ function CartPage() {
                 </select>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Cada evento gera uma encomenda e uma cobrança própria. O pagamento e o envio dos
-                ingressos continuam sujeitos a confirmação manual.
+                Cada evento gera uma encomenda separada. As reservas gratuitas são confirmadas
+                automaticamente e, quando escolhe e-mail, recebem os ingressos. As encomendas pagas
+                aguardam a confirmação do pagamento.
               </p>
               <Button className="w-full" disabled={busy || unavailable || overStock}>
                 {busy ? "A criar encomendas…" : `Finalizar carrinho · ${kz(total)}`}
