@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-import type { Role } from "@/lib/access";
+import { normalizeRoles, type Role } from "@/lib/access";
 export type { Role };
 type AuthState = {
   session: Session | null;
@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       return;
     }
-    setRoles((data ?? []).map((r) => r.role as Role));
+    setRoles(normalizeRoles((data ?? []).map((r) => r.role as Role)));
   };
 
   useEffect(() => {
