@@ -64,7 +64,11 @@ function OrderPage() {
           <p>Encomenda não encontrada.</p>
         ) : (
           <>
-            <p className="text-sm text-primary">{STATUS_LABEL[order.status] || order.status}</p>
+            <p className="text-sm text-primary">
+              {order.status === "paid" && Number(order.total) === 0
+                ? "Reserva gratuita confirmada"
+                : STATUS_LABEL[order.status] || order.status}
+            </p>
             <h1 className="mt-2 text-3xl font-bold">{order.event.name}</h1>
             <p className="mt-3 text-muted-foreground">{order.buyer_name}</p>
             <div className="my-6 divide-y border-y">
@@ -143,7 +147,19 @@ function OrderPage() {
             )}
             {order.status === "paid" && (
               <div className="space-y-4">
-                <h2 className="text-xl font-bold">Ingressos disponíveis</h2>
+                <h2 className="text-xl font-bold">
+                  {Number(order.total) === 0 ? "A sua reserva está confirmada" : "Ingressos disponíveis"}
+                </h2>
+                {order.tickets.length > 0 && (
+                  <Button asChild className="w-full">
+                    <Link
+                      to="/i/$tokens"
+                      params={{ tokens: order.tickets.map((ticket) => ticket.token).join(",") }}
+                    >
+                      Gerir e descarregar todos os ingressos
+                    </Link>
+                  </Button>
+                )}
                 {order.tickets.map((t) => (
                   <Button asChild key={t.code} variant="secondary">
                     <Link to="/i/$tokens" params={{ tokens: t.token }}>
