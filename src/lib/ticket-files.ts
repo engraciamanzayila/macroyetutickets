@@ -147,3 +147,72 @@ export async function downloadTicketFiles(files: File[]) {
   downloadFilesIndividually(files);
   return files;
 }
+
+
+/** Build one multi-page PDF for e-mail delivery (maximum ten tickets). */
+export async function createTicketEmailAttachment(
+  eventId: string,
+  ticketIds: string[],
+  eventName: string,
+): Promise<{ fileName: string; base64: string } | null> {
+  if (ticketIds.length > 10) return null;
+  if (!ticketIds.length) throw new Error("Não há ingressos para anexar.");
+
+  const { data: tickets, error: ticketsError } = await supabase
+    .from("tickets")
+    .select("id,code,seq,group_id,holder_name")
+    .eq("event_id", eventId)
+    .in("id", ticketIds)
+    .order("seq");
+  if (ticketsError) throw new Error(ticketsError.message);
+  if (!tickets || tickets.length !== ticketIds.length)
+    throw new Error("Não foi possível preparar todos os ingressos para o e-mail.");
+
+  const groupIds = [...new Set(tickets.map((ticket) => ticket.group_id))];
+  const { data: groups, error: groupsError } = await supabase
+    .from("ticket_groups")
+    .select("*")
+    .in("id", groupIds);
+  if (groupsError) throw new Error(groupsError.message);
+  const groupMap = new Map((groups ?? []).map((group) => [group.id, group as unknown as Group]));
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  let firstPage = true;
+  const artByGroup = new Map<string, ImageBitmap>();
+
+  try {
+    for (const ticket of tickets) {
+      const group = groupMap.get(ticket.group_id);
+      if (!group?.art_path) throw new Error("Um dos grupos não tem arte configurada.");
+      let art = artByGroup.get(group.id);
+      if (!art) {
+        const { data, error } = await supabase.storage.from("arts").download(group.art_path);
+        if (error || !data) throw new Error(error?.message ?? "Não foi possível carregar a arte do ingresso.");
+        art = await createImageBitmap(data);
+        artByGroup.set(group.id, art);
+      }
+      const canvas = await renderTicket(art, group.layout ?? DEFAULT_LAYOUT, ticket.code, ticket.holder_name);
+      const mm = physicalMm(group);
+      if (!firstPage) pdf.addPage([mm.w, mm.h], mm.w > mm.h ? "landscape" : "portrait");
+      else {
+        pdf.deletePage(1);
+        pdf.addPage([mm.w, mm.h], mm.w > mm.h ? "landscape" : "portrait");
+        firstPage = false;
+      }
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.82), "JPEG", 0, 0, mm.w, mm.h, undefined, "FAST");
+    }
+  } finally {
+    artByGroup.forEach((art) => art.close());
+  }
+
+  const blob = pdf.output("blob");
+  if (blob.size > 3_000_000)
+    throw new Error("O PDF ultrapassa o limite seguro de envio por e-mail. Utilize o link de download.");
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  const safeName = safeSegment(eventName, "evento");
+  return { fileName: `${safeName}_ingressos.pdf`, base64: btoa(binary) };
+}
