@@ -9,7 +9,7 @@ import { holderLink } from "@/lib/share-render";
 import { sendTicketEmail } from "@/lib/order-email.functions";
 import { DEFAULT_LAYOUT, renderTicket } from "@/lib/render";
 import { loadArt } from "@/lib/generate";
-import { createTicketFiles, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
+import { createTicketFiles, createTicketEmailAttachment, downloadTicketFiles, type TicketFileFormat } from "@/lib/ticket-files";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -331,8 +331,9 @@ export function TablesPanel({
     try {
       await persistPendingNames();
       if (via === "email") {
+        const attachment = await createTicketEmailAttachment(eventId, ids, eventName);
         const result = await sendTicketEmail({
-          data: { eventId, ticketIds: ids, recipient: contact.trim() },
+          data: { eventId, ticketIds: ids, recipient: contact.trim(), attachment },
         });
         if (result.status !== "sent") throw new Error("O Zoho não confirmou o envio");
         const { error } = await supabase
