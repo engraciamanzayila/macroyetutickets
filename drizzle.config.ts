@@ -5,6 +5,8 @@ export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
   dbCredentials: {
-    url: process.env.LOVABLE_DB_MIGRATION_URL ?? "",
+    // Require an explicit Supabase migration connection.
+    // Never fall back to the historical Lovable Cloud database.
+    url: process.env.SUPABASE_DB_MIGRATION_URL ?? "",
   },
 });
