@@ -753,14 +753,29 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
       throw new Error("Esta encomenda não tem um endereço de e-mail válido para entrega");
     }
 
-    const { data: tickets, error: ticketsError } = await supabaseAdmin
-      .from("tickets")
-      .select("id,code,share_token,group_id,holder_name,seq")
-      .eq("order_id", order.id)
-      .eq("event_id", order.event_id)
-      .eq("status", "valid")
-      .order("seq");
-    if (ticketsError || !tickets?.length) throw new Error("Os ingressos desta encomenda ainda não estão disponíveis");
+    // Fetch every ticket, including orders larger than the Supabase REST row limit.
+    const tickets: Array<{
+      id: string;
+      code: string;
+      share_token: string;
+      group_id: string;
+      holder_name: string | null;
+      seq: number;
+    }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: page, error: pageError } = await supabaseAdmin
+        .from("tickets")
+        .select("id,code,share_token,group_id,holder_name,seq")
+        .eq("order_id", order.id)
+        .eq("event_id", order.event_id)
+        .eq("status", "valid")
+        .order("seq")
+        .range(offset, offset + 999);
+      if (pageError) throw new Error(pageError.message);
+      tickets.push(...(page ?? []));
+      if (!page || page.length < 1000) break;
+    }
+    if (!tickets.length) throw new Error("Os ingressos desta encomenda ainda não estão disponíveis");
     if (tickets.length <= 10 && !data.attachment) throw new Error("Prepare o PDF dos ingressos antes do envio");
     if (tickets.length > 10 && data.attachment) throw new Error("Acima de 10 ingressos, a entrega deve ser feita pelo link de gestão");
 
