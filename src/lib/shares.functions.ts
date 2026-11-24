@@ -132,7 +132,7 @@ export const markSent = createServerFn({ method: "POST" })
 /** Public: ticket holder opens one or more tickets by their private share tokens. */
 export const getHolderTickets = createServerFn({ method: "POST" })
   .inputValidator((d: { tokens: string[] }) => {
-    const t = (d?.tokens ?? []).filter((x) => UUID.test(x)).slice(0, 50);
+    const t = (d?.tokens ?? []).filter((x) => UUID.test(x)).slice(0, 500);
     if (!t.length) throw new Error("Link inválido");
     return { tokens: t };
   })
