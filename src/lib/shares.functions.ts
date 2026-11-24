@@ -182,18 +182,35 @@ export const getOrderHolderTickets = createServerFn({ method: "POST" })
       .maybeSingle();
     if (orderError || !order) throw new Error("Encomenda não encontrada");
     if (order.status !== "paid") throw new Error("Os ingressos só ficam disponíveis após a confirmação da encomenda");
-    const [{ data: event, error: eventError }, { data: tickets, error: ticketsError }] = await Promise.all([
-      sb.from("events").select("name").eq("id", order.event_id).single(),
-      sb.from("tickets")
+    const { data: event, error: eventError } = await sb
+      .from("events")
+      .select("name")
+      .eq("id", order.event_id)
+      .single();
+    if (eventError || !event) throw new Error("Evento não encontrado");
+
+    // Supabase REST may cap a response at 1,000 rows. Page through the complete order
+    // so large orders are never silently truncated in the bulk PDF.
+    const tickets: Array<{
+      code: string;
+      seq: number;
+      status: string;
+      group_id: string;
+      holder_name: string | null;
+    }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: page, error: pageError } = await sb
+        .from("tickets")
         .select("code,seq,status,group_id,holder_name")
         .eq("order_id", order.id)
         .eq("event_id", order.event_id)
         .neq("status", "void")
         .order("seq")
-        .limit(2000),
-    ]);
-    if (eventError || !event) throw new Error("Evento não encontrado");
-    if (ticketsError) throw new Error(ticketsError.message);
+        .range(offset, offset + 999);
+      if (pageError) throw new Error(pageError.message);
+      tickets.push(...(page ?? []));
+      if (!page || page.length < 1000) break;
+    }
     const groupIds = [...new Set((tickets ?? []).map((ticket) => ticket.group_id))];
     const { data: rawGroups, error: groupsError } = groupIds.length
       ? await sb.from("ticket_groups")
