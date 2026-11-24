@@ -164,3 +164,47 @@ export const getHolderTickets = createServerFn({ method: "POST" })
     );
     return { event: ev, groups, tickets: tk.map(({ event_id: _e, ...t }) => t) };
   });
+
+
+/** Public customer order portal: load all tickets from a private order capability token. */
+export const getOrderHolderTickets = createServerFn({ method: "POST" })
+  .inputValidator((d: { orderToken: string }) => {
+    const orderToken = String(d?.orderToken ?? "").trim();
+    if (!UUID.test(orderToken)) throw new Error("Link de encomenda inválido");
+    return { orderToken };
+  })
+  .handler(async ({ data }) => {
+    const sb = await admin();
+    const { data: order, error: orderError } = await sb
+      .from("orders")
+      .select("id,event_id,status,total")
+      .eq("access_token", data.orderToken)
+      .maybeSingle();
+    if (orderError || !order) throw new Error("Encomenda não encontrada");
+    if (order.status !== "paid") throw new Error("Os ingressos só ficam disponíveis após a confirmação da encomenda");
+    const [{ data: event, error: eventError }, { data: tickets, error: ticketsError }] = await Promise.all([
+      sb.from("events").select("name").eq("id", order.event_id).single(),
+      sb.from("tickets")
+        .select("code,seq,status,group_id,holder_name")
+        .eq("order_id", order.id)
+        .eq("event_id", order.event_id)
+        .neq("status", "void")
+        .order("seq")
+        .limit(2000),
+    ]);
+    if (eventError || !event) throw new Error("Evento não encontrado");
+    if (ticketsError) throw new Error(ticketsError.message);
+    const groupIds = [...new Set((tickets ?? []).map((ticket) => ticket.group_id))];
+    const { data: rawGroups, error: groupsError } = groupIds.length
+      ? await sb.from("ticket_groups")
+          .select("id,name,ticket_type,layout,art_path,art_width,art_height,width_cm,height_cm")
+          .in("id", groupIds)
+      : { data: [], error: null };
+    if (groupsError) throw new Error(groupsError.message);
+    const groups = await Promise.all((rawGroups ?? []).map(async (group) => ({
+      ...group,
+      art_url: await sign(sb, group.art_path),
+      art_path: undefined,
+    })));
+    return { event, groups, tickets: tickets ?? [] };
+  });
