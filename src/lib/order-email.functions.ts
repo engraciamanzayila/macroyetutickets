@@ -379,7 +379,12 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
       ].filter((email) => email !== data.recipient);
 
       const baseUrl = new URL(getRequest().url).origin;
-      const deliveryUrl = `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token)).join(",")}`;
+      if (!data.attachment && tickets.some((ticket) => !/^[0-9a-f-]{36}$/i.test(ticket.share_token ?? ""))) {
+        throw new Error("Não foi possível criar um link seguro para todos os ingressos.");
+      }
+      const deliveryUrl = data.attachment
+        ? ""
+        : `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token!)).join(",")}`;
       let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
       if (data.attachment) {
         const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
@@ -494,7 +499,13 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         })
         .eq("event_id", data.eventId)
         .in("id", data.ticketIds);
-      return { status: "sent" as const, recipient: data.recipient, cc, count: tickets.length };
+      return {
+        status: "sent" as const,
+        recipient: data.recipient,
+        cc,
+        count: tickets.length,
+        deliveryMode: zohoAttachment ? ("attachment" as const) : ("link" as const),
+      };
     } catch (error) {
       const message = (error as Error).message;
       await failTickets(message);
