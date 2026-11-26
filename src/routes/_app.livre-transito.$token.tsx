@@ -35,7 +35,7 @@ function FreeTransitCheckIn() {
   return <main className="mx-auto max-w-xl space-y-6 px-4 py-10">
     <div className="rounded-2xl border bg-card p-6 text-center">
       <div className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary"><CarFront className="size-7" /></div>
-      <p className="mt-4 text-xs font-bold tracking-[.2em] text-primary">THIS IS HOUSE MUSIC</p>
+      <p className="mt-4 text-xs font-bold tracking-[.2em] text-primary">MY TICKETS</p>
       <h1 className="mt-2 text-2xl font-black">Validação de livre-trânsito</h1>
       <p className="mt-2 text-sm text-muted-foreground">By MY Tickets</p>
       {pass ? <div className="mt-5 rounded-xl bg-muted p-4 text-left"><p className="text-xs text-muted-foreground">REFERÊNCIA</p><p className="font-mono text-xl font-bold">{pass.reference_code}</p><p className="mt-2 text-sm">Evento: {(pass.events as any)?.name ?? "THIS IS HOUSE MUSIC"}</p><p className="mt-1 text-sm">Estado: {pass.status === "active" ? "Disponível" : pass.status === "used" ? "Já utilizado" : "Cancelado"}</p>{pass.vehicle_plate && <p className="mt-1 text-sm font-semibold">Matrícula associada: {pass.vehicle_plate}</p>}</div> : <p className="mt-5 text-sm text-muted-foreground">A carregar ou passe não encontrado…</p>}
