@@ -516,6 +516,7 @@ export type Database = {
           recipient: string | null
           source_filename: string | null
           ticket_type: string
+          valid_on: string | null
           width_cm: number | null
         }
         Insert: {
@@ -534,6 +535,7 @@ export type Database = {
           recipient?: string | null
           source_filename?: string | null
           ticket_type?: string
+          valid_on?: string | null
           width_cm?: number | null
         }
         Update: {
