@@ -13,7 +13,7 @@ function publicClient() {
     return fetch(input, { ...init, headers });
   } } });
 }
-const columns = 'id,name,slug,description,event_date,event_time,venue,city,category,cover_url' as const;
+const columns = 'id,name,slug,description,event_date,event_time,venue,city,category,cover_url,registration_fields' as const;
 export const listStoreEvents = createServerFn({ method: 'GET' }).handler(async () => {
   const sb = publicClient();
   const { data, error } = await sb.from('events').select(columns).eq('published', true).eq('approval_status', 'approved').order('event_date');
@@ -25,7 +25,7 @@ export const getStoreEvent = createServerFn({ method: 'GET' }).inputValidator((d
   const { data: event, error } = await sb.from('events').select(columns).eq('slug', data.slug).eq('published', true).eq('approval_status', 'approved').maybeSingle();
   if (error) throw new Error(error.message);
   if (!event) return null;
-  const { data: groups, error: ge } = await sb.from('ticket_groups').select('id,name,ticket_type,price').eq('event_id', event.id).eq('for_sale', true).order('price');
+  const { data: groups, error: ge } = await sb.from('ticket_groups').select('id,name,ticket_type,price,valid_on').eq('event_id', event.id).eq('for_sale', true).order('price');
   if (ge) throw new Error(ge.message);
   const stock = await Promise.all((groups ?? []).map(async g => {
     const { data: available, error: ae } = await sb.rpc('group_available', { _group: g.id });
