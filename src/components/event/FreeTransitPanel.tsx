@@ -12,7 +12,7 @@ type Pass = { id: string; reference_code: string; qr_token: string; status: stri
 const makeReference = () => `MYT-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 const cleanPlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 
-export function FreeTransitPanel({ eventId, eventName }: { eventId: string; eventName: string }) {
+export function FreeTransitPanel({ eventId, eventName, eventCoverUrl }: { eventId: string; eventName: string; eventCoverUrl?: string | null }) {
   const [passes, setPasses] = useState<Pass[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -94,26 +94,65 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
     if (!passes.length) return toast.error("Ainda não existem passes para imprimir.");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const cardW = 105, cardH = 148;
+    let eventArt: string | null = null;
+    if (eventCoverUrl) {
+      try {
+        const response = await fetch(eventCoverUrl);
+        if (!response.ok) throw new Error("A arte do evento não está acessível.");
+        const bitmap = await createImageBitmap(await response.blob());
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width; canvas.height = bitmap.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Não foi possível preparar a arte.");
+        context.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        eventArt = canvas.toDataURL("image/png");
+      } catch (error) {
+        toast.warning("A arte do evento não foi incluída nos passes: " + (error as Error).message);
+      }
+    }
     for (let i = 0; i < passes.length; i++) {
       if (i > 0 && i % 4 === 0) pdf.addPage();
       const x = (i % 2) * cardW, y = Math.floor((i % 4) / 2) * cardH;
       const pass = passes[i];
       const qr = await QRCode.toDataURL(`${window.location.origin}/livre-transito/${pass.qr_token}`, { width: 420, margin: 1, errorCorrectionLevel: "H" });
-      pdf.setFillColor(10, 14, 24); pdf.rect(x, y, cardW, cardH, "F");
-      pdf.setDrawColor(222, 150, 62); pdf.setLineWidth(0.7); pdf.roundedRect(x + 5, y + 5, cardW - 10, cardH - 10, 3, 3, "S");
-      pdf.setTextColor(240, 178, 91); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.text("PASSE OFICIAL DE ESTACIONAMENTO", x + 10, y + 17);
-      pdf.setTextColor(255, 255, 255); pdf.setFontSize(18); pdf.text("LIVRE-TRÂNSITO", x + 10, y + 31);
-      pdf.setFontSize(8); pdf.setTextColor(193, 199, 211); pdf.text("PASSE OFICIAL DE ACESSO DE VIATURA", x + 10, y + 38);
-      pdf.setDrawColor(240, 178, 91); pdf.line(x + 10, y + 44, x + cardW - 10, y + 44);
-      pdf.setTextColor(255, 255, 255); pdf.setFontSize(8); pdf.text("EVENTO", x + 10, y + 54);
-      pdf.setFontSize(11); pdf.text(pdf.splitTextToSize(eventName, 80), x + 10, y + 61);
-      pdf.setTextColor(240, 178, 91); pdf.setFontSize(8); pdf.text("REFERÊNCIA", x + 10, y + 78);
-      pdf.setTextColor(255, 255, 255); pdf.setFontSize(16); pdf.text(pass.reference_code, x + 10, y + 87);
-      pdf.addImage(qr, "PNG", x + 62, y + 91, 31, 31);
-      pdf.setTextColor(193, 199, 211); pdf.setFontSize(7); pdf.text("MATRÍCULA A REGISTAR NA ENTRADA", x + 10, y + 101);
-      pdf.setDrawColor(255, 255, 255); pdf.line(x + 10, y + 112, x + 56, y + 112);
-      pdf.setTextColor(240, 178, 91); pdf.setFontSize(8); pdf.text("BY MY TICKETS", x + 10, y + 130);
-      pdf.setTextColor(160, 168, 184); pdf.setFontSize(6); pdf.text("Passe individual e intransmissível · QR de autenticidade", x + 10, y + 137);
+      pdf.setFillColor(255, 255, 255); pdf.rect(x, y, cardW, cardH, "F");
+      pdf.setDrawColor(31, 55, 91); pdf.setLineWidth(0.7); pdf.roundedRect(x + 4, y + 4, cardW - 8, cardH - 8, 3, 3, "S");
+      pdf.setFillColor(20, 45, 89); pdf.roundedRect(x + 4, y + 4, cardW - 8, 10, 2, 2, "F");
+      pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7);
+      pdf.text("PASSE OFICIAL DE ESTACIONAMENTO", x + 8, y + 11);
+      const artX = x + 8, artY = y + 20, artW = 39, artH = 39;
+      pdf.setFillColor(247, 249, 252); pdf.rect(artX, artY, artW, artH, "F");
+      pdf.setDrawColor(215, 222, 234); pdf.rect(artX, artY, artW, artH, "S");
+      if (eventArt) {
+        const props = pdf.getImageProperties(eventArt);
+        const scale = Math.min((artW - 2) / props.width, (artH - 2) / props.height);
+        const drawW = props.width * scale, drawH = props.height * scale;
+        pdf.addImage(eventArt, "PNG", artX + (artW - drawW) / 2, artY + (artH - drawH) / 2, drawW, drawH);
+      } else {
+        pdf.setTextColor(100, 116, 139); pdf.setFontSize(6); pdf.text("ARTE DO EVENTO", artX + 4, artY + 20);
+      }
+      pdf.setFillColor(255, 255, 255); pdf.rect(x + 54, y + 19, 43, 43, "F");
+      pdf.setDrawColor(215, 222, 234); pdf.rect(x + 54, y + 19, 43, 43, "S");
+      pdf.addImage(qr, "PNG", x + 59, y + 24, 33, 33);
+      pdf.setTextColor(20, 45, 89); pdf.setFont("helvetica", "bold"); pdf.setFontSize(11);
+      pdf.text("LIVRE-TRÂNSITO", x + 8, y + 69);
+      pdf.setTextColor(71, 85, 105); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
+      pdf.text("EVENTO", x + 8, y + 76);
+      pdf.setTextColor(23, 32, 51); pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+      pdf.text(pdf.splitTextToSize(eventName, 88), x + 8, y + 83);
+      pdf.setTextColor(71, 85, 105); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
+      pdf.text("REFERÊNCIA", x + 8, y + 99);
+      pdf.setTextColor(20, 45, 89); pdf.setFont("helvetica", "bold"); pdf.setFontSize(13);
+      pdf.text(pass.reference_code, x + 8, y + 106);
+      pdf.setDrawColor(215, 222, 234); pdf.line(x + 8, y + 111, x + 97, y + 111);
+      pdf.setTextColor(71, 85, 105); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6);
+      pdf.text("MATRÍCULA A REGISTAR NA ENTRADA", x + 8, y + 119);
+      pdf.setDrawColor(100, 116, 139); pdf.line(x + 8, y + 128, x + 54, y + 128);
+      pdf.setTextColor(20, 45, 89); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7);
+      pdf.text("MY TICKETS", x + 8, y + 139);
+      pdf.setTextColor(100, 116, 139); pdf.setFont("helvetica", "normal"); pdf.setFontSize(5);
+      pdf.text("Passe individual e intransmissível", x + 97, y + 139, { align: "right" });
       pdf.setDrawColor(130, 130, 130); pdf.setLineWidth(0.2); pdf.setLineDashPattern([1, 1], 0);
       pdf.rect(x + 1, y + 1, cardW - 2, cardH - 2);
       pdf.setLineDashPattern([], 0);
