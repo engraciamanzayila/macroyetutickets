@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ContractPanel } from "@/components/event/ContractPanel";
+import { ContractPanel } from "@/components/event/ContractPanel";\nimport { EventAssignmentPanel } from "@/components/event/EventAssignmentPanel";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL } from "@/lib/company";
 import { kz } from "@/lib/payments";
@@ -318,7 +318,7 @@ function EventPage() {
           <TabsTrigger value="impressoes">Impressões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
-          <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
+          <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>\n          {isAdmin && <TabsTrigger value="responsavel">Responsável</TabsTrigger>}
         </TabsList>
         <TabsContent value="livre-transito" className="mt-6">
           <FreeTransitPanel eventId={eventId} eventName={event?.name ?? "THIS IS HOUSE MUSIC"} />
@@ -331,7 +331,7 @@ function EventPage() {
           <CredentialingPanel eventId={eventId} eventName={event?.name ?? "Evento"} />
         </TabsContent>
 
-        <TabsContent value="contrato" className="mt-6">
+        <TabsContent value="responsavel" className="mt-6">\n          {isAdmin && event && <EventAssignmentPanel eventId={eventId} ownerId={event.owner_id} createdBy={event.created_by} assignedAt={event.promoter_assigned_at} />}\n        </TabsContent>\n\n        <TabsContent value="contrato" className="mt-6">
           {event && <ContractPanel event={event} />}
         </TabsContent>
 
