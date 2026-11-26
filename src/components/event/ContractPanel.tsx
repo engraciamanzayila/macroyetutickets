@@ -84,19 +84,6 @@ export function ContractPanel({ event }: { event: Ev }) {
     if (error) toast.error(error.message); else refresh();
   };
 
-  const setPublished = async (published: boolean) => {
-    const slug = event.slug ?? `${event.name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")}-${event.id.slice(0, 6)}`;
-    const { error } = await supabase.from("events").update({ published, slug }).eq("id", event.id);
-    if (error) return toast.error(`Não foi possível ${published ? "publicar" : "retirar"} o evento: ${error.message}`);
-    toast.success(published ? "Evento publicado na loja" : "Evento retirado da loja");
-    refresh();
-  };
-
   const saveEmailCopies = async () => {
     const addresses = extraCc.split(/[;,\s]+/).map((email) => email.trim()).filter(Boolean);
     const all = [promoterCc.trim(), ...addresses].filter(Boolean);
