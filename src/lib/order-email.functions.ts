@@ -272,6 +272,40 @@ async function accessToken(credentials: ZohoCredentials) {
   return payload.access_token;
 }
 
+async function uploadZohoPdfAttachment(
+  credentials: ZohoCredentials,
+  token: string,
+  fileName: string,
+  base64: string,
+) {
+  const raw = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+  const form = new FormData();
+  form.append("attach", new Blob([raw], { type: "application/pdf" }), fileName);
+  const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?uploadType=multipart&isInline=false`;
+  const upload = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Zoho-oauthtoken ${token}`,
+      Accept: "application/json",
+    },
+    body: form,
+  });
+  const uploaded = (await upload.json().catch(() => null)) as {
+    status?: { code?: number; description?: string };
+    data?: Array<{ storeName?: string; attachmentPath?: string; attachmentName?: string }> |
+      { storeName?: string; attachmentPath?: string; attachmentName?: string };
+  } | null;
+  const item = Array.isArray(uploaded?.data) ? uploaded.data[0] : uploaded?.data;
+  if (!upload.ok || uploaded?.status?.code !== 200 || !item?.storeName || !item.attachmentPath || !item.attachmentName) {
+    throw new Error(`Zoho não conseguiu preparar o PDF anexo (${uploaded?.status?.description ?? upload.status}).`);
+  }
+  return {
+    storeName: item.storeName,
+    attachmentPath: item.attachmentPath,
+    attachmentName: item.attachmentName,
+  };
+}
+
 export const sendTicketEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { eventId: string; ticketIds: string[]; recipient: string; attachment?: { fileName: string; base64: string } | null }) => {
@@ -387,29 +421,12 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
         : `${baseUrl}/i/${tickets.map((ticket) => encodeURIComponent(ticket.share_token!)).join(",")}`;
       let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
       if (data.attachment) {
-        const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
-        const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?fileName=${encodeURIComponent(data.attachment.fileName)}&isInline=false`;
-        const upload = await fetch(uploadUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Zoho-oauthtoken ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: raw,
-        });
-        const uploaded = (await upload.json().catch(() => null)) as {
-          status?: { code?: number; description?: string };
-          data?: { storeName?: string; attachmentPath?: string; attachmentName?: string };
-        } | null;
-        if (!upload.ok || uploaded?.status?.code !== 200 || !uploaded.data?.storeName || !uploaded.data.attachmentPath || !uploaded.data.attachmentName) {
-          throw new Error(`Zoho não conseguiu preparar o PDF anexo (${uploaded?.status?.description ?? upload.status}).`);
-        }
-        zohoAttachment = {
-          storeName: uploaded.data.storeName,
-          attachmentPath: uploaded.data.attachmentPath,
-          attachmentName: uploaded.data.attachmentName,
-        };
+        zohoAttachment = await uploadZohoPdfAttachment(
+          credentials,
+          token,
+          data.attachment.fileName,
+          data.attachment.base64,
+        );
       }
       const counts = new Map<string, { count: number; type: string; name: string }>();
       for (const ticket of tickets) {
@@ -842,25 +859,12 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
       const deliveryUrl = data.attachment ? "" : `${baseUrl}/encomenda/${encodeURIComponent(data.orderToken)}`;
       let zohoAttachment: { storeName: string; attachmentPath: string; attachmentName: string } | null = null;
       if (data.attachment) {
-        const raw = Uint8Array.from(atob(data.attachment.base64), (char) => char.charCodeAt(0));
-        const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?fileName=${encodeURIComponent(data.attachment.fileName)}&isInline=false`;
-        const upload = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-          body: raw,
-        });
-        const uploaded = (await upload.json().catch(() => null)) as {
-          status?: { code?: number; description?: string };
-          data?: { storeName?: string; attachmentPath?: string; attachmentName?: string };
-        } | null;
-        if (!upload.ok || uploaded?.status?.code !== 200 || !uploaded.data?.storeName || !uploaded.data.attachmentPath || !uploaded.data.attachmentName) {
-          throw new Error(`Zoho não conseguiu preparar o PDF anexo (${uploaded?.status?.description ?? upload.status})`);
-        }
-        zohoAttachment = {
-          storeName: uploaded.data.storeName,
-          attachmentPath: uploaded.data.attachmentPath,
-          attachmentName: uploaded.data.attachmentName,
-        };
+        zohoAttachment = await uploadZohoPdfAttachment(
+          credentials,
+          token,
+          data.attachment.fileName,
+          data.attachment.base64,
+        );
       }
       const deliverySection = data.attachment
         ? `<p style="margin:14px 0;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;color:#166534;font-size:14px;line-height:1.6"><strong>Os seus ingressos seguem em anexo.</strong> Descarregue o PDF e apresente o QR Code de cada ingresso à entrada.</p>`
