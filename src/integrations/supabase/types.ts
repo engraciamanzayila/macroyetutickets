@@ -203,6 +203,7 @@ export type Database = {
           owner_id: string | null
           payment_info: string | null
           published: boolean
+          registration_fields: Json
           sheet_id: string | null
           slug: string | null
           ticket_email_cc: string | null
@@ -228,6 +229,7 @@ export type Database = {
           owner_id?: string | null
           payment_info?: string | null
           published?: boolean
+          registration_fields?: Json
           sheet_id?: string | null
           slug?: string | null
           ticket_email_cc?: string | null
@@ -365,6 +367,8 @@ export type Database = {
           access_token: string
           buyer_email: string | null
           buyer_name: string
+          buyer_institution: string | null
+          buyer_institution: string | null
           buyer_phone: string
           buyer_user_id: string | null
           created_at: string
@@ -399,6 +403,7 @@ export type Database = {
           access_token?: string
           buyer_email?: string | null
           buyer_name?: string
+          buyer_institution?: string | null
           buyer_phone?: string
           buyer_user_id?: string | null
           created_at?: string
