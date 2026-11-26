@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 
 type Pass = { id: string; reference_code: string; qr_token: string; status: string; vehicle_plate: string | null; checked_in_at: string | null };
 
-const makeReference = () => `THM-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+const makeReference = () => `MYT-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 const cleanPlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 
 export function FreeTransitPanel({ eventId, eventName }: { eventId: string; eventName: string }) {
@@ -101,7 +101,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
       const qr = await QRCode.toDataURL(`${window.location.origin}/livre-transito/${pass.qr_token}`, { width: 420, margin: 1, errorCorrectionLevel: "H" });
       pdf.setFillColor(10, 14, 24); pdf.rect(x, y, cardW, cardH, "F");
       pdf.setDrawColor(222, 150, 62); pdf.setLineWidth(0.7); pdf.roundedRect(x + 5, y + 5, cardW - 10, cardH - 10, 3, 3, "S");
-      pdf.setTextColor(240, 178, 91); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.text("THIS IS HOUSE MUSIC", x + 10, y + 17);
+      pdf.setTextColor(240, 178, 91); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.text("PASSE OFICIAL DE ESTACIONAMENTO", x + 10, y + 17);
       pdf.setTextColor(255, 255, 255); pdf.setFontSize(18); pdf.text("LIVRE-TRÂNSITO", x + 10, y + 31);
       pdf.setFontSize(8); pdf.setTextColor(193, 199, 211); pdf.text("PASSE OFICIAL DE ACESSO DE VIATURA", x + 10, y + 38);
       pdf.setDrawColor(240, 178, 91); pdf.line(x + 10, y + 44, x + cardW - 10, y + 44);
@@ -118,7 +118,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
       pdf.rect(x + 1, y + 1, cardW - 2, cardH - 2);
       pdf.setLineDashPattern([], 0);
     }
-    pdf.save(`THIS-IS-HOUSE-MUSIC-${passes.length}-PASSES-LIVRE-TRANSITO-A6.pdf`);
+    const safeEventName = eventName.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 70) || "EVENTO";\n    pdf.save(`${safeEventName}-${passes.length}-PASSES-ESTACIONAMENTO-A6.pdf`);
   };
 
   return <section className="space-y-5">
