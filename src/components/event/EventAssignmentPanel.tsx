@@ -42,9 +42,13 @@ export function EventAssignmentPanel({ eventId, ownerId, createdBy, assignedAt }
     queryKey: ["event-assigned-promoter", ownerId],
     enabled: !!ownerId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id,full_name,email").eq("id", ownerId!).single();
+      const [{ data, error }, { data: roles, error: rolesError }] = await Promise.all([
+        supabase.from("profiles").select("id,full_name,email").eq("id", ownerId!).single(),
+        supabase.from("user_roles").select("role").eq("user_id", ownerId!),
+      ]);
       if (error) throw error;
-      return data;
+      if (rolesError) throw rolesError;
+      return { ...data, roles: (roles ?? []).map((item) => item.role) };
     },
   });
 
