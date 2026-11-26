@@ -792,7 +792,8 @@ export type Database = {
         Args: { p_event: string; p_ticket_ids: string[] }
         Returns: number
       }
-      assign_event_promoter: { Args: { p_event: string; p_promoter: string }; Returns: undefined }\n      review_event: {
+      assign_event_promoter: { Args: { p_event: string; p_promoter: string }; Returns: undefined }
+      review_event: {
         Args: { p_approve: boolean; p_event: string; p_note: string }
         Returns: undefined
       }
