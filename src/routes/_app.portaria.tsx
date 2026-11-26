@@ -278,9 +278,9 @@ function Gate() {
     ? result.result === "ok" ? "bg-success text-success-foreground" : result.result === "used" ? "bg-warning text-warning-foreground" : "bg-destructive text-destructive-foreground"
     : "bg-card";
   const title = result ? (result.tableCard
-    ? { ok: "CARTÃO DE MESA VÁLIDO", used: "CARTÃO DE MESA VÁLIDO", void: "CARTÃO DE MESA ANULADO", not_found: "CARTÃO DE MESA NÃO RECONHECIDO" }[result.result]
+    ? { ok: "CARTÃO DE MESA VÁLIDO", used: "CARTÃO DE MESA VÁLIDO", void: "CARTÃO DE MESA ANULADO", not_found: "CARTÃO DE MESA NÃO RECONHECIDO", wrong_day: "CARTÃO DE MESA NÃO RECONHECIDO" }[result.result]
     : scanMode === "credential"
-      ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA" }[result.result]
+      ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA", wrong_day: "CREDENCIAL NÃO RECONHECIDA" }[result.result]
       : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO", wrong_day: "INGRESSO DE OUTRO DIA" }[result.result]) : "Pronto para ler";
 
   return (
