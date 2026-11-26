@@ -135,12 +135,12 @@ export async function createStandardTicketArt(details: StandardTicketDetails) {
 
   ctx.fillStyle = "#142d59";
   ctx.font = "700 22px sans-serif";
-  ctx.fillText((details.category || "EVENTO").toUpperCase().slice(0, 48), 64, 602);
+  ctx.fillText((details.category || "EVENTO").toUpperCase().slice(0, 48), 64, 640);
   ctx.fillStyle = "#172033";
   ctx.font = "800 54px sans-serif";
-  const titleLines = drawWrappedText(ctx, details.eventName, 64, 676, 770, 62, 2);
+  const titleLines = drawWrappedText(ctx, details.eventName, 64, 714, 770, 62, 2);
 
-  let y = 676 + Math.max(1, titleLines) * 62 + 38;
+  let y = 714 + Math.max(1, titleLines) * 62 + 38;
   ctx.fillStyle = "#475569";
   ctx.font = "500 28px sans-serif";
   const date = details.eventDate
