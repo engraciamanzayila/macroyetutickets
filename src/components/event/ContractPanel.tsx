@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ExternalLink, Store } from "lucide-react";
+import { Copy, ExternalLink, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL, COMMISSION_EXCLUSIVE, COMMISSION_STANDARD, COMPANY } from "@/lib/company";
@@ -142,9 +142,17 @@ export function ContractPanel({ event }: { event: Ev }) {
                 <Store className="h-4 w-4" /> {event.published ? "Retirar da loja" : "Publicar na loja"}
               </Button>
               {event.published && event.slug && (
-                <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={`/e/${event.slug}`} target="_blank" rel="noreferrer">
-                  Abrir página pública <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                <>
+                  <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={`/e/${event.slug}`} target="_blank" rel="noreferrer">
+                    Abrir página pública <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <Button type="button" size="sm" variant="outline" onClick={() => {
+                    const url = `${window.location.origin}/e/${event.slug}`;
+                    void navigator.clipboard.writeText(url).then(() => toast.success("Link directo da loja copiado."));
+                  }}>
+                    <Copy className="h-4 w-4" /> Copiar link da loja
+                  </Button>
+                </>
               )}
             </div>
           ) : (
