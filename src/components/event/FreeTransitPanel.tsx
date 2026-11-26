@@ -6,6 +6,7 @@ import { CarFront, Download, Plus, Printer, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MY_TICKETS_OFFICIAL_LOGO } from "@/assets/my-tickets-official-logo";
 
 type Pass = { id: string; reference_code: string; qr_token: string; status: string; vehicle_plate: string | null; checked_in_at: string | null };
 
@@ -149,8 +150,7 @@ export function FreeTransitPanel({ eventId, eventName, eventCoverUrl }: { eventI
       pdf.setTextColor(71, 85, 105); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6);
       pdf.text("MATRÍCULA A REGISTAR NA ENTRADA", x + 8, y + 119);
       pdf.setDrawColor(100, 116, 139); pdf.line(x + 8, y + 128, x + 54, y + 128);
-      pdf.setTextColor(20, 45, 89); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7);
-      pdf.text("MY TICKETS", x + 8, y + 139);
+      pdf.addImage(MY_TICKETS_OFFICIAL_LOGO, "JPEG", x + 8, y + 130, 27, 10.9);
       pdf.setTextColor(100, 116, 139); pdf.setFont("helvetica", "normal"); pdf.setFontSize(5);
       pdf.text("Passe individual e intransmissível", x + 97, y + 139, { align: "right" });
       pdf.setDrawColor(130, 130, 130); pdf.setLineWidth(0.2); pdf.setLineDashPattern([1, 1], 0);
