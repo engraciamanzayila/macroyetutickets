@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, MapPin, Plus } from "lucide-react";
+import { CalendarDays, MapPin, Plus, ShieldCheck, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_app/eventos/")({
 });
 
 function Events() {
-  const { isManager, session } = useAuth();
+  const { isManager, isAdmin, session } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: events = [], isLoading } = useQuery({
@@ -36,6 +36,12 @@ function Events() {
     },
   });
   const [open, setOpen] = useState(false);
+  const pendingApproval = events.filter((event: any) =>
+    event.approval_status !== "approved" && event.approval_status !== "rejected"
+  );
+  const approvedNotPublished = events.filter((event: any) =>
+    event.approval_status === "approved" && !event.published
+  );
   const [form, setForm] = useState({
     name: "",
     event_date: "",
@@ -97,6 +103,46 @@ function Events() {
           </Dialog>
         )}
       </div>
+      {isAdmin && (
+        <section className="space-y-4 rounded-2xl border border-primary/20 bg-primary/[0.025] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="text-xl font-bold">Aprovação e disponibilização na loja</h2></div>
+              <p className="mt-1 text-sm text-muted-foreground">Analise os eventos, associe uma conta de Promotor responsável e decida sobre a aprovação. A publicação na loja é uma etapa separada.</p>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="rounded-full bg-amber-500/10 px-3 py-1.5 font-semibold text-amber-700">{pendingApproval.length} por analisar</span>
+              <span className="rounded-full bg-secondary px-3 py-1.5 font-semibold">{approvedNotPublished.length} aprovados não publicados</span>
+            </div>
+          </div>
+          {pendingApproval.length === 0 && approvedNotPublished.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Não existem eventos pendentes de aprovação ou publicação.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {pendingApproval.map((ev: any) => (
+                <article key={ev.id} className="rounded-xl border bg-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><h3 className="font-bold">{ev.name}</h3><p className="mt-1 text-xs text-muted-foreground">{[ev.event_date ? new Date(ev.event_date).toLocaleDateString("pt-AO") : null, ev.venue, ev.city].filter(Boolean).join(" · ") || "Data e local por definir"}</p></div>
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700">Por aprovar</span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">Próximo passo: verificar os dados e o contrato, associar o Promotor responsável e aprovar ou recusar.</p>
+                  <Button asChild size="sm" className="mt-4"><Link to="/eventos/$eventId" params={{ eventId: ev.id }}>Analisar evento</Link></Button>
+                </article>
+              ))}
+              {approvedNotPublished.map((ev: any) => (
+                <article key={ev.id} className="rounded-xl border bg-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><h3 className="font-bold">{ev.name}</h3><p className="mt-1 text-xs text-muted-foreground">{[ev.event_date ? new Date(ev.event_date).toLocaleDateString("pt-AO") : null, ev.venue, ev.city].filter(Boolean).join(" · ") || "Data e local por definir"}</p></div>
+                    <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">Aprovado · fora da loja</span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">A aprovação está concluída. Pode abrir o evento e decidir quando o disponibilizar publicamente.</p>
+                  <Button asChild size="sm" variant="outline" className="mt-4"><Link to="/eventos/$eventId" params={{ eventId: ev.id }}><Store className="mr-2 h-4 w-4" />Gerir publicação</Link></Button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       {isLoading ? (
         <p className="text-muted-foreground">A carregar…</p>
       ) : events.length === 0 ? (
