@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
-type Ev = { id: string; name: string; slug: string | null; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number; ticket_email_cc: string | null; ticket_email_extra_cc: string[] };
+type Ev = { id: string; owner_id: string | null; promoter_assigned_at: string | null; name: string; slug: string | null; event_date: string | null; venue: string | null; city: string | null; approval_status: string; approval_note: string | null; published: boolean; commission_pct: number; ticket_email_cc: string | null; ticket_email_extra_cc: string[] };
 
 const FIELDS = [
   ["company", "Empresa / nome do promotor"],
@@ -32,6 +32,16 @@ export function ContractPanel({ event }: { event: Ev }) {
   const { data: contract } = useQuery({
     queryKey: ["contract", event.id],
     queryFn: async () => (await supabase.from("event_contracts").select("*").eq("event_id", event.id).maybeSingle()).data,
+  });
+  const { data: assignedPromoterRole } = useQuery({
+    queryKey: ["event-approval-promoter-role", event.owner_id],
+    enabled: !!event.owner_id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", event.owner_id!);
+      if (error) throw error;
+      const roles = (data ?? []).map((item) => item.role);
+      return roles.includes("promoter") && !roles.some((role) => ["admin", "staff", "consumer_support", "promoter_support"].includes(role));
+    },
   });
   const [form, setForm] = useState<Record<string, string>>({});
   const [exclusive, setExclusive] = useState(false);
@@ -142,8 +152,9 @@ export function ContractPanel({ event }: { event: Ev }) {
           )}
           {isAdmin && (
             <div className="space-y-3 border-t pt-3"><Textarea placeholder="Nota para o promotor (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
+              {!assignedPromoterRole && <p className="text-xs text-amber-700">Antes de aprovar, associe uma conta de Promotor no separador Responsável. O Administrador não pode ser o responsável operacional.</p>}
               <div className="flex gap-2">
-                <Button onClick={() => review(true)}>Aprovar</Button>
+                <Button disabled={!assignedPromoterRole} onClick={() => review(true)}>Aprovar</Button>
                 <Button variant="secondary" onClick={() => review(false)}>Recusar</Button>
               </div>
             </div>
