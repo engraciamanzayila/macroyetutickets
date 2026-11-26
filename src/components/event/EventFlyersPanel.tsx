@@ -48,6 +48,7 @@ export function EventFlyersPanel({ eventId }: { eventId: string }) {
   const [customHeight, setCustomHeight] = useState("");
   const [inputKey, setInputKey] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [applyingPath, setApplyingPath] = useState<string | null>(null);
 
   const { data: uploaded = [], isLoading, error: listError } = useQuery({
     queryKey: ["event-flyers", eventId],
@@ -136,6 +137,56 @@ export function EventFlyersPanel({ eventId }: { eventId: string }) {
     }
   };
 
+  const applyAsTicketArt = async (file: FlyerFile) => {
+    if (!confirm("Aplicar esta arte como fundo dos ingressos de todos os grupos deste evento? A posição e o tamanho do QR continuam editáveis e serão preservados.")) return;
+    setApplyingPath(file.path);
+    let uploadedPath: string | null = null;
+    try {
+      const { data: groups, error: groupsError } = await supabase
+        .from("ticket_groups")
+        .select("id")
+        .eq("event_id", eventId);
+      if (groupsError) throw groupsError;
+      if (!groups?.length) throw new Error("Este evento ainda não tem grupos de ingressos.");
+
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from("event-flyers")
+        .download(file.path);
+      if (downloadError || !blob) throw downloadError ?? new Error("Não foi possível ler a arte.");
+
+      const bitmap = await createImageBitmap(blob);
+      const width = bitmap.width;
+      const height = bitmap.height;
+      bitmap.close();
+
+      const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+      const contentType = blob.type || (extension === "jpg" || extension === "jpeg" ? "image/jpeg" : extension === "webp" ? "image/webp" : "image/png");
+      uploadedPath = `${eventId}/ticket-art-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from("arts").upload(uploadedPath, blob, {
+        contentType,
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from("ticket_groups")
+        .update({ art_path: uploadedPath, art_width: width, art_height: height })
+        .eq("event_id", eventId);
+      if (updateError) throw updateError;
+
+      toast.success(`Arte aplicada a ${groups.length} grupo(s) de ingressos. Agora já aparece no Editor.`);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["groups", eventId] }),
+        qc.invalidateQueries({ queryKey: ["group"] }),
+      ]);
+    } catch (error) {
+      if (uploadedPath) await supabase.storage.from("arts").remove([uploadedPath]);
+      toast.error(`Não foi possível aplicar a arte aos ingressos: ${(error as Error).message}`);
+    } finally {
+      setApplyingPath(null);
+    }
+  };
+
   const removeFlyer = async (file: FlyerFile) => {
     const { error } = await supabase.storage.from("event-flyers").remove([file.path]);
     if (error) return toast.error(`Não foi possível remover ${file.name}: ${error.message}`);
@@ -146,10 +197,10 @@ export function EventFlyersPanel({ eventId }: { eventId: string }) {
   return (
     <section className="space-y-4 rounded-2xl border bg-card p-5">
       <div>
-        <h2 className="text-lg font-bold">Flyers para divulgação</h2>
+        <h2 className="text-lg font-bold">Flyers para divulgação e arte dos ingressos</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Carrega a versão preparada para cada rede. As dimensões são recomendações; guardamos também as dimensões reais do ficheiro.
-          JPG, PNG ou WEBP, até 20 MB por imagem.
+          JPG, PNG ou WEBP, até 20 MB por imagem. Depois de carregar a arte oficial, usa “Usar nos ingressos” para a associar aos grupos e fazê-la aparecer no editor de QR.
         </p>
       </div>
 
@@ -205,12 +256,17 @@ export function EventFlyersPanel({ eventId }: { eventId: string }) {
                 </a>
                 <span className="mt-2 block truncate text-xs text-muted-foreground">{file.label}</span>
               </div>
-              <Button variant="ghost" size="icon" title="Descarregar flyer" asChild>
-                <a href={file.url} download><Download className="h-4 w-4" /></a>
-              </Button>
-              <Button variant="ghost" size="icon" title="Remover flyer" onClick={() => void removeFlyer(file)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex shrink-0 flex-col gap-1">
+                <Button size="sm" variant="secondary" disabled={!!applyingPath} onClick={() => void applyAsTicketArt(file)}>
+                  {applyingPath === file.path ? "A aplicar…" : "Usar nos ingressos"}
+                </Button>
+                <Button variant="ghost" size="icon" title="Descarregar flyer" asChild>
+                  <a href={file.url} download><Download className="h-4 w-4" /></a>
+                </Button>
+                <Button variant="ghost" size="icon" title="Remover flyer" onClick={() => void removeFlyer(file)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
