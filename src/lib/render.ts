@@ -11,8 +11,8 @@ export const DEFAULT_LAYOUT: Layout = {
 };
 
 export const STANDARD_TICKET_LAYOUT: Layout = {
-  qr: { x: 0.8, y: 0.2, w: 0.16, dark: "#111111", light: "#ffffff" },
-  code: { x: 0.78, y: 0.84, size: 0.035, color: "#ffffff", show: true, bold: true },
+  qr: { x: 0.725, y: 0.22, w: 0.19, dark: "#111827", light: "#ffffff" },
+  code: { x: 0.725, y: 0.36, size: 0.018, color: "#111827", show: true, bold: true },
 };
 
 export type StandardTicketDetails = {
@@ -62,99 +62,122 @@ export async function createStandardTicketArt(details: StandardTicketDetails) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível preparar o modelo do ingresso.");
 
-  const background = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  background.addColorStop(0, "#181818");
-  background.addColorStop(1, "#29251d");
-  ctx.fillStyle = background;
+  // Clean, light ticket stock. The event artwork is contained in its own
+  // reserved panel; it is never stretched across the ticket background.
+  ctx.fillStyle = "#f4f6fa";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(28, 28, 844, 1544);
+  ctx.strokeStyle = "#d9e0ea";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(28, 28, 844, 1544);
 
-  const flyerHeight = 500;
+  ctx.fillStyle = "#142d59";
+  ctx.fillRect(28, 28, 844, 94);
+  ctx.fillStyle = "#f3bd42";
+  ctx.fillRect(64, 62, 34, 34);
+  ctx.strokeStyle = "#142d59";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(72, 70, 18, 18);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 36px sans-serif";
+  ctx.fillText("MY Tickets", 118, 88);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#dbe6f7";
+  ctx.font = "600 17px sans-serif";
+  ctx.fillText("INGRESSO DIGITAL", 836, 84);
+  ctx.textAlign = "left";
+
+  // Left panel reserved for the complete official event artwork.
+  const artX = 64, artY = 160, artW = 340, artH = 370;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(artX, artY, artW, artH);
+  ctx.strokeStyle = "#d7deea";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(artX, artY, artW, artH);
   if (details.coverUrl) {
     const response = await fetch(details.coverUrl);
-    if (!response.ok) throw new Error("Não foi possível carregar a capa do evento para o ingresso.");
+    if (!response.ok) throw new Error("Não foi possível carregar a arte oficial do evento.");
     const flyer = await createImageBitmap(await response.blob());
     try {
-      const scale = Math.max(canvas.width / flyer.width, flyerHeight / flyer.height);
+      const scale = Math.min((artW - 20) / flyer.width, (artH - 20) / flyer.height);
       const width = flyer.width * scale;
       const height = flyer.height * scale;
-      ctx.drawImage(flyer, (canvas.width - width) / 2, (flyerHeight - height) / 2, width, height);
+      ctx.drawImage(flyer, artX + (artW - width) / 2, artY + (artH - height) / 2, width, height);
     } finally {
       flyer.close();
     }
-    const overlay = ctx.createLinearGradient(0, 0, 0, flyerHeight);
-    overlay.addColorStop(0, "rgba(0,0,0,0.42)");
-    overlay.addColorStop(0.65, "rgba(0,0,0,0.08)");
-    overlay.addColorStop(1, "rgba(24,24,24,0.96)");
-    ctx.fillStyle = overlay;
-    ctx.fillRect(0, 0, canvas.width, flyerHeight);
+  } else {
+    ctx.fillStyle = "#eef2f7";
+    ctx.fillRect(artX + 10, artY + 10, artW - 20, artH - 20);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "600 22px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("ARTE DO EVENTO", artX + artW / 2, artY + artH / 2);
+    ctx.textAlign = "left";
   }
 
-  ctx.fillStyle = "#f4bf4f";
-  ctx.fillRect(64, 62, 58, 58);
-  ctx.strokeStyle = "#181818";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(76, 76, 34, 30);
-  ctx.setLineDash([4, 3]);
-  ctx.beginPath();
-  ctx.moveTo(99, 77);
-  ctx.lineTo(99, 105);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // Right panel reserves a white, high-contrast area for the QR and reference.
+  const qrX = 450, qrY = 160, qrW = 386, qrH = 370;
   ctx.fillStyle = "#ffffff";
-  ctx.font = "800 42px sans-serif";
-  ctx.fillText("MY Tickets", 96, 108);
+  ctx.fillRect(qrX, qrY, qrW, qrH);
+  ctx.strokeStyle = "#d7deea";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(qrX, qrY, qrW, qrH);
+  ctx.fillStyle = "#142d59";
+  ctx.font = "700 20px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("APRESENTE ESTE QR À ENTRADA", qrX + qrW / 2, qrY + 40);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 16px sans-serif";
+  ctx.fillText("Código individual de validação", qrX + qrW / 2, qrY + qrH - 24);
+  ctx.textAlign = "left";
 
-  ctx.fillStyle = "#f4bf4f";
-  ctx.font = "700 24px sans-serif";
-  ctx.fillText((details.category || "EVENTO").toUpperCase().slice(0, 48), 70, 574);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "800 58px sans-serif";
-  const titleLines = drawWrappedText(ctx, details.eventName, 70, 652, 560, 66, 2);
+  ctx.fillStyle = "#142d59";
+  ctx.font = "700 22px sans-serif";
+  ctx.fillText((details.category || "EVENTO").toUpperCase().slice(0, 48), 64, 602);
+  ctx.fillStyle = "#172033";
+  ctx.font = "800 54px sans-serif";
+  const titleLines = drawWrappedText(ctx, details.eventName, 64, 676, 770, 62, 2);
 
-  let y = 652 + Math.max(1, titleLines) * 66 + 34;
-  ctx.fillStyle = "#e9e5dc";
+  let y = 676 + Math.max(1, titleLines) * 62 + 38;
+  ctx.fillStyle = "#475569";
   ctx.font = "500 28px sans-serif";
   const date = details.eventDate
     ? new Date(`${details.eventDate}T12:00:00`).toLocaleDateString("pt-AO")
     : null;
   const dateTime = [date, details.eventTime].filter(Boolean).join(" · ");
   if (dateTime) {
-    ctx.fillText(dateTime, 70, y);
+    ctx.fillText(dateTime, 64, y);
     y += 54;
   }
   const location = [details.venue, details.city].filter(Boolean).join(" · ");
   if (location) {
-    drawWrappedText(ctx, location, 70, y, 700, 40, 2);
+    drawWrappedText(ctx, location, 64, y, 760, 38, 2);
     y += 76;
   }
 
-  ctx.fillStyle = "#f4bf4f";
-  ctx.fillRect(70, 1010, 760, 2);
-  ctx.fillStyle = "#aaa49a";
+  ctx.fillStyle = "#e8edf4";
+  ctx.fillRect(64, 1010, 772, 3);
+  ctx.fillStyle = "#64748b";
   ctx.font = "700 22px sans-serif";
-  ctx.fillText("TIPO DE INGRESSO", 70, 1070);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillText("TIPO DE INGRESSO", 64, 1080);
+  ctx.fillStyle = "#142d59";
   ctx.font = "800 42px sans-serif";
-  drawWrappedText(ctx, details.ticketType, 70, 1130, 700, 50, 1);
-  ctx.fillStyle = "#e9e5dc";
-  ctx.font = "500 28px sans-serif";
-  drawWrappedText(ctx, details.groupName, 70, 1182, 700, 38, 1);
+  drawWrappedText(ctx, details.ticketType, 64, 1140, 760, 48, 1);
+  ctx.fillStyle = "#334155";
+  ctx.font = "600 28px sans-serif";
+  drawWrappedText(ctx, details.groupName, 64, 1198, 760, 38, 1);
   if (details.price > 0) {
-    ctx.fillStyle = "#f4bf4f";
-    ctx.font = "700 24px sans-serif";
-    ctx.fillText(`${details.price.toLocaleString("pt-AO")} Kz`, 70, 1228);
+    ctx.fillStyle = "#142d59";
+    ctx.font = "700 30px sans-serif";
+    ctx.fillText(`${details.price.toLocaleString("pt-AO")} Kz`, 64, 1260);
   }
-  ctx.fillStyle = "#aaa49a";
+  ctx.fillStyle = "#64748b";
   ctx.font = "500 20px sans-serif";
-  ctx.fillText("Apresente o QR code à entrada do evento", 70, 1300);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "700 20px sans-serif";
-  ctx.fillText("MY Tickets", 70, 1570);
-  ctx.fillStyle = "#aaa49a";
-  ctx.font = "500 16px sans-serif";
+  ctx.fillText("Ingresso pessoal · não partilhe o QR Code", 64, 1518);
   ctx.textAlign = "right";
-  ctx.fillText("Ingresso pessoal · não partilhe o QR", 830, 1570);
+  ctx.fillText("MY Tickets · Acesso seguro", 836, 1518);
   ctx.textAlign = "left";
 
   return new Promise<Blob>((resolve, reject) => {
