@@ -33,6 +33,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContractPanel } from "@/components/event/ContractPanel";
 import { EventAssignmentPanel } from "@/components/event/EventAssignmentPanel";
+import { EventPublicationPanel } from "@/components/event/EventPublicationPanel";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL } from "@/lib/company";
 import { kz } from "@/lib/payments";
@@ -360,6 +361,7 @@ function EventPage() {
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           <TabsTrigger value="partilha">Partilha</TabsTrigger>
           <TabsTrigger value="contrato">Contrato & aprovação</TabsTrigger>
+          {isAdmin && <TabsTrigger value="publicacao">Publicação na loja</TabsTrigger>}
           {isAdmin && <TabsTrigger value="responsavel">Responsável</TabsTrigger>}
         </TabsList>
         <TabsContent value="livre-transito" className="mt-6">
@@ -380,6 +382,11 @@ function EventPage() {
         <TabsContent value="contrato" className="mt-6">
           {event && <ContractPanel event={event} />}
         </TabsContent>
+        {isAdmin && event && (
+          <TabsContent value="publicacao" className="mt-6">
+            <EventPublicationPanel event={{ id: event.id, name: event.name, slug: event.slug, approval_status: event.approval_status, published: event.published, owner_id: event.owner_id }} />
+          </TabsContent>
+        )}
 
         <TabsContent value="grupos" className="space-y-6 mt-6">
           <EventFlyersPanel eventId={eventId} />
