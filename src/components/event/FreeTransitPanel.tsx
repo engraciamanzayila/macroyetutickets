@@ -16,7 +16,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
   const [passes, setPasses] = useState<Pass[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [quantity, setQuantity] = useState("50");
+  const [quantity, setQuantity] = useState("");
   const [ref, setRef] = useState("");
   const [plate, setPlate] = useState("");
   const [checking, setChecking] = useState(false);
@@ -125,7 +125,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border bg-card p-5">
       <div className="min-w-[220px] flex-1"><div className="flex items-center gap-2 font-semibold"><CarFront className="size-5 text-primary" /> Passes de livre-trânsito</div><p className="mt-1 text-sm text-muted-foreground">Gera a quantidade necessária em cada lote. Os passes anteriores são preservados · formato A6 · 4 por folha A4.</p><p className="mt-1 text-xs text-muted-foreground">{passes.length} passe(s) já criados neste evento.</p></div>
-      <div className="flex flex-wrap items-end gap-2"><label className="space-y-1 text-xs"><span>Quantidade a acrescentar</span><Input type="number" min="1" step="1" value={quantity} disabled={generating} onChange={(e) => setQuantity(e.target.value)} className="w-36" /></label><Button onClick={generatePasses} disabled={generating || !quantity || Number(quantity) < 1}><Plus className="mr-2 size-4" />{generating ? "A gerar…" : "Gerar passes"}</Button><Button variant="outline" onClick={exportPdf} disabled={!passes.length || generating}><Printer className="mr-2 size-4" />Imprimir todos ({passes.length})</Button></div>
+      <div className="flex flex-wrap items-end gap-2"><label className="space-y-1 text-xs"><span>Quantidade a acrescentar</span><Input type="number" min="1" step="1" value={quantity} placeholder="Quantidade" disabled={generating} onChange={(e) => setQuantity(e.target.value)} className="w-36" /></label><Button onClick={generatePasses} disabled={generating || !quantity || Number(quantity) < 1}><Plus className="mr-2 size-4" />{generating ? "A gerar…" : "Gerar passes"}</Button><Button variant="outline" onClick={exportPdf} disabled={!passes.length || generating}><Printer className="mr-2 size-4" />Imprimir todos ({passes.length})</Button></div>
     </div>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {passes.map((pass) => <div key={pass.id} className="rounded-xl border bg-card p-4"><div className="flex items-center justify-between gap-2"><b className="font-mono">{pass.reference_code}</b><span className={pass.status === "active" ? "text-xs text-emerald-600" : "text-xs text-muted-foreground"}>{pass.status === "active" ? "Disponível" : pass.status === "used" ? "Utilizado" : "Cancelado"}</span></div><p className="mt-2 text-sm text-muted-foreground">Matrícula: <b className="text-foreground">{pass.vehicle_plate || "Por registar"}</b></p></div>)}
