@@ -228,6 +228,7 @@ function Gate() {
       if (!t) r = { result: "not_found", code, offline: true };
       else if (t.s === "void") r = { result: "void", code, group: g?.name, type: g?.type, recipient: g?.recipient, price: g?.price, offline: true };
       else if (t.s === "used") r = { result: "used", code, group: g?.name, type: g?.type, recipient: g?.recipient, used_at: t.at, offline: true };
+      else if (g?.valid_on && g.valid_on !== luandaDate()) r = { result: "wrong_day", code, group: g.name, type: g.type, recipient: g.recipient, valid_on: g.valid_on, scanned_on: luandaDate(), offline: true };
       else {
         const at = new Date().toISOString();
         updateLocal(code, { ...t, s: "used", at });
