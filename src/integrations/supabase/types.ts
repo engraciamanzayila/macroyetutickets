@@ -763,6 +763,7 @@ export type Database = {
           p_delivery: string
           p_email: string
           p_items: Json
+          p_institution: string
           p_method: string
           p_name: string
           p_phone: string
