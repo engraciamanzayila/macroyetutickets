@@ -318,7 +318,6 @@ function CartPage() {
                 <Label htmlFor="cart-buyer-phone">Telefone</Label>
                 <Input id="cart-buyer-phone" name="phone" type="tel" required minLength={6} />
               </div>
-              <div className="space-y-2">
               {needsInstitution && <div className="space-y-2">
                 <Label htmlFor="cart-buyer-institution">Instituição de ensino / organização (opcional)</Label>
                 <Input id="cart-buyer-institution" name="institution" maxLength={180} />
