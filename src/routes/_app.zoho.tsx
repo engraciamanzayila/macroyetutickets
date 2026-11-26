@@ -94,7 +94,7 @@ function ZohoSettings() {
             {statusQuery.data?.connected ? "Conta ligada" : "Conta ainda não ligada"}
           </p>
           <p className="text-sm text-muted-foreground">
-            Remetente: <b>myticket@macroyeto.com</b>
+            Remetente: <b>mytickets@macroyetu.com</b>
             {statusQuery.data?.connected && statusQuery.data.updatedAt
               ? ` · atualizada ${new Date(statusQuery.data.updatedAt).toLocaleString("pt-AO")}`
               : ""}
@@ -108,7 +108,7 @@ function ZohoSettings() {
           <h2 className="font-semibold">Passo-a-passo (cerca de 3 minutos)</h2>
         </div>
         <ol className="space-y-4 text-sm">
-          <li className="rounded-lg border p-4"><b>1. Entre na consola do Zoho</b><p className="mt-1 text-muted-foreground">Abra <a className="text-primary underline" href="https://api-console.zoho.com" target="_blank" rel="noreferrer">api-console.zoho.com</a> com a conta que gere a caixa <b>myticket@macroyeto.com</b>. Se o endereço mudar para <i>.eu</i> ou outro, escolha essa mesma região no passo 5.</p></li>
+          <li className="rounded-lg border p-4"><b>1. Entre na consola do Zoho</b><p className="mt-1 text-muted-foreground">Abra <a className="text-primary underline" href="https://api-console.zoho.com" target="_blank" rel="noreferrer">api-console.zoho.com</a> com a conta que gere a caixa <b>mytickets@macroyetu.com</b>. Se o endereço mudar para <i>.eu</i> ou outro, escolha essa mesma região no passo 5.</p></li>
           <li className="rounded-lg border p-4"><b>2. Crie um “Self Client”</b><p className="mt-1 text-muted-foreground">Clique em <b>Add Client</b> → <b>Self Client</b> → <b>Create</b> → <b>OK</b>. Se já existir, clique nele.</p></li>
           <li className="rounded-lg border p-4"><b>3. Copie o Client ID e o Client Secret</b><p className="mt-1 text-muted-foreground">No separador <b>Client Secret</b>, copie os dois valores e cole-os nos campos abaixo. Se já os partilhou por mensagem, clique primeiro em <b>Regenerate</b> no Zoho para criar um secret novo.</p></li>
           <li className="rounded-lg border p-4"><b>4. Gere o code</b><p className="mt-1 text-muted-foreground">No separador <b>Generate Code</b>, cole este texto em <b>Scope</b>:</p>
@@ -169,7 +169,7 @@ function ZohoSettings() {
             />
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Ao clicar, confirmamos o acesso à caixa <b>myticket@macroyeto.com</b> e guardamos os
+            Ao clicar, confirmamos o acesso à caixa <b>mytickets@macroyetu.com</b> e guardamos os
             dados de forma cifrada. Eles não voltam a aparecer nesta página.
           </p>
           <Button type="submit" disabled={saving}>
