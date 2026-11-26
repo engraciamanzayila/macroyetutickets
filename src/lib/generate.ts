@@ -23,6 +23,7 @@ export type Group = {
   quantity: number;
   price?: number;
   for_sale?: boolean;
+  valid_on?: string | null;
   art_path: string | null;
   art_width: number | null;
   art_height: number | null;
