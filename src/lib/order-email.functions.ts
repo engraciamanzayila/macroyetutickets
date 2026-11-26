@@ -393,7 +393,7 @@ export const sendTicketEmail = createServerFn({ method: "POST" })
           method: "POST",
           headers: {
             Authorization: `Zoho-oauthtoken ${token}`,
-            "Content-Type": "application/pdf",
+            "Content-Type": "application/json",
             Accept: "application/json",
           },
           body: raw,
@@ -846,7 +846,7 @@ export const sendFreeOrderTicketEmail = createServerFn({ method: "POST" })
         const uploadUrl = `https://mail.zoho.${credentials.dataCenter}/api/accounts/${encodeURIComponent(credentials.accountId)}/messages/attachments?fileName=${encodeURIComponent(data.attachment.fileName)}&isInline=false`;
         const upload = await fetch(uploadUrl, {
           method: "POST",
-          headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/pdf", Accept: "application/json" },
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json", Accept: "application/json" },
           body: raw,
         });
         const uploaded = (await upload.json().catch(() => null)) as {
