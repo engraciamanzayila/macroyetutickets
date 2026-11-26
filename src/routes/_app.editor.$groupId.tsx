@@ -108,16 +108,25 @@ function Editor() {
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
         <div className="rounded-2xl border checker p-4 md:p-8 overflow-hidden">
           <div ref={stage} className="relative w-full select-none touch-none shadow-2xl" style={{ height: boxH || undefined }} onPointerMove={onMove} onPointerUp={onUp}>
-            {url && <img src={url} alt="Arte" className="absolute inset-0 h-full w-full" draggable={false} />}
-            <div
+            {url ? (
+              <img src={url} alt="Arte do ingresso" className="absolute inset-0 h-full w-full" draggable={false} />
+            ) : (
+              <div className="absolute inset-0 grid place-items-center rounded-lg border-2 border-dashed bg-card/90 p-6 text-center">
+                <div className="max-w-sm space-y-2">
+                  <p className="font-semibold">A arte deste ingresso ainda não está associada.</p>
+                  <p className="text-sm text-muted-foreground">Volta ao evento → Grupos → Flyers para divulgação e arte dos ingressos. Carrega a arte oficial e escolhe “Usar nos ingressos”. Depois regressa aqui para posicionar o QR.</p>
+                </div>
+              </div>
+            )}
+            {url && <div
               onPointerDown={onDown("qr")}
               className="absolute cursor-move outline-2 outline-dashed outline-primary"
               style={{ width: qrPx, height: qrPx, left: layout.qr.x * boxW - qrPx / 2, top: layout.qr.y * boxH - qrPx / 2 }}
             >
               {qrImg && <img src={qrImg} alt="QR" className="h-full w-full pointer-events-none" draggable={false} />}
               <span onPointerDown={onDown("resize")} className="absolute -right-2 -bottom-2 h-4 w-4 rounded-sm bg-primary cursor-nwse-resize" />
-            </div>
-            {layout.code.show && (
+            </div>}
+            {url && layout.code.show && (
               <div
                 onPointerDown={onDown("code")}
                 className="absolute cursor-move whitespace-nowrap outline-1 outline-dashed outline-primary/70 px-0.5 font-mono leading-none"
