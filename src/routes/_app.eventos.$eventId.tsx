@@ -575,9 +575,12 @@ function EventPage() {
                           </Button>
                         )}
                         {made === 0 && !g.art_path && (
-                          <Button size="sm" variant="outline" disabled={!event?.cover_url || creatingStandardArt === g.id} onClick={() => void createStandardArtForGroup(g)}>
-                            {creatingStandardArt === g.id ? "A criar arte…" : "Criar modelo padrão"}
-                          </Button>
+                          <div className="flex flex-col gap-1">
+                            <Button size="sm" variant="outline" disabled={!event?.cover_url || creatingStandardArt === g.id} title={!event?.cover_url ? "Carrega primeiro a capa principal do evento." : undefined} onClick={() => void createStandardArtForGroup(g)}>
+                              {creatingStandardArt === g.id ? "A criar arte…" : "Criar modelo padrão"}
+                            </Button>
+                            {!event?.cover_url && <span className="max-w-48 text-[11px] text-muted-foreground">Carrega primeiro a capa oficial do evento.</span>}
+                          </div>
                         )}
                         {made === 0 && g.art_path && (
                           <Button asChild variant="secondary" size="sm">
