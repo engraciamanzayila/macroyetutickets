@@ -7,7 +7,6 @@ import { StoreHeader } from '@/components/store/StoreHeader';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/lib/auth';
 import concert from '@/assets/events-concert.jpg';
 
 const eventsQuery = queryOptions({ queryKey: ['store-events'], queryFn: () => listStoreEvents() });
@@ -23,9 +22,11 @@ export const Route = createFileRoute('/')({
     { name: 'twitter:card', content: 'summary_large_image' },
   ] }), component: Home });
  
+const PUBLIC_STORE_ENABLED = true;
+
 function Home() {
-  const { isMember } = useAuth();
-  return isMember ? <Store /> : <ComingSoon />;
+  // A loja pública não depende de sessão nem de perfil interno.
+  return PUBLIC_STORE_ENABLED ? <Store /> : <ComingSoon />;
 }
 
 const rotatingMessages = [
