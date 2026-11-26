@@ -22,12 +22,12 @@ export const Route = createFileRoute("/_app/portaria")({
 });
 
 type CacheTicket = { s: string; g: string; at?: string | null };
-type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null; price: number }>; tickets: Record<string, CacheTicket> };
+type Cache = { savedAt: string; groups: Record<string, { name: string; type: string; recipient: string | null; price: number; valid_on: string | null }>; tickets: Record<string, CacheTicket> };
 type QueueItem = { event: string; code: string; at: string };
-type Result = { result: "ok" | "used" | "void" | "not_found"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean; tableCard?: boolean; capacity?: number | null };
+type Result = { result: "ok" | "used" | "void" | "not_found" | "wrong_day"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean; tableCard?: boolean; capacity?: number | null; valid_on?: string; scanned_on?: string };
 
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
-const cacheKey = (e: string) => `myt-cache-${e}`;
+const cacheKey = (e: string) => `myt-cache-${e}`;\nconst luandaDate = (date = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Luanda", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const accessInstruction = (result: Result) => {
   const label = `${result.group ?? ""} ${result.type ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const isTable = label.includes("mesa");
@@ -83,7 +83,7 @@ function Gate() {
     queryKey: ["gate-groups", eventId],
     enabled: !!eventId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("ticket_groups").select("id,name,ticket_type,recipient,price").eq("event_id", eventId);
+      const { data, error } = await supabase.from("ticket_groups").select("id,name,ticket_type,recipient,price,valid_on").eq("event_id", eventId);
       if (error) throw error;
       return data ?? [];
     },
@@ -117,7 +117,7 @@ function Gate() {
         fetchAllTickets({ event_id: eventId }, "code,status,group_id,used_at"),
       ]);
       const c: Cache = { savedAt: new Date().toISOString(), groups: {}, tickets: {} };
-      for (const g of groups ?? []) c.groups[g.id] = { name: g.name, type: g.ticket_type, recipient: g.recipient, price: Number(g.price ?? 0) };
+      for (const g of groups ?? []) c.groups[g.id] = { name: g.name, type: g.ticket_type, recipient: g.recipient, price: Number(g.price ?? 0), valid_on: g.valid_on ?? null };
       for (const t of tickets) c.tickets[t.code] = { s: t.status, g: t.group_id, at: t.used_at };
       // keep local offline entries that weren't synced yet
       for (const q of readQueue().filter((q) => q.event === eventId)) if (c.tickets[q.code]?.s === "valid") c.tickets[q.code] = { ...c.tickets[q.code], s: "used", at: q.at };
@@ -281,7 +281,7 @@ function Gate() {
     ? { ok: "CARTÃO DE MESA VÁLIDO", used: "CARTÃO DE MESA VÁLIDO", void: "CARTÃO DE MESA ANULADO", not_found: "CARTÃO DE MESA NÃO RECONHECIDO" }[result.result]
     : scanMode === "credential"
       ? { ok: "CREDENCIAL VÁLIDA", used: "CREDENCIAL VÁLIDA", void: "CREDENCIAL ANULADA", not_found: "CREDENCIAL NÃO RECONHECIDA" }[result.result]
-      : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO" }[result.result]) : "Pronto para ler";
+      : { ok: "ENTRADA LIBERADA", used: "JÁ FOI USADO", void: "INGRESSO ANULADO", not_found: "NÃO ENCONTRADO", wrong_day: "INGRESSO DE OUTRO DIA" }[result.result]) : "Pronto para ler";
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
@@ -315,7 +315,7 @@ function Gate() {
             <p className="mt-4 font-mono text-xl font-bold">{result.code}</p>
             {result.group && <p className="mt-2">{result.type} · {result.group}{result.recipient ? ` → ${result.recipient}` : ""}</p>}\n            {result.tableCard && result.capacity != null && <p className="mt-2 text-lg font-bold">Capacidade: {result.capacity} pessoas</p>}{scanMode === "ticket" && !result.tableCard && result.result === "ok" && <AccessGuidance result={result} />}
             {scanMode === "ticket" && result.used_at && <p className="mt-2">Entrada anterior: {new Date(result.used_at).toLocaleTimeString("pt-PT")}</p>}
-            {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
+            {result.result === "wrong_day" && <p className="mt-2 font-semibold">Válido apenas em {result.valid_on ? new Date(`${result.valid_on}T12:00:00`).toLocaleDateString("pt-PT") : "outra data"}. Hoje: {result.scanned_on ? new Date(`${result.scanned_on}T12:00:00`).toLocaleDateString("pt-PT") : "data diferente"}.</p>}\n            {result.offline && <p className="mt-2 text-sm">Validado sem internet</p>}
             <Button className="mt-8 h-14 w-full text-lg" variant="secondary" onClick={() => { resultOpen.current = false; setShowResult(false); }}>Continuar leitura</Button>
           </div>
         </div>
