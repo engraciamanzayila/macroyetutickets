@@ -61,10 +61,13 @@ export function ContractPanel({ event }: { event: Ev }) {
   }, [event.id, event.ticket_email_cc, event.ticket_email_extra_cc]);
 
   const locked = !!contract?.admin_signed_at;
+  const isAssignedPromoter = !isAdmin && !!session?.user.id && event.owner_id === session.user.id;
   const pct = exclusive ? COMMISSION_EXCLUSIVE : COMMISSION_STANDARD;
   const refresh = () => { qc.invalidateQueries({ queryKey: ["contract", event.id] }); qc.invalidateQueries({ queryKey: ["event", event.id] }); };
 
   const submit = async () => {
+    if (isAdmin) return toast.error("A Administração não assina como Promotor. Use a aprovação para efectuar a assinatura da plataforma.");
+    if (!isAssignedPromoter) return toast.error("Apenas o Promotor associado a este evento pode assinar esta parte do contrato.");
     if (!agree) return toast.error("Aceite os termos do contrato.");
     const missing = FIELDS.filter(([k]) => !form[k]?.trim() && k !== "iban" && k !== "capacity");
     if (missing.length) return toast.error("Preencha: " + missing.map((m) => m[1]).join(", "));
@@ -133,6 +136,7 @@ export function ContractPanel({ event }: { event: Ev }) {
           )}
         </div>
 
+        {!isAdmin ? (
         <div className="rounded-2xl border bg-card p-5 space-y-4">
           <h2 className="font-bold text-lg">Dados do promotor</h2>
           <div className="grid sm:grid-cols-2 gap-3">
@@ -152,6 +156,13 @@ export function ContractPanel({ event }: { event: Ev }) {
             </>
           )}
         </div>
+        ) : (
+          <div className="rounded-2xl border bg-card p-5 space-y-2">
+            <h2 className="font-bold text-lg">Assinatura da Administração</h2>
+            <p className="text-sm text-muted-foreground">A Administração não preenche nem substitui a assinatura do Promotor. A assinatura da plataforma é registada exclusivamente quando aprova o contrato e o evento.</p>
+            <Badge variant={contract?.admin_signed_at ? "default" : "secondary"}>{contract?.admin_signed_at ? "Assinado pela Administração" : "A aguardar aprovação e assinatura da Administração"}</Badge>
+          </div>
+        )}
       </div>
 
       <article className="rounded-2xl border bg-card p-6 text-sm leading-relaxed space-y-3 h-fit">
@@ -167,7 +178,7 @@ export function ContractPanel({ event }: { event: Ev }) {
         <p><b>Cláusula 7ª — Responsabilidade.</b> A realização do evento, licenças e eventuais reembolsos são da responsabilidade do segundo outorgante.</p>
         <div className="grid grid-cols-2 gap-4 pt-4 border-t">
           <div><p className="text-xs text-muted-foreground">Pela plataforma</p><p className="font-serif italic text-base">{contract?.admin_signed_name ?? "—"}</p><p className="text-xs text-muted-foreground">{contract?.admin_signed_at ? new Date(contract.admin_signed_at).toLocaleString("pt-PT") : "Por assinar"}</p></div>
-          <div><p className="text-xs text-muted-foreground">Pelo promotor</p><p className="font-serif italic text-base">{contract?.signed_name ?? (sign || "—")}</p><p className="text-xs text-muted-foreground">{contract ? new Date(contract.signed_at).toLocaleString("pt-PT") : "Por assinar"}</p></div>
+          <div><p className="text-xs text-muted-foreground">Pelo promotor</p><p className="font-serif italic text-base">{contract?.signed_name ?? "—"}</p><p className="text-xs text-muted-foreground">{contract ? new Date(contract.signed_at).toLocaleString("pt-PT") : "Por assinar"}</p></div>
         </div>
         <Button variant="secondary" size="sm" onClick={() => window.print()}>Imprimir / guardar PDF</Button>
       </article>
