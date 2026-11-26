@@ -106,7 +106,7 @@ export function EventAssignmentPanel({ eventId, ownerId, createdBy, assignedAt }
         </div>
         <div className="rounded-lg bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground">Promotor responsável actual</p>
-          {owner && owner.id !== createdBy ? (
+          {owner && owner.roles.includes("promoter") && !owner.roles.includes("admin") ? (
             <>
               <p className="font-medium">{owner.full_name || "Promotor"}</p>
               <p className="text-sm text-muted-foreground">{owner.email}</p>
@@ -143,7 +143,7 @@ export function EventAssignmentPanel({ eventId, ownerId, createdBy, assignedAt }
       </div>
 
       <Button onClick={() => void assign()} disabled={!selectedId || busy}>
-        {busy ? "A associar…" : owner && owner.id !== createdBy ? "Alterar responsável antes da aprovação" : "Associar responsável ao evento"}
+        {busy ? "A associar…" : owner && owner.roles.includes("promoter") && !owner.roles.includes("admin") ? "Alterar responsável antes da aprovação" : "Associar responsável ao evento"}
       </Button>
       <p className="text-xs text-muted-foreground">Contas de Administração, Portaria e Operações e Apoio não podem ser associadas como Promotor. A conta de Administrador que criou o evento mantém-se registada como criadora e continua a ter acesso administrativo.</p>
     </section>
