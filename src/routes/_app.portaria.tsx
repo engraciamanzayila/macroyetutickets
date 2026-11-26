@@ -27,7 +27,8 @@ type QueueItem = { event: string; code: string; at: string };
 type Result = { result: "ok" | "used" | "void" | "not_found" | "wrong_day"; code: string; group?: string; type?: string; recipient?: string | null; price?: number; used_at?: string | null; offline?: boolean; tableCard?: boolean; capacity?: number | null; valid_on?: string; scanned_on?: string };
 
 const formatReference = (value: string) => { const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11); return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7, 11)].filter(Boolean).join("-"); };
-const cacheKey = (e: string) => `myt-cache-${e}`;\nconst luandaDate = (date = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Luanda", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const cacheKey = (e: string) => `myt-cache-${e}`;
+const luandaDate = (date = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Luanda", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const accessInstruction = (result: Result) => {
   const label = `${result.group ?? ""} ${result.type ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const isTable = label.includes("mesa");
