@@ -118,7 +118,7 @@ export function FreeTransitPanel({ eventId, eventName }: { eventId: string; even
       pdf.rect(x + 1, y + 1, cardW - 2, cardH - 2);
       pdf.setLineDashPattern([], 0);
     }
-    const safeEventName = eventName.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 70) || "EVENTO";\n    pdf.save(`${safeEventName}-${passes.length}-PASSES-ESTACIONAMENTO-A6.pdf`);
+    const safeEventName = eventName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 70) || "EVENTO";\n    pdf.save(`${safeEventName}-${passes.length}-PASSES-ESTACIONAMENTO-A6.pdf`);
   };
 
   return <section className="space-y-5">
