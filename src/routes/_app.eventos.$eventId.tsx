@@ -36,6 +36,7 @@ import { EventAssignmentPanel } from "@/components/event/EventAssignmentPanel";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL } from "@/lib/company";
 import { kz } from "@/lib/payments";
+import { createStandardTicketArt, STANDARD_TICKET_LAYOUT } from "@/lib/render";
 
 export const Route = createFileRoute("/_app/eventos/$eventId")({
   head: () => ({
@@ -116,6 +117,7 @@ function EventPage() {
   const [additionalGroupId, setAdditionalGroupId] = useState("");
   const [additionalQuantity, setAdditionalQuantity] = useState("1");
   const [addingTickets, setAddingTickets] = useState(false);
+  const [creatingStandardArt, setCreatingStandardArt] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [preparingShare, setPreparingShare] = useState(false);
   const [formats, setFormats] = useState<OutputFormat[]>(["pdf"]);
@@ -128,6 +130,44 @@ function EventPage() {
   );
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["groups", eventId] });
+
+  const createStandardArtForGroup = async (group: Group) => {
+    if (!event?.cover_url) return toast.error("Carrega primeiro a arte oficial em Flyers para divulgação → Capa principal do evento / loja.");
+    if (group.art_path) return toast.error("Este grupo já tem uma arte associada.");
+    if (!confirm(`Criar o modelo padrão MY Tickets para "${group.name}"? A arte oficial ficará num painel próprio e o QR terá uma área branca separada.`)) return;
+    setCreatingStandardArt(group.id);
+    let path: string | null = null;
+    try {
+      const art = await createStandardTicketArt({
+        eventName: event.name,
+        eventDate: event.event_date,
+        eventTime: event.event_time,
+        venue: event.venue,
+        city: event.city,
+        category: event.category,
+        coverUrl: event.cover_url,
+        groupName: group.name,
+        ticketType: group.ticket_type,
+        price: Number(group.price ?? 0),
+      });
+      path = `${eventId}/standard-${group.id}-${crypto.randomUUID()}.png`;
+      const { error: uploadError } = await supabase.storage.from("arts").upload(path, art, { contentType: "image/png", upsert: false });
+      if (uploadError) throw uploadError;
+      const { error } = await supabase.from("ticket_groups").update({
+        art_path: path, art_width: 900, art_height: 1600,
+        width_cm: 9, height_cm: 16, layout: STANDARD_TICKET_LAYOUT as never,
+      }).eq("id", group.id).eq("event_id", eventId);
+      if (error) throw error;
+      toast.success(`Modelo padrão criado para "${group.name}". Abre agora o Editor para posicionar o QR.`);
+      await qc.invalidateQueries({ queryKey: ["groups", eventId] });
+      await qc.invalidateQueries({ queryKey: ["group", group.id] });
+    } catch (error) {
+      if (path) await supabase.storage.from("arts").remove([path]);
+      toast.error("Não foi possível criar o modelo padrão: " + (error as Error).message);
+    } finally {
+      setCreatingStandardArt(null);
+    }
+  };
 
   const updateGroup = async (id: string, patch: Partial<Group>) => {
     const { error } = await supabase
@@ -534,7 +574,12 @@ function EventPage() {
                             Gerar novos ingressos
                           </Button>
                         )}
-                        {made === 0 && (
+                        {made === 0 && !g.art_path && (
+                          <Button size="sm" variant="outline" disabled={!event?.cover_url || creatingStandardArt === g.id} onClick={() => void createStandardArtForGroup(g)}>
+                            {creatingStandardArt === g.id ? "A criar arte…" : "Criar modelo padrão"}
+                          </Button>
+                        )}
+                        {made === 0 && g.art_path && (
                           <Button asChild variant="secondary" size="sm">
                             <Link to="/editor/$groupId" params={{ groupId: g.id }}>
                               <PenTool className="h-4 w-4" /> Editor
