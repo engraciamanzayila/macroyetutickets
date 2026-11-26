@@ -201,6 +201,8 @@ export type Database = {
           id: string
           name: string
           owner_id: string | null
+          promoter_assigned_at: string | null
+          promoter_assigned_by: string | null
           payment_info: string | null
           published: boolean
           registration_fields: Json
@@ -227,6 +229,8 @@ export type Database = {
           id?: string
           name: string
           owner_id?: string | null
+          promoter_assigned_at?: string | null
+          promoter_assigned_by?: string | null
           payment_info?: string | null
           published?: boolean
           registration_fields?: Json
@@ -253,6 +257,8 @@ export type Database = {
           id?: string
           name?: string
           owner_id?: string | null
+          promoter_assigned_at?: string | null
+          promoter_assigned_by?: string | null
           payment_info?: string | null
           published?: boolean
           sheet_id?: string | null
