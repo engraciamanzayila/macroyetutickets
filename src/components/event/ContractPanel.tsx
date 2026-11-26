@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, ExternalLink, Store } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { APPROVAL_LABEL, COMMISSION_EXCLUSIVE, COMMISSION_STANDARD, COMPANY } from "@/lib/company";
@@ -136,28 +135,6 @@ export function ContractPanel({ event }: { event: Ev }) {
             </div>
             <Button type="button" size="sm" variant="secondary" onClick={() => void saveEmailCopies()}>Guardar cópias de e-mail</Button>
           </div>
-          {event.approval_status === "approved" ? (
-            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-              <Button variant={event.published ? "secondary" : "default"} onClick={() => void setPublished(!event.published)}>
-                <Store className="h-4 w-4" /> {event.published ? "Retirar da loja" : "Publicar na loja"}
-              </Button>
-              {event.published && event.slug && (
-                <>
-                  <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={`/e/${event.slug}`} target="_blank" rel="noreferrer">
-                    Abrir página pública <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                  <Button type="button" size="sm" variant="outline" onClick={() => {
-                    const url = `${window.location.origin}/e/${event.slug}`;
-                    void navigator.clipboard.writeText(url).then(() => toast.success("Link directo da loja copiado."));
-                  }}>
-                    <Copy className="h-4 w-4" /> Copiar link da loja
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : (
-            <p className="border-t pt-3 text-xs text-muted-foreground">A publicação na loja fica disponível após a aprovação da administração.</p>
-          )}
           {isAdmin && (
             <div className="space-y-3 border-t pt-3"><Textarea placeholder="Nota para o promotor (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
               {!assignedPromoterRole && <p className="text-xs text-amber-700">Antes de aprovar, associe uma conta de Promotor no separador Responsável. O Administrador não pode ser o responsável operacional.</p>}
