@@ -76,6 +76,7 @@ function CartPage() {
   const overStock = resolved.some(
     ({ item, group }) => group && item.quantity > Math.min(20, group.available),
   );
+  const needsInstitution = resolved.some(({ eventData }) => Boolean((eventData?.event.registration_fields as { institution?: boolean } | undefined)?.institution));
   const total = resolved.reduce(
     (sum, { item, group }) => sum + (group ? group.price * item.quantity : 0),
     0,
@@ -118,6 +119,7 @@ function CartPage() {
         p_email: String(form.get("email") || ""),
         p_method: String(form.get("method")),
         p_delivery: delivery,
+        p_institution: String(form.get("institution") || ""),
       });
       if (error) throw error;
       const result = data as unknown as { orders: CheckoutOrder[] };
@@ -316,6 +318,11 @@ function CartPage() {
                 <Label htmlFor="cart-buyer-phone">Telefone</Label>
                 <Input id="cart-buyer-phone" name="phone" type="tel" required minLength={6} />
               </div>
+              <div className="space-y-2">
+              {needsInstitution && <div className="space-y-2">
+                <Label htmlFor="cart-buyer-institution">Instituição de ensino / organização (opcional)</Label>
+                <Input id="cart-buyer-institution" name="institution" maxLength={180} />
+              </div>}
               <div className="space-y-2">
                 <Label htmlFor="cart-buyer-email">E-mail</Label>
                 <Input
