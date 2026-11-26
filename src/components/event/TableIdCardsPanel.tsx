@@ -8,7 +8,6 @@ import type { Group } from "@/lib/generate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { MY_TICKETS_OFFICIAL_LOGO } from "@/assets/my-tickets-official-logo";
 
 type TableCard = {
   id: string;
@@ -299,9 +298,10 @@ export function TableIdCardsPanel({
         pdf.line(x - 1, y, x + mark, y); pdf.line(x + cardW - mark, y, x + cardW + 1, y);
         pdf.line(x - 1, y + cardH, x + mark, y + cardH); pdf.line(x + cardW - mark, y + cardH, x + cardW + 1, y + cardH);
 
-        pdf.addImage(MY_TICKETS_OFFICIAL_LOGO, "JPEG", x + 5, y + 1, 24, 9.72);
-        pdf.setTextColor(35, 35, 35); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.5);
-        pdf.text(eventName || "Evento", x + 5, y + 12, { maxWidth: cardW - 10 });
+        pdf.setTextColor(35, 35, 35); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+        pdf.text("MY TICKETS", x + 5, y + 6);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.5);
+        pdf.text(eventName || "Evento", x + 5, y + 10, { maxWidth: cardW - 10 });
         pdf.setFont("helvetica", "bold"); pdf.setFontSize(19);
         pdf.text(physicalLabel, x + 5, y + 23);
         pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
