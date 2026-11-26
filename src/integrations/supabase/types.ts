@@ -368,7 +368,6 @@ export type Database = {
           buyer_email: string | null
           buyer_name: string
           buyer_institution: string | null
-          buyer_institution: string | null
           buyer_phone: string
           buyer_user_id: string | null
           created_at: string
@@ -386,6 +385,7 @@ export type Database = {
           access_token?: string
           buyer_email?: string | null
           buyer_name: string
+          buyer_institution?: string | null
           buyer_phone: string
           buyer_user_id?: string | null
           created_at?: string
@@ -751,6 +751,7 @@ export type Database = {
           p_email: string
           p_event: string
           p_items: Json
+          p_institution: string
           p_method: string
           p_name: string
           p_phone: string
