@@ -49,4 +49,4 @@ In Zoho API Console, create the Self Client code with this scope:
 ZohoMail.accounts.READ,ZohoMail.messages.CREATE
 ```
 
-Then open `E-mail Zoho`, select the Zoho data center, and enter the Client ID, Client Secret, and temporary code. The page verifies that the OAuth token can access `myticket@macroyeto.com`. The Client Secret and code are not retained by the browser. Digital ticket e-mails are sent from the server through Zoho Mail; the promoter account e-mail is CC by default, with per-event CC overrides/additional addresses.
+Then open `E-mail Zoho`, select the Zoho data center, and enter the Client ID, Client Secret, and temporary code. The page verifies that the OAuth token can access `mytickets@macroyetu.com`. The Client Secret and code are not retained by the browser. Digital ticket e-mails are sent from the server through Zoho Mail; the promoter account e-mail is CC by default, with per-event CC overrides/additional addresses.
