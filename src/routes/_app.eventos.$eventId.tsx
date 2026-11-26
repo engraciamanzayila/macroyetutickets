@@ -323,7 +323,7 @@ function EventPage() {
           {isAdmin && <TabsTrigger value="responsavel">Responsável</TabsTrigger>}
         </TabsList>
         <TabsContent value="livre-transito" className="mt-6">
-          <FreeTransitPanel eventId={eventId} eventName={event?.name ?? "THIS IS HOUSE MUSIC"} />
+          <FreeTransitPanel eventId={eventId} eventName={event?.name ?? "Evento"} eventCoverUrl={event?.cover_url ?? null} />
         </TabsContent>
         <TabsContent value="cartoes-id" className="mt-6">
           <TableIdCardsPanel eventId={eventId} eventName={event?.name ?? "Evento"} groups={groups} />
