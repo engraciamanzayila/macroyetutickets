@@ -395,7 +395,7 @@ function EventPage() {
                           }}
                           className="h-8 font-semibold"
                         />
-                        <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
+                        {isAdmin && <label className="flex items-center gap-2 text-xs text-muted-foreground">Válido em <Input type="date" value={g.valid_on ?? ""} onChange={(e) => updateGroup(g.id, { valid_on: e.target.value || null })} className="h-7 w-40 text-xs" aria-label={`Data de validade do grupo ${g.name}`} /></label>}\n                        <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
                           {made > 0 && !isAdmin ? (
                             <Badge
                               variant="secondary"
