@@ -1,11 +1,16 @@
-import { MY_TICKETS_OFFICIAL_LOGO } from "@/assets/my-tickets-official-logo";
+import { Ticket } from "lucide-react";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <img
-      src={MY_TICKETS_OFFICIAL_LOGO}
-      alt="MY Tickets.ao — Bilhetes, Credenciais e Eventos"
-      className={compact ? "h-9 w-auto max-w-[92px] object-contain" : "h-12 w-auto max-w-[190px] object-contain"}
-    />
+    <div className="flex items-center gap-2">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-primary-foreground">
+        <Ticket className="h-5 w-5" />
+      </span>
+      {!compact && (
+        <span className="font-display font-extrabold tracking-tight leading-none">
+          MY <span className="text-primary">Tickets</span>
+        </span>
+      )}
+    </div>
   );
 }
