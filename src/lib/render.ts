@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { MY_TICKETS_OFFICIAL_LOGO } from "@/assets/my-tickets-official-logo";
 
 export type Layout = {
   qr: { x: number; y: number; w: number; dark: string; light: string };
@@ -61,6 +62,9 @@ export async function createStandardTicketArt(details: StandardTicketDetails) {
   canvas.height = 1600;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível preparar o modelo do ingresso.");
+  const brandLogo = new Image();
+  brandLogo.src = MY_TICKETS_OFFICIAL_LOGO;
+  await brandLogo.decode();
 
   // Clean, light ticket stock. The event artwork is contained in its own
   // reserved panel; it is never stretched across the ticket background.
@@ -74,14 +78,12 @@ export async function createStandardTicketArt(details: StandardTicketDetails) {
 
   ctx.fillStyle = "#142d59";
   ctx.fillRect(28, 28, 844, 94);
-  ctx.fillStyle = "#f3bd42";
-  ctx.fillRect(64, 62, 34, 34);
-  ctx.strokeStyle = "#142d59";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(72, 70, 18, 18);
+  // Official MY Tickets.ao logo, not a text/icon recreation.
   ctx.fillStyle = "#ffffff";
-  ctx.font = "800 36px sans-serif";
-  ctx.fillText("MY Tickets", 118, 88);
+  ctx.beginPath();
+  ctx.roundRect(52, 38, 228, 74, 8);
+  ctx.fill();
+  ctx.drawImage(brandLogo, 58, 41, 216, 68);
   ctx.textAlign = "right";
   ctx.fillStyle = "#dbe6f7";
   ctx.font = "600 17px sans-serif";
@@ -177,7 +179,7 @@ export async function createStandardTicketArt(details: StandardTicketDetails) {
   ctx.font = "500 20px sans-serif";
   ctx.fillText("Ingresso pessoal · não partilhe o QR Code", 64, 1518);
   ctx.textAlign = "right";
-  ctx.fillText("MY Tickets · Acesso seguro", 836, 1518);
+  ctx.drawImage(brandLogo, 704, 1470, 132, 53);
   ctx.textAlign = "left";
 
   return new Promise<Blob>((resolve, reject) => {
